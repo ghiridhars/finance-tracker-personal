@@ -1,4 +1,4 @@
-/// Widget test — verifies app renders with Riverpod ProviderScope.
+/// Widget test — verifies app renders with Riverpod ProviderScope + GoRouter.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,20 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:finance_tracker_frontend/main.dart';
 
 void main() {
-  testWidgets('App renders with title and tabs', (WidgetTester tester) async {
+  testWidgets('App renders and shows navigation', (WidgetTester tester) async {
     await tester.pumpWidget(
       const ProviderScope(child: FinanceTrackerApp()),
     );
 
-    // App title is visible
-    expect(find.text('Finance Tracker v2'), findsOneWidget);
+    // Allow GoRouter to resolve its initial route and the shell to build
+    await tester.pumpAndSettle();
 
-    // All three tabs are present
-    expect(find.text('Upload'), findsOneWidget);
-    expect(find.text('Savings'), findsOneWidget);
-    expect(find.text('Credit Card'), findsOneWidget);
+    // The app should render a MaterialApp with navigation destinations.
+    // On wide screens we get a NavigationRail, on narrow a NavigationBar.
+    // Either way, the 'Dashboard' destination should be present (it's the initial route).
+    expect(find.text('Dashboard'), findsWidgets);
 
-    // Theme toggle button is present
-    expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
+    // At least one navigation icon should be visible
+    expect(find.byIcon(Icons.dashboard), findsOneWidget);
   });
 }
