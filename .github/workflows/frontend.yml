@@ -14,6 +14,9 @@ on:
       - ".github/workflows/frontend.yml"
   workflow_dispatch: # allow manual trigger
 
+env:
+  FLUTTER_VERSION: "3.29.1"
+
 jobs:
   analyze-and-build:
     name: Analyze & Build Web
@@ -26,11 +29,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosushi/flutter-action@v2
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
         with:
-          channel: stable
-          cache: true
+          path: /opt/flutter
+          key: flutter-${{ env.FLUTTER_VERSION }}-linux
+          restore-keys: flutter-
+
+      - name: Install Flutter SDK
+        run: |
+          if [ ! -d "/opt/flutter" ]; then
+            git clone https://github.com/flutter/flutter.git /opt/flutter -b stable --depth 1
+          fi
+          echo "/opt/flutter/bin" >> $GITHUB_PATH
+
+      - name: Verify Flutter
+        run: |
+          flutter --version
+          flutter doctor -v
+        working-directory: .
 
       - name: Install dependencies
         run: flutter pub get
@@ -54,6 +71,7 @@ jobs:
           retention-days: 14
 
   # ── Optional: Deploy to GitHub Pages ──────────────────────
+  # To enable: repo Settings → Pages → Source → GitHub Actions
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: analyze-and-build
@@ -63,10 +81,6 @@ jobs:
     permissions:
       pages: write
       id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Download web build artifact
