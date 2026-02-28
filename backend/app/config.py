@@ -1,0 +1,59 @@
+"""
+Application configuration using pydantic-settings.
+Replaces Spring Boot's application.yml.
+"""
+from pathlib import Path
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # Application
+    app_name: str = "Finance Tracker v2"
+    debug: bool = False
+
+    # Server
+    host: str = "0.0.0.0"
+    port: int = 8080
+
+    # Database - SQLite (replaces H2)
+    database_url: str = "sqlite:///./data/financial-tracker.db"
+
+    # File upload
+    max_upload_size_mb: int = 10
+
+    # CORS - FIX: explicit CORS config (was missing in Java version)
+    # In development, allow all localhost ports for Flutter Web dev server
+    cors_origins: list[str] = [
+        "http://localhost:5173",   # Vite dev
+        "http://localhost:8080",   # Same-origin
+        "http://localhost:3000",   # Flutter --web-port 3000
+        "http://localhost:8081",   # Alternative
+        "http://localhost:49430",  # Random Flutter debug port
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:3000",
+    ]
+
+    # Data directory
+    data_dir: str = "./data"
+
+    # LLM fallback parser
+    llm_provider: str = "gemini"  # "gemini" | "ollama" | "none"
+    gemini_api_key: str = ""  # Set via GEMINI_API_KEY env var
+    gemini_model: str = "gemini-2.0-flash"
+    ollama_model: str = "llama3.2"
+    ollama_host: str = "http://localhost:11434"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
+
+
+settings = Settings()
+
+# Ensure data directory exists
+Path(settings.data_dir).mkdir(parents=True, exist_ok=True)

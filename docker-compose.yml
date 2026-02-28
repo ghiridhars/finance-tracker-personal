@@ -1,0 +1,49 @@
+# ── Docker Compose — Finance Tracker v2 ─────────────────────────
+# Replaces: Original docker-compose.yml (Java + React)
+#
+# Usage:
+#   docker-compose up --build        # Build and start both services
+#   docker-compose up -d             # Detached mode
+#   docker-compose down -v           # Stop and remove volumes
+#
+# Services:
+#   backend  — Python FastAPI on port 8080
+#   frontend — Flutter Web on nginx, port 3000
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: finance-tracker-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - finance-data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/finance_tracker.db
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: finance-tracker-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  finance-data:
+    driver: local
