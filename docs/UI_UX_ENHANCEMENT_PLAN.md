@@ -180,7 +180,7 @@ Make the app feel professional and delightful.
 **Why:** New users see blank screens. Empty states guide them.
 
 **Tasks:**
-- [ ] Savings tab (no data): illustration + "Upload your first HDFC savings statement to see transactions here" + upload button
+- [ ] Savings tab (no data): illustration + "Upload your first bank statement to see transactions here" + upload button
 - [ ] Credit card tab (no data): Same pattern with credit card context
 - [ ] Dashboard (no data): Onboarding card with step-by-step guide
 - [ ] Search with no results: "No transactions match your search" with suggestion to clear filters

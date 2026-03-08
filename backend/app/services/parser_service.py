@@ -19,7 +19,7 @@ from pathlib import Path
 from app.config import settings
 from app.models.enums import BankType, StatementType
 from app.parsers.base_parser import ParseException, ParserProfile
-from app.parsers.parser_registry import get_parser, has_parser
+from app.parsers.generic_pdf_parser import GenericPdfParser
 from app.schemas.credit_card import CreditCardStatementSchema
 from app.schemas.savings_account import SavingsAccountStatementSchema
 
@@ -49,70 +49,46 @@ class ParserService:
         statement_type: StatementType,
     ) -> dict:
         """
-        Unified parse entry point. Dispatches to the correct parser via registry.
-        Falls back to generic LLM if no regex parser is registered.
+        Unified parse entry point. Uses the generic PDF parser for all banks.
+        Falls back to LLM if generic parsing fails and LLM is enabled.
 
         Returns a dict with:
           - success: bool
           - statement: parsed schema (or None)
           - rawText: raw PDF text
-          - parser: "regex" | "llm"
+          - parser: "generic" | "llm"
           - error: error message (if failed)
         """
         self._validate_upload(file_content)
         tmp_path = self._save_temp_file(file_content, prefix=f"{bank.value.lower()}-upload-")
 
         try:
-            # Extract raw text for LLM fallback / debug
+            parser = GenericPdfParser()
             raw_text = ""
-            parser = get_parser(bank, statement_type)
 
-            if parser:
-                try:
-                    raw_text = parser.extract_raw_text(tmp_path)
-                except Exception:
-                    pass
+            try:
+                raw_text = parser.extract_raw_text(tmp_path)
+            except Exception:
+                pass
 
-            response: dict = {}
+            # Step 1: Generic PDF parser (table extraction → text fallback)
+            result = parser.parse(tmp_path, statement_type)
 
-            # Step 1: Try regex parser from registry
-            if parser:
-                profile = self._load_parser_profile(f"{bank.value.lower()}-profile.yml")
-                if profile:
-                    result = parser.parse_by_area(tmp_path, profile)
-                else:
-                    result = parser.parse(tmp_path)
+            if result.success and result.result:
+                txn_count = len(getattr(result.result, "transactions", []))
+                if txn_count > 0:
+                    logger.info(f"Generic parser succeeded: {txn_count} transactions")
+                    return {
+                        "success": True,
+                        "statement": result.result,
+                        "rawText": raw_text,
+                        "parser": "generic",
+                    }
 
-                if result.success and result.result:
-                    txn_count = len(getattr(result.result, "transactions", []))
-                    if txn_count > 0:
-                        logger.info(f"Regex parser succeeded: {txn_count} transactions")
-                        return {
-                            "success": True,
-                            "statement": result.result,
-                            "rawText": raw_text,
-                            "parser": "regex",
-                        }
+            generic_error = result.error_message or "0 transactions found"
+            logger.warning(f"Generic parser insufficient ({generic_error}), trying LLM fallback...")
 
-                regex_error = result.error_message or "0 transactions found"
-                logger.warning(f"Regex parser insufficient ({regex_error}), trying LLM fallback...")
-            else:
-                logger.info(
-                    f"No regex parser for {bank.value}/{statement_type.value}, "
-                    f"using LLM fallback..."
-                )
-                # Extract raw text via pdfplumber directly
-                if not raw_text:
-                    try:
-                        import pdfplumber
-                        with pdfplumber.open(tmp_path) as pdf:
-                            raw_text = "\n".join(
-                                page.extract_text() or "" for page in pdf.pages
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to extract raw text: {e}")
-
-            # Step 2: LLM fallback (works for any bank)
+            # Step 2: LLM fallback (if enabled)
             if settings.llm_provider.lower() != "none" and raw_text:
                 try:
                     from app.parsers.llm_parser import parse_with_llm_generic
@@ -132,60 +108,15 @@ class ParserService:
                 except Exception as e:
                     logger.warning(f"LLM fallback error: {e}")
 
-            # Both failed
-            if parser and not result.success:
-                return {
-                    "success": False,
-                    "error": result.error_message,
-                    "statement": getattr(result, "result", None),
-                    "rawText": raw_text,
-                    "parser": "regex",
-                }
-
             return {
                 "success": False,
-                "error": f"No parser available for {bank.value}/{statement_type.value} "
-                         f"and LLM fallback failed or is disabled",
+                "error": f"Failed to parse {bank.value}/{statement_type.value} statement: {generic_error}",
                 "rawText": raw_text,
                 "parser": "none",
             }
 
         finally:
             Path(tmp_path).unlink(missing_ok=True)
-
-    # ── Legacy entry points (backward compatible) ─────────────
-
-    async def parse_hdfc_credit_card(
-        self, file_content: bytes, filename: str
-    ) -> CreditCardStatementSchema:
-        """Parse HDFC credit card PDF. Legacy method — delegates to unified parser."""
-        result = await self.parse_statement(
-            file_content, filename, BankType.HDFC, StatementType.CREDIT_CARD
-        )
-        statement = result.get("statement")
-        if statement is None:
-            raise ParseException(result.get("error", "Parse failed"))
-        return statement
-
-    async def parse_hdfc_credit_card_debug(
-        self, file_content: bytes, filename: str
-    ) -> dict:
-        """Parse with debug info. Legacy method — delegates to unified parser."""
-        return await self.parse_statement(
-            file_content, filename, BankType.HDFC, StatementType.CREDIT_CARD
-        )
-
-    async def parse_hdfc_savings(
-        self, file_content: bytes, filename: str
-    ) -> SavingsAccountStatementSchema:
-        """Parse HDFC savings PDF. Legacy method — delegates to unified parser."""
-        result = await self.parse_statement(
-            file_content, filename, BankType.HDFC, StatementType.SAVINGS
-        )
-        statement = result.get("statement")
-        if statement is None:
-            raise ParseException(result.get("error", "Parse failed"))
-        return statement
 
     # ── Utilities ─────────────────────────────────────────────
 

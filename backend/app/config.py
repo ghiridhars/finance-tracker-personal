@@ -37,12 +37,23 @@ class Settings(BaseSettings):
     # Data directory
     data_dir: str = "./data"
 
+    # JWT Authentication
+    jwt_secret: str = "CHANGE-ME-set-JWT_SECRET-env-var"  # Set via JWT_SECRET env var
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_minutes: int = 1440  # 24 hours
+
     # LLM fallback parser
     llm_provider: str = "gemini"  # "gemini" | "ollama" | "none"
     gemini_api_key: str = ""  # Set via GEMINI_API_KEY env var
     gemini_model: str = "gemini-2.0-flash"
     ollama_model: str = "llama3.2"
     ollama_host: str = "http://localhost:11434"
+
+    # Google Drive sync
+    gdrive_enabled: bool = False
+    gdrive_credentials_file: str = ""  # Path to service account JSON key file
+    gdrive_folder_id: str = ""  # Google Drive folder ID to watch
+    gdrive_poll_interval_minutes: int = 60  # Auto-sync interval (0 = disabled)
 
     class Config:
         env_file = ".env"

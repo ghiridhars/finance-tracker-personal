@@ -11,13 +11,15 @@ class TransactionType(str, enum.Enum):
 
 
 class BankType(str, enum.Enum):
-    """Supported banks. Extensible — add new banks here, then register a parser."""
+    """Supported banks. The generic parser handles any bank."""
     HDFC = "HDFC"
     ICICI = "ICICI"
     SBI = "SBI"
     AXIS = "AXIS"
     KOTAK = "KOTAK"
     YES_BANK = "YES_BANK"
+    BOB = "BOB"
+    FEDERAL_BANK = "FEDERAL_BANK"
     OTHER = "OTHER"
 
     @classmethod

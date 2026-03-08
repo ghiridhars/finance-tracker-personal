@@ -55,7 +55,7 @@ def list_supported_banks():
 @router.post("/statements/upload")
 async def upload_statement_v2(
     file: UploadFile = File(...),
-    bank: str = Query(..., description="Bank name (e.g., HDFC, ICICI, SBI)"),
+    bank: str = Query(..., description="Bank name (e.g., HDFC, BOB, FEDERAL_BANK)"),
     type: str = Query(
         ...,
         alias="type",
@@ -67,12 +67,12 @@ async def upload_statement_v2(
     """
     Unified statement upload endpoint.
 
-    Accepts any bank + statement type combination:
-    - If a regex parser is registered → uses fast offline parsing
-    - Otherwise → falls back to LLM-based parsing (if enabled)
+    Accepts any bank + statement type combination.
+    Uses the generic PDF parser (table extraction + text fallback)
+    with optional LLM fallback if enabled.
 
     Query params:
-      - bank: HDFC, ICICI, SBI, AXIS, KOTAK, YES_BANK, OTHER
+      - bank: HDFC, ICICI, SBI, AXIS, KOTAK, YES_BANK, BOB, FEDERAL_BANK, OTHER
       - type: SAVINGS, CREDIT_CARD
       - save: true/false (default: true)
     """
@@ -171,7 +171,7 @@ def _serialize_statement(statement) -> dict:
 @router.post("/statements/upload-csv")
 async def upload_csv_statement(
     file: UploadFile = File(...),
-    bank: str = Query(..., description="Bank name (e.g., HDFC, ICICI, SBI)"),
+    bank: str = Query(..., description="Bank name (e.g., HDFC, BOB, FEDERAL_BANK)"),
     type: str = Query(
         ...,
         alias="type",

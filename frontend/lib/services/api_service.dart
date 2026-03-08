@@ -20,6 +20,32 @@ class ApiService {
   // Base URL — configurable for dev/prod
   static const String baseUrl = 'http://127.0.0.1:8080';
 
+  // JWT token — set after login
+  static String? _authToken;
+
+  /// Set the auth token for all subsequent requests.
+  static void setAuthToken(String? token) {
+    _authToken = token;
+  }
+
+  /// Standard headers including auth token.
+  static Map<String, String> get _headers {
+    final h = <String, String>{};
+    if (_authToken != null) {
+      h['Authorization'] = 'Bearer $_authToken';
+    }
+    return h;
+  }
+
+  /// Standard headers including auth token and JSON content type.
+  static Map<String, String> get _jsonHeaders {
+    final h = <String, String>{'Content-Type': 'application/json'};
+    if (_authToken != null) {
+      h['Authorization'] = 'Bearer $_authToken';
+    }
+    return h;
+  }
+
   /// Get savings transactions (default: last 30 days).
   /// Replaces: statementService.getTransactions(from?, to?) in React
   static Future<List<SavingsTransaction>> getSavingsTransactions({
@@ -33,7 +59,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/api/transactions/savings')
         .replace(queryParameters: params.isNotEmpty ? params : null);
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
@@ -56,7 +82,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/api/transactions/credit-card')
         .replace(queryParameters: params.isNotEmpty ? params : null);
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
@@ -68,7 +94,7 @@ class ApiService {
 
   /// Health check — verifies backend is reachable.
   static Future<Map<String, dynamic>> healthCheck() async {
-    final response = await http.get(Uri.parse('$baseUrl/health'));
+    final response = await http.get(Uri.parse('$baseUrl/health'), headers: _headers);
     return jsonDecode(response.body);
   }
 
@@ -99,6 +125,9 @@ class ApiService {
       '?bank=$bank&type=$statementType&save=$save',
     );
     final request = http.MultipartRequest('POST', uri);
+    if (_authToken != null) {
+      request.headers['Authorization'] = 'Bearer $_authToken';
+    }
     request.files.add(http.MultipartFile.fromBytes(
       'file',
       fileBytes,
@@ -130,6 +159,9 @@ class ApiService {
       '?bank=$bank&type=$statementType&save=$save',
     );
     final request = http.MultipartRequest('POST', uri);
+    if (_authToken != null) {
+      request.headers['Authorization'] = 'Bearer $_authToken';
+    }
     request.files.add(http.MultipartFile.fromBytes(
       'file',
       fileBytes,
@@ -152,7 +184,7 @@ class ApiService {
 
   /// Get all categories.
   static Future<List<Category>> getCategories() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/v2/categories'));
+    final response = await http.get(Uri.parse('$baseUrl/api/v2/categories'), headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch categories: ${response.body}');
     }
@@ -169,7 +201,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/categories'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({
         'name': name,
         'icon': icon,
@@ -189,7 +221,7 @@ class ApiService {
       int categoryId, List<String> keywords) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/categories/$categoryId/keywords'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({'keywords': keywords}),
     );
     if (response.statusCode != 200) {
@@ -203,6 +235,7 @@ class ApiService {
   static Future<void> deleteCategory(int categoryId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/categories/$categoryId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       final detail = _extractErrorDetail(response.body);
@@ -242,7 +275,7 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/api/v2/transactions')
         .replace(queryParameters: params);
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
     }
@@ -267,7 +300,7 @@ class ApiService {
 
     final response = await http.patch(
       Uri.parse('$baseUrl/api/v2/transactions/$transactionId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (response.statusCode != 200) {
@@ -281,6 +314,7 @@ class ApiService {
   static Future<int> recategorizeAll() async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/transactions/recategorize'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to recategorize: ${response.body}');
@@ -305,7 +339,7 @@ class ApiService {
   }) async {
     final uri = Uri.parse('$baseUrl/api/v2/analytics/summary')
         .replace(queryParameters: _dateParams(from: from, to: to));
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch summary: ${response.body}');
     }
@@ -320,7 +354,7 @@ class ApiService {
     final params = _dateParams(from: from, to: to);
     final uri = Uri.parse('$baseUrl/api/v2/analytics/spending-by-category')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch category spending: ${response.body}');
     }
@@ -338,7 +372,7 @@ class ApiService {
     params['granularity'] = granularity;
     final uri = Uri.parse('$baseUrl/api/v2/analytics/spending-trends')
         .replace(queryParameters: params);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch trends: ${response.body}');
     }
@@ -354,7 +388,7 @@ class ApiService {
     final params = _dateParams(from: from, to: to);
     final uri = Uri.parse('$baseUrl/api/v2/analytics/income-vs-expense')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch income vs expense: ${response.body}');
     }
@@ -368,7 +402,7 @@ class ApiService {
     if (month != null) params['month'] = month;
     final uri = Uri.parse('$baseUrl/api/v2/analytics/month-over-month')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch MoM data: ${response.body}');
     }
@@ -385,7 +419,7 @@ class ApiService {
     params['limit'] = limit.toString();
     final uri = Uri.parse('$baseUrl/api/v2/analytics/top-merchants')
         .replace(queryParameters: params);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch top merchants: ${response.body}');
     }
@@ -399,7 +433,7 @@ class ApiService {
 
   /// List all linked accounts and credit cards.
   static Future<List<Account>> getAccounts() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/v2/accounts'));
+    final response = await http.get(Uri.parse('$baseUrl/api/v2/accounts'), headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch accounts: ${response.body}');
     }
@@ -422,7 +456,7 @@ class ApiService {
     final uri =
         Uri.parse('$baseUrl/api/v2/accounts/statements/savings')
             .replace(queryParameters: params);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch savings statements: ${response.body}');
     }
@@ -453,7 +487,7 @@ class ApiService {
     final uri =
         Uri.parse('$baseUrl/api/v2/accounts/statements/credit-card')
             .replace(queryParameters: params);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch CC statements: ${response.body}');
     }
@@ -473,6 +507,7 @@ class ApiService {
   static Future<void> deleteSavingsStatement(int statementId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/accounts/statements/savings/$statementId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete savings statement: ${response.body}');
@@ -484,6 +519,7 @@ class ApiService {
     final response = await http.delete(
       Uri.parse(
           '$baseUrl/api/v2/accounts/statements/credit-card/$statementId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete CC statement: ${response.body}');
@@ -494,6 +530,7 @@ class ApiService {
   static Future<void> deleteTransaction(int transactionId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/transactions/$transactionId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete transaction: ${response.body}');
@@ -514,7 +551,7 @@ class ApiService {
     if (month != null) params['month'] = month.toString();
     final uri = Uri.parse('$baseUrl/api/v2/budgets/progress')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch budget progress: ${response.body}');
     }
@@ -532,7 +569,7 @@ class ApiService {
     if (month != null) params['month'] = month.toString();
     final uri = Uri.parse('$baseUrl/api/v2/budgets/summary')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch budget summary: ${response.body}');
     }
@@ -550,7 +587,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/budgets'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({
         'category_id': categoryId,
         'year': year,
@@ -576,7 +613,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/budgets/copy'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({
         'from_year': fromYear,
         'from_month': fromMonth,
@@ -605,7 +642,7 @@ class ApiService {
     if (notes != null) body['notes'] = notes;
     final response = await http.patch(
       Uri.parse('$baseUrl/api/v2/budgets/$budgetId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (response.statusCode != 200) {
@@ -619,6 +656,7 @@ class ApiService {
   static Future<void> deleteBudget(int budgetId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/budgets/$budgetId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete budget: ${response.body}');
@@ -637,7 +675,7 @@ class ApiService {
     if (includeCompleted) params['include_completed'] = 'true';
     final uri = Uri.parse('$baseUrl/api/v2/goals')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch goals: ${response.body}');
     }
@@ -667,7 +705,7 @@ class ApiService {
 
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/goals'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (response.statusCode != 201) {
@@ -682,7 +720,7 @@ class ApiService {
       int goalId, double amount) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/goals/$goalId/contribute'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({'amount': amount}),
     );
     if (response.statusCode != 200) {
@@ -696,6 +734,7 @@ class ApiService {
   static Future<void> deleteGoal(int goalId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/goals/$goalId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete goal: ${response.body}');
@@ -718,7 +757,7 @@ class ApiService {
     }
     final uri = Uri.parse('$baseUrl/api/v2/reminders')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch reminders: ${response.body}');
     }
@@ -750,7 +789,7 @@ class ApiService {
 
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/reminders'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (response.statusCode != 201) {
@@ -764,6 +803,7 @@ class ApiService {
   static Future<BillReminder> markReminderPaid(int reminderId) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/reminders/$reminderId/paid'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       final detail = _extractErrorDetail(response.body);
@@ -776,6 +816,7 @@ class ApiService {
   static Future<void> deleteReminder(int reminderId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/reminders/$reminderId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete reminder: ${response.body}');
@@ -786,6 +827,7 @@ class ApiService {
   static Future<List<BillReminder>> autoDetectReminders() async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/reminders/auto-detect'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to auto-detect reminders: ${response.body}');
@@ -806,7 +848,7 @@ class ApiService {
     if (activeOnly) params['active_only'] = 'true';
     final uri = Uri.parse('$baseUrl/api/v2/recurring')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch recurring: ${response.body}');
     }
@@ -818,6 +860,7 @@ class ApiService {
   static Future<List<RecurringTransaction>> detectRecurring() async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/recurring/detect'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to detect recurring: ${response.body}');
@@ -833,7 +876,7 @@ class ApiService {
   ) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/v2/recurring/$recurringId/subscription'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode({'is_subscription': isSubscription}),
     );
     if (response.statusCode != 200) {
@@ -847,6 +890,7 @@ class ApiService {
   static Future<void> deleteRecurring(int recurringId) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/v2/recurring/$recurringId'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete recurring: ${response.body}');
@@ -885,10 +929,80 @@ class ApiService {
   static Future<Map<String, dynamic>> clearAllData() async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/v2/data/clear-all'),
+      headers: _headers,
     );
     if (response.statusCode != 200) {
       final detail = _extractErrorDetail(response.body);
       throw Exception('Failed to clear data: $detail');
+    }
+    return jsonDecode(response.body);
+  }
+
+  // ── Google Drive Sync ─────────────────────────────────────
+
+  /// Get Google Drive sync status.
+  static Future<Map<String, dynamic>> getGDriveStatus() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/v2/gdrive/status'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get Drive status: ${response.body}');
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// List files in the configured Google Drive folder.
+  static Future<Map<String, dynamic>> getGDriveFiles() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/v2/gdrive/files'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      final detail = _extractErrorDetail(response.body);
+      throw Exception('Failed to list Drive files: $detail');
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// Trigger a Google Drive sync.
+  static Future<Map<String, dynamic>> syncFromGDrive({
+    String? bank,
+    String? statementType,
+    List<String>? fileIds,
+    bool force = false,
+  }) async {
+    final params = <String, String>{};
+    if (bank != null) params['bank'] = bank;
+    if (statementType != null) params['type'] = statementType;
+    if (fileIds != null) params['file_ids'] = fileIds.join(',');
+    if (force) params['force'] = 'true';
+
+    final uri = Uri.parse('$baseUrl/api/v2/gdrive/sync')
+        .replace(queryParameters: params.isNotEmpty ? params : null);
+
+    final response = await http.post(uri, headers: _headers);
+    if (response.statusCode != 200) {
+      final detail = _extractErrorDetail(response.body);
+      throw Exception('Drive sync failed: $detail');
+    }
+    return jsonDecode(response.body);
+  }
+
+  /// Reset sync state to allow re-processing.
+  static Future<Map<String, dynamic>> resetGDriveSync({
+    List<String>? fileIds,
+  }) async {
+    final params = <String, String>{};
+    if (fileIds != null) params['file_ids'] = fileIds.join(',');
+
+    final uri = Uri.parse('$baseUrl/api/v2/gdrive/reset')
+        .replace(queryParameters: params.isNotEmpty ? params : null);
+
+    final response = await http.post(uri, headers: _headers);
+    if (response.statusCode != 200) {
+      final detail = _extractErrorDetail(response.body);
+      throw Exception('Failed to reset sync: $detail');
     }
     return jsonDecode(response.body);
   }

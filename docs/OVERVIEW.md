@@ -103,6 +103,7 @@ backend/
 │   ├── main.py                 # FastAPI app, CORS, lifespan, routers
 │   ├── config.py               # Settings from env/.env
 │   ├── database.py             # SQLAlchemy engine, session, Base
+│   ├── auth.py                 # JWT authentication (register/login, get_current_user dependency)
 │   ├── models/
 │   │   ├── enums.py            # TransactionType, BankType, StatementType, SourceType
 │   │   ├── credit_card.py      # CreditCardStatement, CreditCardTransaction
@@ -121,8 +122,7 @@ backend/
 │   │   └── budget.py           # Budget, Goal, Reminder, Recurring DTOs
 │   ├── parsers/
 │   │   ├── base_parser.py      # ABC + pdfplumber integration
-│   │   ├── hdfc_credit_card_parser.py
-│   │   ├── hdfc_savings_parser.py
+│   │   ├── generic_pdf_parser.py # Bank-agnostic PDF parser (table + text)
 │   │   ├── csv_parser.py       # Generic CSV with column auto-detection
 │   │   ├── llm_parser.py       # Gemini/Ollama LLM fallback
 │   │   └── parser_registry.py  # (BankType, StatementType) → parser dispatch
@@ -138,7 +138,8 @@ backend/
 │   │   ├── budget_service.py           # Budget CRUD + progress
 │   │   ├── goals_service.py            # Savings goal CRUD + contributions
 │   │   ├── bill_reminder_service.py    # Reminders + CC auto-detect
-│   │   └── recurring_service.py        # Recurring pattern detection
+│   │   ├── recurring_service.py        # Recurring pattern detection
+│   │   └── gdrive_sync_service.py      # Google Drive file sync + parser dispatch
 │   └── routers/
 │       ├── health.py           # GET /health
 │       ├── parse.py            # Parse-only endpoints
@@ -154,7 +155,8 @@ backend/
 │       ├── budgets.py          # Budget management
 │       ├── goals.py            # Savings goals
 │       ├── reminders.py        # Bill reminders + recurring detection
-│       └── export.py           # CSV/JSON export + clear data
+│       ├── export.py           # CSV/JSON export + clear data
+│       └── gdrive.py           # Google Drive sync (status, files, sync, reset)
 ├── alembic/                    # Migration configs
 ├── data/                       # SQLite database files
 ├── requirements.txt
@@ -174,15 +176,23 @@ All settings are loaded from environment variables or `.env` file via `pydantic-
 | `DATABASE_URL` | sqlite:///./data/financial-tracker.db | SQLAlchemy connection |
 | `MAX_UPLOAD_SIZE_MB` | 10 | Max file upload size |
 | `CORS_ORIGINS` | localhost variants | Allowed CORS origins |
+| `JWT_SECRET` | `CHANGE-ME-...` | Secret key for JWT signing (must change in production) |
+| `JWT_ALGORITHM` | HS256 | JWT signing algorithm |
+| `JWT_EXPIRY_MINUTES` | 1440 | Token lifetime (default: 24 hours) |
 | `LLM_PROVIDER` | gemini | LLM provider: gemini/ollama/none |
 | `GEMINI_API_KEY` | — | Google Gemini API key |
 | `GEMINI_MODEL` | gemini-2.0-flash | Gemini model |
 | `OLLAMA_MODEL` | llama3.2 | Ollama model |
 | `OLLAMA_HOST` | http://localhost:11434 | Ollama server |
+| `GDRIVE_ENABLED` | false | Enable Google Drive sync |
+| `GDRIVE_CREDENTIALS_FILE` | — | Path to service account JSON key |
+| `GDRIVE_FOLDER_ID` | — | Google Drive folder to watch |
+| `GDRIVE_POLL_INTERVAL_MINUTES` | 60 | Auto-sync interval (0 = manual only) |
 
 ### Middleware
 
-- **CORS**: Configured via `CORSMiddleware` with `allow_origins=["*"]` in development
+- **CORS**: Configured via `CORSMiddleware` with configurable origins (defaults to localhost variants)
+- **Authentication**: JWT-based single-user auth. All routes (except `/health` and `/api/auth/*` public endpoints) require a valid `Authorization: Bearer <token>` header. Dependency injection via `get_current_user`.
 - **Lifespan**: Creates tables on startup, seeds 15 default categories
 
 ---
@@ -215,10 +225,12 @@ frontend/lib/
 │   └── budget_provider.dart            # Budgets, goals, reminders, recurring
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
+│   ├── login_screen.dart               # Login/register screen (JWT auth)
 │   ├── home_screen.dart                # Legacy tab layout (unused)
 │   └── settings_screen.dart            # Settings UI
 ├── services/
-│   └── api_service.dart                # HTTP client (all API methods)
+│   ├── api_service.dart                # HTTP client (all API methods, auth token injection)
+│   └── auth_service.dart               # JWT auth state (login, register, logout, token persistence)
 └── widgets/
     ├── statement_upload_widget.dart     # Upload with drop zone
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
@@ -261,7 +273,7 @@ frontend/lib/
 
 **TransactionType:** `CREDIT`, `DEBIT`
 
-**BankType:** `HDFC`, `ICICI`, `SBI`, `AXIS`, `KOTAK`, `YES_BANK`, `OTHER`
+**BankType:** `HDFC`, `ICICI`, `SBI`, `AXIS`, `KOTAK`, `YES_BANK`, `BOB`, `FEDERAL_BANK`, `OTHER`
 
 **StatementType:** `SAVINGS`, `CREDIT_CARD`, `CURRENT`, `CSV`
 
@@ -482,6 +494,7 @@ unified_transactions *───* tags (via transaction_tags)
 | Domain | Count | Prefix |
 |--------|:-----:|--------|
 | Health | 1 | `/health` |
+| Authentication | 4 | `/api/auth/` |
 | Parsing | 1 | `/api/parse/` |
 | Credit Card | 3 | `/api/credit-card/` |
 | Savings | 1 | `/api/statements/` |
@@ -497,7 +510,8 @@ unified_transactions *───* tags (via transaction_tags)
 | Reminders | 6 | `/api/v2/reminders/` |
 | Recurring | 4 | `/api/v2/recurring/` |
 | Export/Data | 2 | `/api/v2/export/`, `/api/v2/data/` |
-| **Total** | **67** | |
+| Google Drive Sync | 4 | `/api/v2/gdrive/` |
+| **Total** | **75** | |
 
 > See [FLOW.md](FLOW.md) for the complete endpoint reference with parameters and descriptions.
 
@@ -511,26 +525,29 @@ The system uses a registry pattern: `(BankType, StatementType)` → parser class
 
 | Bank | Type | Parser | Method |
 |------|------|--------|--------|
-| HDFC | SAVINGS | `HdfcSavingsParser` | Regex |
-| HDFC | CREDIT_CARD | `HdfcCreditCardParser` | Regex |
-| Any | Any | `LLMParser` | Gemini/Ollama (fallback) |
+| Any | SAVINGS | `GenericPdfParser` | Table extraction + text fallback |
+| Any | CREDIT_CARD | `GenericPdfParser` | Table extraction + text fallback |
+| Any | Any | `LLMParser` | Gemini/Ollama (fallback, optional) |
 | Any | CSV | `CsvParser` | Column auto-detection |
 
-### Regex Parsers (HDFC)
+### Generic PDF Parser
 
-**Savings Parser:**
-- Extracts: account number, IFSC, branch, date range, opening/closing balance
-- Transaction pattern: `dd/mm/yy description ref_number amount balance`
-- Reference number heuristic: excludes BLOCK, REV, CWDR patterns
+Bank-agnostic parser with two extraction strategies (tried in order):
 
-**Credit Card Parser:**
-- Extracts: statement date, due date, card number, holder name, credit limit, dues
-- Transaction pattern: date + description + amount
-- Credit/debit classification: `Cr` suffix = credit
+**Strategy 1 — Table extraction:**
+- Uses pdfplumber `extract_tables()` to detect structured tables in PDFs
+- Auto-detects column headers (Date, Description/Narration/Particulars, Debit/Withdrawal, Credit/Deposit, Balance, Reference/Tran ID)
+- Works for banks with clean table formatting (e.g., Federal Bank)
 
-### LLM Fallback Parser
+**Strategy 2 — Text-based line parsing:**
+- Detects transaction lines by finding leading dates and trailing amounts
+- Classifies amounts into debit, credit, and balance columns
+- Handles continuation lines (multi-line descriptions)
+- Works for banks where table extraction produces merged columns (e.g., Bank of Baroda)
 
-For unsupported banks, the system sends the PDF text to an LLM (Gemini or Ollama) with a structured prompt requesting JSON output. Works for any bank format without custom regex.
+### LLM Fallback Parser (optional)
+
+If the generic parser fails, the system can send the raw PDF text to an LLM (Gemini or Ollama) with a structured prompt requesting JSON output. Disabled by default (`LLM_PROVIDER=none`).
 
 ### CSV Parser
 
@@ -615,14 +632,15 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 
 ## Future Enhancements
 
-### Phase 7: Security & Deployment (Planned)
+### Phase 7: Security, Integrations & Deployment (In Progress)
 
-| Task | Description |
-|------|-------------|
-| Authentication | PIN/password gate for personal use (JWT tokens) |
-| Data encryption | AES-256 encryption for account/card numbers at rest |
-| PostgreSQL option | Switch from SQLite to PostgreSQL for multi-device access |
-| Backup/Restore | One-click DB backup and restore with download/upload |
+| Task | Description | Status |
+|------|-------------|--------|
+| Authentication | Single-user JWT auth (bcrypt + HS256). Register/login endpoints. Token persistence via SharedPreferences on frontend | ✅ Done |
+| Google Drive Sync | Auto-import statements from Google Drive via service account. File type inference, sync state tracking, 4 API endpoints | ✅ Done |
+| Data encryption | AES-256 encryption for account/card numbers at rest | Planned |
+| PostgreSQL option | Switch from SQLite to PostgreSQL for multi-device access | Planned |
+| Backup/Restore | One-click DB backup and restore with download/upload | Planned |
 
 ### Potential Features
 

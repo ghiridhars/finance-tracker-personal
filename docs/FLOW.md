@@ -19,7 +19,7 @@ User selects bank + statement type → Picks file → Uploads
 | List supported banks | GET | `/api/v2/banks` | Returns bank/type combos + LLM availability |
 | Upload PDF | POST | `/api/v2/statements/upload` | Params: `bank`, `type` (SAVINGS/CREDIT_CARD), `save` (bool). Body: PDF file |
 | Upload CSV | POST | `/api/v2/statements/upload-csv` | Params: `bank`, `type`, `save`. Body: CSV/TXT file. Auto-detects columns |
-| Parse only (no save) | POST | `/api/parse/hdfc-credit-card` | Params: `debug` (bool). Body: PDF file |
+| Parse only (no save) | POST | `/api/parse/hdfc-credit-card` | Legacy endpoint. Params: `debug` (bool). Body: PDF file |
 
 **Legacy endpoints (backward-compatible):**
 
@@ -267,11 +267,67 @@ User opens Settings → Toggles theme (light/dark/system)
 
 ---
 
+## 13. Authentication Flow
+
+Single-user JWT authentication. Register once, then login on each session.
+
+```
+App starts → Checks /api/auth/status (is registered?)
+  → If not registered: show Register form → POST /api/auth/register → JWT token → App
+  → If registered: show Login form → POST /api/auth/login → JWT token → App
+  → Token stored in SharedPreferences → Auto-validated on next launch via GET /api/auth/me
+  → All API calls include Authorization: Bearer <token>
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| Check registration | GET | `/api/auth/status` | Returns `{ registered: true/false }`. Public endpoint |
+| Register | POST | `/api/auth/register` | Body: `{ username, password }`. Min 8-char password. One-time only. Returns JWT token |
+| Login | POST | `/api/auth/login` | OAuth2 password flow (form-encoded). Returns JWT token (24h expiry) |
+| Get current user | GET | `/api/auth/me` | Returns `{ username }`. Used to validate saved tokens |
+
+**Security details:**
+- Password hashed with bcrypt (passlib)
+- JWT signed with HS256 (configurable via `JWT_SECRET` env var)
+- Credentials stored in `data/.credentials.json` (not in DB)
+- All routes except `/health`, `/api/auth/status`, `/api/auth/register`, `/api/auth/login` require valid JWT
+
+---
+
+## 14. Google Drive Sync Flow
+
+Auto-import bank statements from a shared Google Drive folder.
+
+```
+Admin configures → shares Drive folder with service account
+  → User checks /api/v2/gdrive/status → Lists files → Triggers sync
+  → Files downloaded → Parsed through existing pipeline → Saved to DB
+  → Sync state tracked to avoid re-processing
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| Check status | GET | `/api/v2/gdrive/status` | Returns: enabled, folder_id, credentials_configured, last_sync, processed_file_count |
+| List files | GET | `/api/v2/gdrive/files` | PDF/CSV files in the configured Drive folder. Shows which are already processed |
+| Sync files | POST | `/api/v2/gdrive/sync` | Params: `bank` (override), `type` (override), `file_ids` (comma-separated), `force` (bool). Downloads + parses + saves new files |
+| Reset state | POST | `/api/v2/gdrive/reset` | Params: `file_ids` (comma-separated, optional). Clears processed markers for re-processing |
+
+**Configuration (env vars):**
+- `GDRIVE_ENABLED` — Enable the feature (default: false)
+- `GDRIVE_CREDENTIALS_FILE` — Path to Google service account JSON key
+- `GDRIVE_FOLDER_ID` — Drive folder ID to watch
+- `GDRIVE_POLL_INTERVAL_MINUTES` — Auto-sync interval (0 = manual only)
+
+**File type inference:** Bank and statement type inferred from filename conventions (e.g., `BOB_savings_jan.pdf` → BOB, SAVINGS).
+
+---
+
 ## API Summary
 
 | Domain | Endpoints | Version |
 |--------|:---------:|---------|
 | Health | 1 | — |
+| Authentication | 4 | — |
 | Parsing | 1 | v1 |
 | Credit Card | 3 | v1 |
 | Savings/Statements | 1 | v1 |
@@ -287,7 +343,9 @@ User opens Settings → Toggles theme (light/dark/system)
 | Reminders | 6 | v2 |
 | Recurring | 4 | v2 |
 | Export/Data | 2 | v2 |
-| **Total** | **67** | |
+| Google Drive Sync | 4 | v2 |
+| **Total** | **75** | |
 
 > All v2 endpoints are prefixed with `/api/v2/`. Legacy v1 endpoints remain at `/api/` for backward compatibility.
+> Auth endpoints are at `/api/auth/`. The `/health` and `/api/auth/status` endpoints are public; all others require a valid JWT Bearer token.
 > Interactive API docs available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when the backend is running.

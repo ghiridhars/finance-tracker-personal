@@ -246,8 +246,8 @@ class _TransactionListWidgetState
             const SizedBox(height: 8),
             Text(
               widget.type == TransactionViewType.savings
-                  ? 'Upload an HDFC savings statement to see transactions here'
-                  : 'Upload an HDFC credit card statement to see transactions here',
+                  ? 'Upload a savings statement to see transactions here'
+                  : 'Upload a credit card statement to see transactions here',
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),

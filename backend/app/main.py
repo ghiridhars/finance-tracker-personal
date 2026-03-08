@@ -11,10 +11,11 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.auth import auth_router
 from app.config import settings
 from app.database import create_tables
 from app.routers import (
@@ -30,6 +31,7 @@ from app.routers import (
     goals_router,
     reminders_router,
     export_router,
+    gdrive_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -86,15 +88,14 @@ app = FastAPI(
 
 
 # ──────────────────────────────────────────────────────────────
-# CORS middleware — FIX: was missing in Java version
-# Allow all origins in development mode (no auth = no risk)
+# CORS middleware — restricted to configured origins
 # ──────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -103,7 +104,7 @@ app.add_middleware(
 # ──────────────────────────────────────────────────────────────
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    """Replaces: handleBadRequest in GlobalExceptionHandler"""
+    """Handle validation / bad-request errors. Safe to echo back."""
     return JSONResponse(
         status_code=400,
         content={
@@ -117,21 +118,21 @@ async def value_error_handler(request: Request, exc: ValueError):
 
 @app.exception_handler(FileNotFoundError)
 async def file_not_found_handler(request: Request, exc: FileNotFoundError):
-    """Replaces: handleNotFound in GlobalExceptionHandler"""
+    """Handle not-found errors with a generic message."""
     return JSONResponse(
         status_code=404,
         content={
             "timestamp": datetime.now().isoformat(),
             "status": 404,
             "error": "Not Found",
-            "message": str(exc),
+            "message": "The requested resource was not found.",
         },
     )
 
 
 @app.exception_handler(Exception)
 async def generic_error_handler(request: Request, exc: Exception):
-    """Replaces: handleOther in GlobalExceptionHandler"""
+    """Handle unexpected errors. Never leak internal details to the client."""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
@@ -139,7 +140,7 @@ async def generic_error_handler(request: Request, exc: Exception):
             "timestamp": datetime.now().isoformat(),
             "status": 500,
             "error": "Internal Server Error",
-            "message": str(exc),
+            "message": "An unexpected error occurred. Please try again later.",
         },
     )
 
@@ -147,18 +148,30 @@ async def generic_error_handler(request: Request, exc: Exception):
 # ──────────────────────────────────────────────────────────────
 # Register routers (replaces @RestController component scanning)
 # ──────────────────────────────────────────────────────────────
+# Public routes (no auth required)
+app.include_router(auth_router)
 app.include_router(health_router)
-app.include_router(transactions_router)
-app.include_router(upload_router)
-app.include_router(categories_router)
-app.include_router(unified_transactions_router)
-app.include_router(tags_router)
-app.include_router(analytics_router)
-app.include_router(accounts_router)
-app.include_router(budgets_router)
-app.include_router(goals_router)
-app.include_router(reminders_router)
-app.include_router(export_router)
+
+# Protected routes (require valid JWT)
+from app.auth import get_current_user
+
+for protected_router in [
+    transactions_router,
+    upload_router,
+    categories_router,
+    unified_transactions_router,
+    tags_router,
+    analytics_router,
+    accounts_router,
+    budgets_router,
+    goals_router,
+    reminders_router,
+    export_router,
+    gdrive_router,
+]:
+    # Inject auth dependency into every route of each protected router
+    protected_router.dependencies.append(Depends(get_current_user))
+    app.include_router(protected_router)
 
 
 # ──────────────────────────────────────────────────────────────

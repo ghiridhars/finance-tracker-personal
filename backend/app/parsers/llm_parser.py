@@ -21,7 +21,7 @@ from app.schemas.savings_account import SavingsAccountStatementSchema, SavingsAc
 logger = logging.getLogger(__name__)
 
 # System prompt for LLM extraction
-EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL data from this HDFC credit card statement text into structured JSON.
+EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL data from this credit card statement text into structured JSON.
 
 Rules:
 1. Extract ALL transactions — every line with a date and amount is a transaction.
@@ -143,7 +143,7 @@ Return ONLY valid JSON matching this schema:
 
 GENERIC_CREDIT_CARD_PROMPT = """You are a financial document parser. Extract ALL data from this credit card statement into structured JSON.
 
-This may be from ANY bank (HDFC, ICICI, SBI, Axis, Kotak, or others). Identify the bank and adapt accordingly.
+This may be from ANY bank (HDFC, ICICI, SBI, Axis, Kotak, Bank of Baroda, Federal Bank, or others). Identify the bank and adapt accordingly.
 
 Rules:
 1. Extract ALL transactions — every line with a date and amount is a transaction.

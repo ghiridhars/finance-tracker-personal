@@ -6,16 +6,16 @@
 
 ## Phase 1: Multi-Bank Statement Support (Foundation) — ✅ COMPLETED
 
-**Goal:** Replace hardcoded HDFC-only logic with an extensible architecture that supports any bank via a parser registry, generic LLM fallback, and CSV import.
+**Goal:** Replace hardcoded HDFC-only logic with a bank-agnostic architecture that supports any bank via a generic PDF parser (table + text extraction), CSV import, and optional LLM fallback.
 
 | # | Task | Status | Details |
 |---|------|--------|---------|
-| 1.1 | BankType + StatementType enums (backend) | ✅ Done | `BankType`: HDFC, ICICI, SBI, AXIS, KOTAK, YES_BANK, OTHER. `StatementType`: SAVINGS, CREDIT_CARD, CURRENT, CSV. |
-| 1.2 | Parser registry system | ✅ Done | `parser_registry.py` — auto-dispatch `(BankType, StatementType)` → parser class. HDFC parsers auto-registered. New banks = just register a parser class. |
+| 1.1 | BankType + StatementType enums (backend) | ✅ Done | `BankType`: HDFC, ICICI, SBI, AXIS, KOTAK, YES_BANK, BOB, FEDERAL_BANK, OTHER. `StatementType`: SAVINGS, CREDIT_CARD, CURRENT, CSV. |
+| 1.2 | Generic PDF parser | ✅ Done | `generic_pdf_parser.py` — bank-agnostic parser using table extraction + text-based fallback. Works for any bank without bank-specific code. |
 | 1.3 | Unified upload endpoint | ✅ Done | `POST /api/v2/statements/upload?bank=X&type=Y&save=true` — works for any bank. `GET /api/v2/banks` — discovery endpoint for frontend. |
 | 1.4 | Generic LLM parser (any bank) | ✅ Done | `parse_with_llm_generic()` — bank-agnostic prompts for both savings + credit card. Works for ICICI, SBI, Axis, etc. without regex parsers. |
 | 1.5 | CSV/Excel import | ✅ Done | `csv_parser.py` — auto-detects columns (Date, Description, Debit, Credit, Balance, Ref). `POST /api/v2/statements/upload-csv`. Supports comma/tab/semicolon/pipe delimiters. |
-| 1.6 | Frontend — updated bank dropdown | ✅ Done | 7 banks in dropdown + separate statement type selector. File picker now accepts PDF + CSV. Upload uses v2 unified endpoint. |
+| 1.6 | Frontend — updated bank dropdown | ✅ Done | 9 banks in dropdown (incl. BOB, Federal Bank) + separate statement type selector. File picker now accepts PDF + CSV. Upload uses v2 unified endpoint. |
 | 1.7 | Backward compatibility | ✅ Done | All existing v1 endpoints (`/api/credit-card/`, `/api/statements/`, `/api/parse/`) still work unchanged. `ParserService` legacy methods delegate to unified parser. |
 
 **Files Created:**
@@ -265,11 +265,43 @@
 
 ---
 
-## Phase 7: Security & Deployment
+## Phase 7: Security, Integrations & Deployment — 🟡 IN PROGRESS
 
 | # | Task | Status | Details |
 |---|------|--------|---------|
-| 7.1 | Authentication | ⬜ Not Started | PIN/password for personal use. |
-| 7.2 | Data encryption | ⬜ Not Started | Encrypt account/card numbers at rest. |
-| 7.3 | PostgreSQL option | ⬜ Not Started | Multi-device access. |
-| 7.4 | Backup/Restore | ⬜ Not Started | One-click DB backup. |
+| 7.1 | Authentication | ✅ Done | Single-user JWT-based auth. Bcrypt password hashing. Register/login endpoints. Credentials stored in local JSON file. OAuth2 password flow. 24-hour token expiry. All API routes (except health + auth) are protected. Frontend login screen with auto-token persistence via SharedPreferences. |
+| 7.2 | Google Drive Sync | ✅ Done | Auto-import bank statements from a Google Drive folder via service account. File type inference from filename conventions. Sync state tracking to skip already-processed files. 4 endpoints: status, list files, sync, reset. Configurable via env vars. |
+| 7.3 | Data encryption | ⬜ Not Started | Encrypt account/card numbers at rest. |
+| 7.4 | PostgreSQL option | ⬜ Not Started | Multi-device access. |
+| 7.5 | Backup/Restore | ⬜ Not Started | One-click DB backup. |
+
+**Files Created (7.1 — Authentication):**
+- [backend/app/auth.py](backend/app/auth.py) — JWT auth module: password hashing, token creation/validation, register/login/me/status endpoints, `get_current_user` dependency
+- [frontend/lib/services/auth_service.dart](frontend/lib/services/auth_service.dart) — AuthNotifier (Riverpod): login, register, logout, token persistence, auto-validate on startup
+- [frontend/lib/screens/login_screen.dart](frontend/lib/screens/login_screen.dart) — Login/register UI with form validation
+
+**Files Created (7.2 — Google Drive Sync):**
+- [backend/app/services/gdrive_sync_service.py](backend/app/services/gdrive_sync_service.py) — Google Drive API client, file download, parser dispatch, sync state management
+- [backend/app/routers/gdrive.py](backend/app/routers/gdrive.py) — 4 endpoints: status, files, sync, reset
+
+**Files Modified:**
+- [backend/app/main.py](backend/app/main.py) — Auth dependency injected into all protected routers; auth_router and gdrive_router registered
+- [backend/app/config.py](backend/app/config.py) — Added JWT (secret, algorithm, expiry) and Google Drive (enabled, credentials, folder_id, poll_interval) settings
+- [backend/requirements.txt](backend/requirements.txt) — Added python-jose, passlib, google-api-python-client, google-auth
+- [frontend/lib/main.dart](frontend/lib/main.dart) — Auth state check wrapping the app; shows LoginScreen when unauthenticated
+- [frontend/lib/services/api_service.dart](frontend/lib/services/api_service.dart) — Added static auth token management; Authorization header injected into all requests
+- [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Export gdrive_router
+
+**New API Endpoints (8 new):**
+
+*Authentication (4):*
+- `POST /api/auth/register` — Register single user (one-time only)
+- `POST /api/auth/login` — OAuth2 password flow, returns JWT
+- `GET /api/auth/me` — Get current authenticated user
+- `GET /api/auth/status` — Check if any user is registered (public)
+
+*Google Drive Sync (4):*
+- `GET /api/v2/gdrive/status` — Sync config and state
+- `GET /api/v2/gdrive/files` — List files in Drive folder
+- `POST /api/v2/gdrive/sync` — Download + parse new files
+- `POST /api/v2/gdrive/reset` — Reset sync state for re-processing

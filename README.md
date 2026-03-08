@@ -4,13 +4,15 @@ A personal finance management app to upload bank statements, auto-categorize tra
 
 ## Features
 
-- Multi-bank PDF & CSV statement upload (HDFC, ICICI, SBI, Axis, Kotak, Yes Bank + LLM fallback for any bank)
+- **Authentication** — Single-user JWT-based login with registration, bcrypt password hashing, and credential persistence
+- Multi-bank PDF & CSV statement upload (HDFC, ICICI, SBI, Axis, Kotak, Yes Bank, Bank of Baroda, Federal Bank + any other bank)
 - Auto-categorization with 15 default categories and keyword matching
 - Dashboard with spending trends, category breakdown, income vs expense charts
 - Monthly budgets per category with progress tracking
 - Savings goals with contribution tracking
 - Bill reminders with auto-detection from credit card dues
 - Recurring transaction detection
+- **Google Drive Sync** — Auto-import bank statements from a shared Google Drive folder (service account)
 - CSV/JSON export
 - Dark/Light theme, responsive layout (desktop sidebar, mobile bottom nav)
 
@@ -72,9 +74,15 @@ docker-compose up --build
 |----------|---------|-------------|
 | `DATABASE_URL` | `sqlite:///./data/financial-tracker.db` | SQLAlchemy connection string |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed origins (comma-separated) |
+| `JWT_SECRET` | `CHANGE-ME-...` | Secret key for JWT token signing (change in production!) |
+| `JWT_EXPIRY_MINUTES` | `1440` | JWT token lifetime (default: 24 hours) |
 | `GEMINI_API_KEY` | — | Google Gemini API key for LLM parser |
 | `LLM_PROVIDER` | `gemini` | LLM provider: `gemini`, `ollama`, or `none` |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
+| `GDRIVE_ENABLED` | `false` | Enable Google Drive sync |
+| `GDRIVE_CREDENTIALS_FILE` | — | Path to Google service account JSON key file |
+| `GDRIVE_FOLDER_ID` | — | Google Drive folder ID to watch for statements |
+| `GDRIVE_POLL_INTERVAL_MINUTES` | `60` | Auto-sync interval (0 = disabled) |
 
 ## Project Structure
 
@@ -85,11 +93,12 @@ finance-tracker-v2/
 │   │   ├── main.py          # FastAPI app entry point
 │   │   ├── config.py         # Settings (env-based)
 │   │   ├── database.py       # SQLAlchemy engine + session
+│   │   ├── auth.py           # JWT authentication (register/login/token)
 │   │   ├── models/           # 12 SQLAlchemy ORM models
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
-│   │   ├── services/         # Business logic layer
-│   │   └── routers/          # 15 API route modules (73 endpoints)
+│   │   ├── services/         # Business logic layer (incl. Google Drive sync)
+│   │   └── routers/          # 16 API route modules (~75+ endpoints)
 │   ├── alembic/              # Database migrations
 │   └── requirements.txt
 ├── frontend/
@@ -99,17 +108,19 @@ finance-tracker-v2/
 │   │   ├── theme.dart        # Light/dark theme
 │   │   ├── models/           # Dart data models
 │   │   ├── providers/        # Riverpod state management
-│   │   ├── screens/          # App shell, settings
-│   │   ├── services/         # API client
+│   │   ├── screens/          # App shell, login, settings
+│   │   ├── services/         # API client + auth service
 │   │   └── widgets/          # Dashboard, upload, transactions, etc.
 │   └── pubspec.yaml
 ├── docker-compose.yml
 └── docs/
+    ├── ARCHITECTURE.md       # Mermaid architecture diagrams
     ├── FLOW.md               # User flows & API reference
     └── OVERVIEW.md           # Technical specification & schema
 ```
 
 ## Documentation
 
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — Mermaid diagrams: system architecture, data flow, ER diagram, deployment
 - [FLOW.md](docs/FLOW.md) — All user flows with API endpoints and details
 - [OVERVIEW.md](docs/OVERVIEW.md) — Technical spec, database schema, architecture, and future enhancements

@@ -70,11 +70,9 @@ def has_parser(bank: BankType, statement_type: StatementType) -> bool:
 
 def _register_builtin_parsers() -> None:
     """Register all built-in parsers. Called once at module load."""
-    from app.parsers.hdfc_credit_card_parser import HdfcCreditCardPdfParser
-    from app.parsers.hdfc_savings_parser import HdfcSavingsPdfParser
-
-    register_parser(BankType.HDFC, StatementType.CREDIT_CARD, HdfcCreditCardPdfParser)
-    register_parser(BankType.HDFC, StatementType.SAVINGS, HdfcSavingsPdfParser)
+    # No bank-specific parsers needed — the GenericPdfParser in
+    # parser_service.py handles all banks without registry dispatch.
+    pass
 
 
 # Auto-register built-in parsers on import

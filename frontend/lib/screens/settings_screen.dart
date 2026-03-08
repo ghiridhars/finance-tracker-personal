@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +23,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isTesting = false;
   bool? _backendReachable;
 
+  // Google Drive sync state
+  Map<String, dynamic>? _driveStatus;
+  List<dynamic>? _driveFiles;
+  bool _isSyncing = false;
+  bool _isLoadingDrive = false;
+  String? _syncResult;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +37,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     Future.microtask(() {
       final settings = ref.read(appSettingsProvider);
       _urlController.text = settings.baseUrl;
+      _loadDriveStatus();
     });
   }
 
@@ -113,6 +122,69 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to clear data: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadDriveStatus() async {
+    try {
+      final status = await ApiService.getGDriveStatus();
+      if (mounted) setState(() => _driveStatus = status);
+    } catch (_) {
+      // Drive not configured — that's fine
+    }
+  }
+
+  Future<void> _loadDriveFiles() async {
+    setState(() => _isLoadingDrive = true);
+    try {
+      final result = await ApiService.getGDriveFiles();
+      if (mounted) {
+        setState(() {
+          _driveFiles = result['files'] as List<dynamic>?;
+          _isLoadingDrive = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingDrive = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to list Drive files: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _triggerSync({bool force = false}) async {
+    setState(() {
+      _isSyncing = true;
+      _syncResult = null;
+    });
+    try {
+      final result = await ApiService.syncFromGDrive(force: force);
+      if (mounted) {
+        final processed = result['processed'] ?? 0;
+        final skipped = result['skipped'] ?? 0;
+        final failed = result['failed'] ?? 0;
+        setState(() {
+          _isSyncing = false;
+          _syncResult = '$processed processed, $skipped skipped, $failed failed';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync complete: $_syncResult')),
+        );
+        _loadDriveStatus();
+        _loadDriveFiles();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+          _syncResult = 'Error: $e';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e')),
         );
       }
     }
@@ -305,6 +377,210 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 24),
 
+              // ── Google Drive Sync Section ──────────────────
+              _SectionHeader(
+                  title: 'Google Drive Sync', icon: Icons.cloud_sync),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_driveStatus == null)
+                        const Text(
+                          'Loading sync status...',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        )
+                      else if (_driveStatus!['enabled'] != true)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Google Drive sync is not configured.',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'To enable, set these in your backend .env file:\n'
+                                    '• GDRIVE_ENABLED=true\n'
+                                    '• GDRIVE_CREDENTIALS_FILE=path/to/service-account.json\n'
+                                    '• GDRIVE_FOLDER_ID=your-folder-id',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        // Status row
+                        Row(
+                          children: [
+                            Icon(
+                              _driveStatus!['credentials_configured'] == true
+                                  ? Icons.check_circle
+                                  : Icons.error,
+                              color:
+                                  _driveStatus!['credentials_configured'] == true
+                                      ? Colors.green
+                                      : colorScheme.error,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _driveStatus!['credentials_configured'] == true
+                                  ? 'Connected to Google Drive'
+                                  : 'Credentials not configured',
+                            ),
+                          ],
+                        ),
+                        if (_driveStatus!['last_sync'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Last sync: ${_driveStatus!['last_sync']}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (_driveStatus!['processed_file_count'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Files processed: ${_driveStatus!['processed_file_count']}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+
+                        // Action buttons
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton.icon(
+                              onPressed: _isSyncing ? null : () => _triggerSync(),
+                              icon: _isSyncing
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.sync),
+                              label: Text(_isSyncing ? 'Syncing...' : 'Sync Now'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: _isSyncing
+                                  ? null
+                                  : () => _triggerSync(force: true),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Force Re-sync'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _isLoadingDrive ? null : _loadDriveFiles,
+                              icon: _isLoadingDrive
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.folder_open),
+                              label: const Text('View Files'),
+                            ),
+                          ],
+                        ),
+
+                        // Sync result
+                        if (_syncResult != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _syncResult!.startsWith('Error')
+                                  ? colorScheme.errorContainer
+                                  : Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _syncResult!,
+                              style: TextStyle(
+                                color: _syncResult!.startsWith('Error')
+                                    ? colorScheme.onErrorContainer
+                                    : Colors.green.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        // File list
+                        if (_driveFiles != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Files in Drive folder (${_driveFiles!.length}):',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_driveFiles!.isEmpty)
+                            const Text('No statement files found.')
+                          else
+                            ...(_driveFiles!.map((f) => Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 2),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        f['already_processed'] == true
+                                            ? Icons.check_circle_outline
+                                            : Icons.insert_drive_file,
+                                        size: 16,
+                                        color: f['already_processed'] == true
+                                            ? Colors.green
+                                            : colorScheme.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          f['name'] ?? 'Unknown',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                        ),
+                                      ),
+                                      if (f['already_processed'] == true)
+                                        Text(
+                                          'Processed',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.green,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
+                                ))),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
               // ── Data Management Section ────────────────────
               _SectionHeader(
                   title: 'Data Management', icon: Icons.storage),
@@ -335,7 +611,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
 
               const SizedBox(height: 24),
+              // ── Account Section ─────────────────────────────────
+              _SectionHeader(title: 'Account', icon: Icons.person),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('Sign Out'),
+                    subtitle: Text(
+                      'Signed in as ${ref.watch(authProvider).username ?? "unknown"}',
+                    ),
+                    trailing: OutlinedButton(
+                      onPressed: () {
+                        ref.read(authProvider.notifier).logout();
+                      },
+                      child: const Text('Sign Out'),
+                    ),
+                  ),
+                ),
+              ),
 
+              const SizedBox(height: 24),
               // ── About Section ──────────────────────────────
               _SectionHeader(title: 'About', icon: Icons.info_outline),
               const SizedBox(height: 12),

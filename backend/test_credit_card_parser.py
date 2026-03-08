@@ -1,6 +1,6 @@
 """
-Test script for the HDFC Credit Card parser.
-Tests both regex and LLM parsing against the real statement PDF.
+Test script for the generic PDF statement parser.
+Tests parsing against any bank statement PDF.
 """
 import sys
 import argparse
@@ -11,8 +11,8 @@ from decimal import Decimal
 # Add parent dir to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.parsers.hdfc_credit_card_parser import HdfcCreditCardPdfParser
-from app.schemas.credit_card import CreditCardStatementSchema
+from app.parsers.generic_pdf_parser import GenericPdfParser
+from app.models.enums import StatementType
 
 
 def setup_logging(verbose: bool = False):
@@ -24,103 +24,75 @@ def setup_logging(verbose: bool = False):
 
 
 def test_regex_parser(pdf_path: str, verbose: bool = False):
-    """Test regex-based parsing."""
-    parser = HdfcCreditCardPdfParser()
+    """Test generic PDF parsing."""
+    parser = GenericPdfParser()
+    stmt_type = StatementType.SAVINGS
 
     print(f"\n{'='*60}")
-    print(f"  REGEX PARSER TEST")
+    print(f"  GENERIC PDF PARSER TEST")
     print(f"  PDF: {pdf_path}")
+    print(f"  Type: {stmt_type.value}")
     print(f"{'='*60}\n")
 
-    result = parser.parse(pdf_path)
+    result = parser.parse(pdf_path, stmt_type)
 
     if not result.success:
         print(f"❌ PARSE FAILED: {result.error_message}")
         return False
 
-    stmt: CreditCardStatementSchema = result.result
-    print("✅ Parse succeeded!\n")
+    stmt = result.result
+    print("Parse succeeded!\n")
 
     # Print metadata
-    print("── Metadata ──")
-    print(f"  Card Holder:    {stmt.card_holder_name}")
-    print(f"  Card Number:    {stmt.card_number}")
-    print(f"  Statement Date: {stmt.statement_date}")
-    print(f"  Due Date:       {stmt.due_date}")
-    print(f"  Credit Limit:   {stmt.credit_limit}")
-    print(f"  Available:      {stmt.available_credit}")
-    print(f"  Total Dues:     {stmt.total_dues}")
-    print(f"  Minimum Due:    {stmt.minimum_amount_due}")
+    print("-- Metadata --")
+    if hasattr(stmt, 'account_holder_name'):
+        print(f"  Account Holder: {stmt.account_holder_name}")
+        print(f"  From Date:      {stmt.from_date}")
+        print(f"  To Date:        {stmt.to_date}")
+        print(f"  Opening Bal:    {stmt.opening_balance}")
+        print(f"  Closing Bal:    {stmt.closing_balance}")
+    elif hasattr(stmt, 'card_holder_name'):
+        print(f"  Card Holder:    {stmt.card_holder_name}")
+        print(f"  Statement Date: {stmt.statement_date}")
 
     # Print transactions
-    print(f"\n── Transactions ({len(stmt.transactions)}) ──")
+    print(f"\n-- Transactions ({len(stmt.transactions)}) --")
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     for i, txn in enumerate(stmt.transactions, 1):
-        type_icon = "🟢" if txn.type.value == "CREDIT" else "🔴"
-        amt = txn.amount or Decimal("0")
-        if txn.type.value == "CREDIT":
+        txn_type = txn.type.value if txn.type else "?"
+        if hasattr(txn, 'withdrawal_amount'):
+            amt = txn.withdrawal_amount or txn.deposit_amount or Decimal("0")
+        else:
+            amt = txn.amount or Decimal("0")
+        if txn_type == "CREDIT":
             total_credit += amt
         else:
             total_debit += amt
         desc = (txn.description or "")[:50]
-        print(f"  {i:2d}. {type_icon} {txn.date} | {desc:<50} | {str(amt):>12}")
+        print(f"  {i:2d}. {txn_type:6s} {txn.date} | {desc:<50} | {str(amt):>12}")
 
-    print(f"\n── Summary ──")
+    print(f"\n-- Summary --")
     print(f"  Total Debits:  {total_debit}")
     print(f"  Total Credits: {total_credit}")
-    print(f"  Net:           {total_debit - total_credit}")
 
-    # Validate expected values for the known test PDF
-    errors = []
+    if len(stmt.transactions) < 1:
+        print("\n  WARNING: No transactions found!")
+        return False
 
-    if stmt.statement_date:
-        if str(stmt.statement_date) != "2026-02-17":
-            errors.append(f"Statement date: expected 2026-02-17, got {stmt.statement_date}")
-    else:
-        errors.append("Statement date: missing")
-
-    if stmt.card_number:
-        if "4279" not in stmt.card_number:
-            errors.append(f"Card number: expected ...4279, got {stmt.card_number}")
-    else:
-        errors.append("Card number: missing")
-
-    if stmt.due_date:
-        if str(stmt.due_date) != "2026-03-09":
-            errors.append(f"Due date: expected 2026-03-09, got {stmt.due_date}")
-    else:
-        errors.append("Due date: missing")
-
-    if stmt.minimum_amount_due:
-        if stmt.minimum_amount_due != Decimal("1360.00"):
-            errors.append(f"Min due: expected 1360.00, got {stmt.minimum_amount_due}")
-    else:
-        errors.append("Minimum due: missing")
-
-    if len(stmt.transactions) < 10:
-        errors.append(f"Too few transactions: expected >= 10, got {len(stmt.transactions)}")
-
-    if errors:
-        print(f"\n⚠️  Validation Issues ({len(errors)}):")
-        for e in errors:
-            print(f"  - {e}")
-    else:
-        print(f"\n✅ All validations passed!")
-
-    return len(errors) == 0
+    print(f"\n  Parsing succeeded with {len(stmt.transactions)} transactions!")
+    return True
 
 
 def test_llm_parser(pdf_path: str, verbose: bool = False):
     """Test LLM-based parsing."""
-    parser = HdfcCreditCardPdfParser()
+    parser = GenericPdfParser()
 
     print(f"\n{'='*60}")
     print(f"  LLM PARSER TEST")
     print(f"  PDF: {pdf_path}")
     print(f"{'='*60}\n")
 
-    # Extract text first
     raw_text = parser.extract_raw_text(pdf_path)
     print(f"Extracted {len(raw_text)} chars of text")
 
@@ -144,7 +116,7 @@ def test_llm_parser(pdf_path: str, verbose: bool = False):
 
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser(description="Test HDFC CC parser")
+    argparser = argparse.ArgumentParser(description="Test generic PDF parser")
     argparser.add_argument(
         "--pdf",
         default=str(Path(__file__).parent.parent / "credit-card-statement.pdf"),

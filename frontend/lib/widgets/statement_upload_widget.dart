@@ -31,6 +31,8 @@ class _StatementUploadWidgetState extends ConsumerState<StatementUploadWidget> {
     {'value': 'AXIS', 'label': 'Axis Bank'},
     {'value': 'KOTAK', 'label': 'Kotak Mahindra Bank'},
     {'value': 'YES_BANK', 'label': 'Yes Bank'},
+    {'value': 'BOB', 'label': 'Bank of Baroda'},
+    {'value': 'FEDERAL_BANK', 'label': 'Federal Bank'},
     {'value': 'OTHER', 'label': 'Other Bank'},
   ];
 

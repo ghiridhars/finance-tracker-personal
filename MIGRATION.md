@@ -42,8 +42,8 @@ finance-tracker-v2/
 │   │   │   └── savings_account.py  # Savings schemas
 │   │   ├── parsers/            # PDF parsing logic
 │   │   │   ├── base_parser.py  # ABC + pdfplumber integration
-│   │   │   ├── hdfc_credit_card_parser.py
-│   │   │   └── hdfc_savings_parser.py
+│   │   │   ├── generic_pdf_parser.py  # Bank-agnostic PDF parser
+│   │   │   └── csv_parser.py
 │   │   ├── services/           # Business logic
 │   │   │   ├── credit_card_service.py
 │   │   │   ├── savings_service.py
@@ -77,7 +77,7 @@ All endpoints are backward-compatible with v1 where applicable.
 | Method | Path | Description | Changes from v1 |
 |---|---|---|---|
 | `GET` | `/health` | Health + DB check | Now checks SQLite connectivity |
-| `POST` | `/api/parse/hdfc-credit-card` | Parse credit card PDF (no save) | Same behavior |
+| `POST` | `/api/parse/hdfc-credit-card` | Parse credit card PDF (no save) | Legacy — uses generic parser internally |
 | `POST` | `/api/credit-card/statements/upload` | Parse + save credit card | Same behavior |
 | `GET` | `/api/credit-card/statements/{card_number}` | Get by card number | Same behavior |
 | `GET` | `/api/credit-card/statements` | Query by date range | Same behavior |
@@ -107,8 +107,8 @@ All endpoints are backward-compatible with v1 where applicable.
 - **v2 Fix**: Single `MAX_UPLOAD_SIZE = 10MB` in `config.py`, validated in `ParserService` before parsing.
 
 ### 5. Hardcoded Year Fallback
-- **v1 Bug**: `HdfcCreditCardPdfParser` used `2023` as fallback year when header date wasn't found.
-- **v2 Fix**: Uses `datetime.now().year` as fallback.
+- **v1 Bug**: HDFC-specific parser used `2023` as fallback year when header date wasn't found.
+- **v2 Fix**: Generic parser detects dates directly from transaction lines — no year fallback needed.
 
 ### 6. Missing Credit Card Transaction Query
 - **v1 Bug**: `TransactionController` only had a savings transaction endpoint. No way to query credit card transactions.
@@ -122,20 +122,14 @@ All endpoints are backward-compatible with v1 where applicable.
 
 ## Parser Port Details
 
-Both HDFC parsers were ported 1:1 with exact regex pattern preservation:
+HDFC-specific parsers were replaced with a bank-agnostic `GenericPdfParser` that handles any bank:
 
-### HDFC Savings Parser
-- 10+ regex patterns for header extraction (account number, IFSC, branch, dates)
-- Transaction line pattern: `dd/mm/yy description ref amount balance`
-- Reference number heuristic: excludes BLOCK, REV, CWDR patterns
-- Opening balance calculation from first transaction
+### Generic PDF Parser
+Two extraction strategies (tried in order):
+1. **Table extraction** — uses pdfplumber `extract_tables()` with auto-detected column headers (Date, Description, Debit, Credit, Balance, Reference). Works for banks with clean table formatting (e.g., Federal Bank).
+2. **Text-based line parsing** — detects transaction lines by finding leading dates and trailing amounts. Works for banks where table extraction produces merged columns (e.g., Bank of Baroda).
 
-### HDFC Credit Card Parser
-- Statement date, due date, card number extraction
-- Card holder name, credit limit, available credit
-- Total dues and minimum amount due
-- Transaction line parsing with date + description + amount
-- Debit/credit classification based on Cr suffix
+Supports both savings and credit card statement types for any bank.
 
 ---
 
@@ -214,8 +208,8 @@ docker-compose up --build
 | `CreditCardStatementDto.java` | `app/schemas/credit_card.py` |
 | `SavingsAccountStatementDto.java` | `app/schemas/savings_account.py` |
 | `PdfBoxStatementParser.java` | `app/parsers/base_parser.py` |
-| `HdfcCreditCardPdfParser.java` | `app/parsers/hdfc_credit_card_parser.py` |
-| `HdfcSavingsPdfParser.java` | `app/parsers/hdfc_savings_parser.py` |
+| `HdfcCreditCardPdfParser.java` | `app/parsers/generic_pdf_parser.py` (GenericPdfParser) |
+| `HdfcSavingsPdfParser.java` | `app/parsers/generic_pdf_parser.py` (GenericPdfParser) |
 | `CreditCardStatementService.java` | `app/services/credit_card_service.py` |
 | `SavingsAccountStatementService.java` | `app/services/savings_service.py` |
 | `ParserService.java` | `app/services/parser_service.py` |
