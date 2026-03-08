@@ -31,6 +31,22 @@ def list_accounts(db: Session = Depends(get_db)):
     return AccountsService.get_accounts(db)
 
 
+@router.patch("/rename")
+def rename_account(
+    account_type: str = Query(..., description="SAVINGS or CREDIT_CARD"),
+    identifier: str = Query(..., description="Account number or card number"),
+    name: str = Query(..., description="New display name for the account"),
+    db: Session = Depends(get_db),
+):
+    """Rename an account (update holder name across all its statements)."""
+    if account_type not in ("SAVINGS", "CREDIT_CARD"):
+        raise HTTPException(status_code=400, detail="account_type must be SAVINGS or CREDIT_CARD")
+    updated = AccountsService.rename_account(db, account_type, identifier, name)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"detail": "Account renamed", "identifier": identifier, "name": name}
+
+
 @router.get("/statements/savings")
 def list_savings_statements(
     account_number: Optional[str] = Query(None),

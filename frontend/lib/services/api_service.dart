@@ -526,6 +526,37 @@ class ApiService {
     }
   }
 
+  /// Rename an account (update holder name).
+  static Future<void> renameAccount({
+    required String accountType,
+    required String identifier,
+    required String name,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v2/accounts/rename').replace(
+      queryParameters: {
+        'account_type': accountType,
+        'identifier': identifier,
+        'name': name,
+      },
+    );
+    final response = await http.patch(uri, headers: _headers);
+    if (response.statusCode != 200) {
+      final detail = _extractErrorDetail(response.body);
+      throw Exception('Failed to rename account: $detail');
+    }
+  }
+
+  /// Get daily spending data for a specific month (for calendar heatmap).
+  static Future<List<SpendingTrend>> getDailySpending({
+    required int year,
+    required int month,
+  }) async {
+    final from = '$year-${month.toString().padLeft(2, '0')}-01';
+    final lastDay = DateTime(year, month + 1, 0).day;
+    final to = '$year-${month.toString().padLeft(2, '0')}-${lastDay.toString().padLeft(2, '0')}';
+    return getSpendingTrends(from: from, to: to, granularity: 'daily');
+  }
+
   /// Delete a single unified transaction.
   static Future<void> deleteTransaction(int transactionId) async {
     final response = await http.delete(

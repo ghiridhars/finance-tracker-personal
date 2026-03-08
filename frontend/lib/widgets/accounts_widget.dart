@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/account_models.dart';
 import '../providers/accounts_provider.dart';
+import '../services/api_service.dart';
 import 'skeleton_widgets.dart';
 
 final _currencyFormat = NumberFormat.currency(symbol: '\u20B9', decimalDigits: 2);
@@ -341,6 +342,22 @@ class _AccountCard extends ConsumerWidget {
                             fontWeight: FontWeight.w500),
                       ),
                     ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: Icon(Icons.edit, size: 18, color: cs.outline),
+                    tooltip: 'Rename account',
+                    onPressed: () => _showRenameDialog(
+                      context,
+                      ref,
+                      account,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -410,6 +427,74 @@ class _AccountCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showRenameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Account account,
+  ) {
+    final controller = TextEditingController(text: account.holderName ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename Account'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Account Name',
+            hintText: 'e.g. My Savings Account',
+            border: const OutlineInputBorder(),
+            prefixIcon: Icon(
+              account.isSavings ? Icons.account_balance : Icons.credit_card,
+            ),
+          ),
+          textCapitalization: TextCapitalization.words,
+          onSubmitted: (_) => _submitRename(ctx, ref, account, controller.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => _submitRename(ctx, ref, account, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitRename(
+    BuildContext dialogContext,
+    WidgetRef ref,
+    Account account,
+    String newName,
+  ) async {
+    final name = newName.trim();
+    if (name.isEmpty) return;
+    Navigator.of(dialogContext).pop();
+    try {
+      await ApiService.renameAccount(
+        accountType: account.type,
+        identifier: account.identifier,
+        name: name,
+      );
+      ref.read(accountsProvider.notifier).loadAccounts();
+      if (dialogContext.mounted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          const SnackBar(content: Text('Account renamed')),
+        );
+      }
+    } catch (e) {
+      if (dialogContext.mounted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          SnackBar(content: Text('Rename failed: $e')),
+        );
+      }
+    }
   }
 }
 

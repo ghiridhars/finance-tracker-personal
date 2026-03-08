@@ -141,6 +141,41 @@ class AccountsService:
         return accounts
 
 
+    @staticmethod
+    def rename_account(
+        db: Session,
+        account_type: str,
+        identifier: str,
+        new_name: str,
+    ) -> bool:
+        """
+        Update the holder name across all statements for a given account.
+        Returns True if at least one statement was updated.
+        """
+        if account_type == "SAVINGS":
+            count = (
+                db.query(SavingsAccountStatement)
+                .filter(SavingsAccountStatement.account_number == identifier)
+                .update({SavingsAccountStatement.account_holder_name: new_name})
+            )
+        elif account_type == "CREDIT_CARD":
+            count = (
+                db.query(CreditCardStatement)
+                .filter(CreditCardStatement.card_number == identifier)
+                .update({CreditCardStatement.card_holder_name: new_name})
+            )
+        else:
+            return False
+
+        if count > 0:
+            db.commit()
+            logger.info(
+                f"Renamed {account_type} account {identifier} to '{new_name}' "
+                f"({count} statements updated)"
+            )
+        return count > 0
+
+
 class StatementManagementService:
     """CRUD operations for statements."""
 

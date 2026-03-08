@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../providers/dashboard_provider.dart';
 import '../models/analytics_models.dart';
 import 'skeleton_widgets.dart';
@@ -72,6 +73,17 @@ class DashboardScreen extends ConsumerWidget {
 
           // 1. Summary cards
           if (dash.summary != null) _SummaryCards(summary: dash.summary!),
+          const SizedBox(height: 24),
+
+          // 1.5 Calendar heatmap
+          _SectionTitle(title: 'Spending Calendar', icon: Icons.calendar_month),
+          const SizedBox(height: 8),
+          _SpendingCalendar(
+            data: dash.calendarData,
+            focusedMonth: dash.calendarMonth,
+            onMonthChanged: (m) =>
+                ref.read(dashboardProvider.notifier).setCalendarMonth(m),
+          ),
           const SizedBox(height: 24),
 
           // 2. Spending trends
@@ -927,6 +939,173 @@ class _TopMerchantsCard extends StatelessWidget {
               ),
             );
           }),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 1.5 Spending Calendar (Heatmap)
+// ═══════════════════════════════════════════════════════════════
+
+class _SpendingCalendar extends StatelessWidget {
+  final List<SpendingTrend> data;
+  final DateTime focusedMonth;
+  final ValueChanged<DateTime> onMonthChanged;
+
+  const _SpendingCalendar({
+    required this.data,
+    required this.focusedMonth,
+    required this.onMonthChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    // Build a map from date string → spending amount
+    final Map<DateTime, double> spendingByDay = {};
+    double maxSpending = 0;
+    for (final d in data) {
+      final parts = d.period.split('-');
+      if (parts.length == 3) {
+        final dt = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+        spendingByDay[dt] = d.spending;
+        if (d.spending > maxSpending) maxSpending = d.spending;
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: TableCalendar<void>(
+          firstDay: DateTime(2020),
+          lastDay: DateTime(2030, 12, 31),
+          focusedDay: focusedMonth,
+          calendarFormat: CalendarFormat.month,
+          availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+          headerStyle: HeaderStyle(
+            formatButtonVisible: false,
+            titleCentered: true,
+            titleTextStyle: Theme.of(context)
+                .textTheme
+                .titleSmall!
+                .copyWith(fontWeight: FontWeight.w600),
+            leftChevronIcon: Icon(Icons.chevron_left, color: cs.primary),
+            rightChevronIcon: Icon(Icons.chevron_right, color: cs.primary),
+          ),
+          daysOfWeekStyle: DaysOfWeekStyle(
+            weekdayStyle: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: cs.onSurface.withValues(alpha: 0.7),
+            ),
+            weekendStyle: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: cs.error.withValues(alpha: 0.7),
+            ),
+          ),
+          onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
+          calendarBuilders: CalendarBuilders(
+            defaultBuilder: (context, day, focusedDay) {
+              return _CalendarCell(
+                day: day,
+                spending: spendingByDay[DateTime(day.year, day.month, day.day)] ?? 0,
+                maxSpending: maxSpending,
+                isToday: false,
+              );
+            },
+            todayBuilder: (context, day, focusedDay) {
+              return _CalendarCell(
+                day: day,
+                spending: spendingByDay[DateTime(day.year, day.month, day.day)] ?? 0,
+                maxSpending: maxSpending,
+                isToday: true,
+              );
+            },
+            outsideBuilder: (context, day, focusedDay) {
+              return Center(
+                child: Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurface.withValues(alpha: 0.2),
+                  ),
+                ),
+              );
+            },
+          ),
+          calendarStyle: const CalendarStyle(
+            cellMargin: EdgeInsets.all(2),
+            outsideDaysVisible: true,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarCell extends StatelessWidget {
+  final DateTime day;
+  final double spending;
+  final double maxSpending;
+  final bool isToday;
+
+  const _CalendarCell({
+    required this.day,
+    required this.spending,
+    required this.maxSpending,
+    required this.isToday,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    // Compute intensity (0.0 – 1.0)
+    final intensity = maxSpending > 0 ? (spending / maxSpending).clamp(0.0, 1.0) : 0.0;
+
+    Color bgColor;
+    if (spending > 0) {
+      // Gradient from light to dark based on intensity
+      bgColor = Color.lerp(
+        Colors.red.shade50,
+        Colors.red.shade600,
+        intensity,
+      )!;
+    } else {
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: spending > 0
+          ? '${DateFormat.MMMd().format(day)}: ${_currencyFmt.format(spending)}'
+          : DateFormat.MMMd().format(day),
+      child: Container(
+        margin: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(6),
+          border: isToday
+              ? Border.all(color: cs.primary, width: 2)
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '${day.day}',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+            color: spending > 0 && intensity > 0.5
+                ? Colors.white
+                : cs.onSurface,
+          ),
         ),
       ),
     );

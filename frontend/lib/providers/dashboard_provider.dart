@@ -53,8 +53,10 @@ class DashboardState {
   final List<IncomeVsExpense> incomeVsExpense;
   final MonthOverMonth? monthOverMonth;
   final List<MerchantSpending> topMerchants;
+  final List<SpendingTrend> calendarData;
+  final DateTime calendarMonth;
 
-  const DashboardState({
+  DashboardState({
     this.isLoading = false,
     this.error,
     this.range = DashboardRange.last30d,
@@ -64,7 +66,9 @@ class DashboardState {
     this.incomeVsExpense = const [],
     this.monthOverMonth,
     this.topMerchants = const [],
-  });
+    this.calendarData = const [],
+    DateTime? calendarMonth,
+  }) : calendarMonth = calendarMonth ?? DateTime.now();
 
   DashboardState copyWith({
     bool? isLoading,
@@ -76,6 +80,8 @@ class DashboardState {
     List<IncomeVsExpense>? incomeVsExpense,
     MonthOverMonth? monthOverMonth,
     List<MerchantSpending>? topMerchants,
+    List<SpendingTrend>? calendarData,
+    DateTime? calendarMonth,
   }) {
     return DashboardState(
       isLoading: isLoading ?? this.isLoading,
@@ -87,6 +93,8 @@ class DashboardState {
       incomeVsExpense: incomeVsExpense ?? this.incomeVsExpense,
       monthOverMonth: monthOverMonth ?? this.monthOverMonth,
       topMerchants: topMerchants ?? this.topMerchants,
+      calendarData: calendarData ?? this.calendarData,
+      calendarMonth: calendarMonth ?? this.calendarMonth,
     );
   }
 }
@@ -98,7 +106,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
   DashboardState build() {
     // Auto-load on first access
     Future.microtask(() => loadDashboard());
-    return const DashboardState(isLoading: true);
+    return DashboardState(isLoading: true);
   }
 
   Future<void> loadDashboard({DashboardRange? range}) async {
@@ -144,12 +152,34 @@ class DashboardNotifier extends Notifier<DashboardState> {
         monthOverMonth: results[4] as MonthOverMonth,
         topMerchants: results[5] as List<MerchantSpending>,
       );
+
+      // Also load calendar data for current calendar month
+      _loadCalendarData(state.calendarMonth);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
   void setRange(DashboardRange range) => loadDashboard(range: range);
+
+  /// Load daily spending data for a specific month (calendar heatmap).
+  Future<void> _loadCalendarData(DateTime month) async {
+    try {
+      final data = await ApiService.getDailySpending(
+        year: month.year,
+        month: month.month,
+      );
+      state = state.copyWith(calendarData: data, calendarMonth: month);
+    } catch (_) {
+      // Non-critical — calendar just shows empty
+    }
+  }
+
+  /// Change the calendar month and reload data.
+  void setCalendarMonth(DateTime month) {
+    state = state.copyWith(calendarMonth: month, calendarData: const []);
+    _loadCalendarData(month);
+  }
 }
 
 // ── Provider ────────────────────────────────────────────────
