@@ -7,6 +7,8 @@
 ///   4. Income vs Expense (bar chart)
 ///   5. Month-over-month comparison
 ///   6. Top merchants
+library;
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/dashboard_layout_provider.dart';
 import '../models/analytics_models.dart';
 import 'skeleton_widgets.dart';
 
@@ -23,9 +26,55 @@ final _currencyFmtDec = NumberFormat.currency(locale: 'en_IN', symbol: '₹', de
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
+  /// Check whether a tile has data to display.
+  bool _hasData(DashboardTileId id, DashboardState dash) => switch (id) {
+        DashboardTileId.summary => dash.summary != null,
+        DashboardTileId.calendar => true,
+        DashboardTileId.trends => dash.spendingTrends.isNotEmpty,
+        DashboardTileId.categories => dash.categorySpending.isNotEmpty,
+        DashboardTileId.incomeExpense => dash.incomeVsExpense.isNotEmpty,
+        DashboardTileId.monthOverMonth => dash.monthOverMonth != null,
+        DashboardTileId.topMerchants => dash.topMerchants.isNotEmpty,
+      };
+
+  /// Build the raw content widget for a tile.
+  Widget _buildTile(DashboardTileId id, DashboardState dash, WidgetRef ref) {
+    return switch (id) {
+      DashboardTileId.summary => _SummaryCards(summary: dash.summary!),
+      DashboardTileId.calendar => _SpendingCalendar(
+          data: dash.calendarData,
+          focusedMonth: dash.calendarMonth,
+          onMonthChanged: (m) =>
+              ref.read(dashboardProvider.notifier).setCalendarMonth(m),
+        ),
+      DashboardTileId.trends =>
+          _SpendingTrendsChart(data: dash.spendingTrends),
+      DashboardTileId.categories =>
+          _CategoryPieChart(data: dash.categorySpending),
+      DashboardTileId.incomeExpense =>
+          _IncomeVsExpenseChart(data: dash.incomeVsExpense),
+      DashboardTileId.monthOverMonth =>
+          _MonthOverMonthCard(data: dash.monthOverMonth!),
+      DashboardTileId.topMerchants =>
+          _TopMerchantsCard(data: dash.topMerchants),
+    };
+  }
+
+  /// Section title and icon for each tile.
+  static const Map<DashboardTileId, (String, IconData)> _tileMeta = {
+    DashboardTileId.summary: ('Summary', Icons.dashboard),
+    DashboardTileId.calendar: ('Spending Calendar', Icons.calendar_month),
+    DashboardTileId.trends: ('Spending Trends', Icons.trending_up),
+    DashboardTileId.categories: ('Where Does Your Money Go?', Icons.pie_chart),
+    DashboardTileId.incomeExpense: ('Income vs Expense', Icons.bar_chart),
+    DashboardTileId.monthOverMonth: ('Month-over-Month', Icons.compare_arrows),
+    DashboardTileId.topMerchants: ('Top Merchants', Icons.storefront),
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dash = ref.watch(dashboardProvider);
+    final layout = ref.watch(dashboardLayoutProvider);
 
     if (dash.isLoading && dash.summary == null) {
       return const SkeletonDashboard();
@@ -36,14 +85,18 @@ class DashboardScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.error_outline, size: 48,
+                color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 12),
-            Text('Failed to load dashboard', style: Theme.of(context).textTheme.titleMedium),
+            Text('Failed to load dashboard',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text(dash.error!, style: Theme.of(context).textTheme.bodySmall),
+            Text(dash.error!,
+                style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => ref.read(dashboardProvider.notifier).loadDashboard(),
+              onPressed: () =>
+                  ref.read(dashboardProvider.notifier).loadDashboard(),
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
             ),
@@ -52,81 +105,531 @@ class DashboardScreen extends ConsumerWidget {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => ref.read(dashboardProvider.notifier).loadDashboard(),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Date range selector
-          _DateRangeChips(
-            selected: dash.range,
-            onChanged: (r) => ref.read(dashboardProvider.notifier).setRange(r),
-          ),
-          const SizedBox(height: 16),
+    final editing = layout.isEditMode;
+    final visibleTiles = <TileConfig>[];
+    for (final t in layout.tiles) {
+      if (editing || (t.visible && _hasData(t.id, dash))) {
+        visibleTiles.add(t);
+      }
+    }
 
-          // Loading overlay
-          if (dash.isLoading)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: LinearProgressIndicator(),
+    return Stack(
+      children: [
+        Column(
+          children: [
+            if (editing)
+              _EditToolbar(
+                onReset: () => ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .resetToDefaults(),
+                onDone: () => ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .exitEditMode(),
+              ),
+
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () =>
+                    ref.read(dashboardProvider.notifier).loadDashboard(),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final totalWidth = constraints.maxWidth - 32;
+                    final tier = screenTierFor(constraints.maxWidth);
+                    const gap = 12.0;
+
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (!editing) ...[
+                          _DateRangeChips(
+                            selected: dash.range,
+                            onChanged: (r) => ref
+                                .read(dashboardProvider.notifier)
+                                .setRange(r),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        if (dash.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: LinearProgressIndicator(),
+                          ),
+                        ..._buildGridRows(
+                          tiles: visibleTiles,
+                          totalWidth: totalWidth,
+                          tier: tier,
+                          gap: gap,
+                          editing: editing,
+                          dash: dash,
+                          ref: ref,
+                          context: context,
+                        ),
+                        const SizedBox(height: 60),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        if (!editing)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.small(
+              onPressed: () => ref
+                  .read(dashboardLayoutProvider.notifier)
+                  .toggleEditMode(),
+              tooltip: 'Customize dashboard',
+              child: const Icon(Icons.dashboard_customize),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Flow tiles into rows based on effective colSpan (responsive).
+  List<Widget> _buildGridRows({
+    required List<TileConfig> tiles,
+    required double totalWidth,
+    required ScreenTier tier,
+    required double gap,
+    required bool editing,
+    required DashboardState dash,
+    required WidgetRef ref,
+    required BuildContext context,
+  }) {
+    final rows = <Widget>[];
+    var currentRow = <(TileConfig, int)>[];
+    var usedCols = 0;
+
+    for (final tile in tiles) {
+      final origIdx = ref.read(dashboardLayoutProvider).tiles.indexOf(tile);
+      final span = effectiveColSpan(tile, tier);
+
+      if (usedCols + span > kGridColumns && currentRow.isNotEmpty) {
+        rows.add(_buildRow(currentRow, totalWidth, tier, gap, editing, dash, ref, context));
+        rows.add(const SizedBox(height: 12));
+        currentRow = [];
+        usedCols = 0;
+      }
+      currentRow.add((tile, origIdx));
+      usedCols += span;
+    }
+    if (currentRow.isNotEmpty) {
+      rows.add(_buildRow(currentRow, totalWidth, tier, gap, editing, dash, ref, context));
+    }
+    return rows;
+  }
+
+  /// Build a single row of tiles with proper flex + spacer.
+  Widget _buildRow(
+    List<(TileConfig, int)> rowTiles,
+    double totalWidth,
+    ScreenTier tier,
+    double gap,
+    bool editing,
+    DashboardState dash,
+    WidgetRef ref,
+    BuildContext context,
+  ) {
+    final totalCount = ref.read(dashboardLayoutProvider).tiles.length;
+    final usedCols = rowTiles.fold<int>(
+        0, (s, t) => s + effectiveColSpan(t.$1, tier));
+    final remaining = kGridColumns - usedCols;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < rowTiles.length; i++) ...[
+          if (i > 0) SizedBox(width: gap),
+          Expanded(
+            flex: effectiveColSpan(rowTiles[i].$1, tier),
+            child: _buildSingleTile(
+              rowTiles[i].$1,
+              rowTiles[i].$2,
+              totalCount,
+              editing,
+              tier,
+              dash,
+              ref,
+              context,
+            ),
+          ),
+        ],
+        if (remaining > 0) ...[
+          SizedBox(width: gap),
+          Expanded(flex: remaining, child: const SizedBox()),
+        ],
+      ],
+    );
+  }
+
+  /// Build a single tile — either normal or edit-wrapped.
+  Widget _buildSingleTile(
+    TileConfig tile,
+    int index,
+    int totalCount,
+    bool editing,
+    ScreenTier tier,
+    DashboardState dash,
+    WidgetRef ref,
+    BuildContext context,
+  ) {
+    final hasData = _hasData(tile.id, dash);
+
+    Widget content;
+    if (hasData) {
+      content = _buildTile(tile.id, dash, ref);
+    } else {
+      content = Center(
+        child: Text(
+          'No data for ${_tileMeta[tile.id]!.$1}',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    if (editing) {
+      return _EditableTileWrapper(
+        tile: tile,
+        index: index,
+        totalCount: totalCount,
+        tier: tier,
+        child: content,
+      );
+    }
+
+    // Normal mode — animated height transitions
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (tile.id != DashboardTileId.summary) ...[
+          _SectionTitle(
+            title: _tileMeta[tile.id]!.$1,
+            icon: _tileMeta[tile.id]!.$2,
+          ),
+          const SizedBox(height: 8),
+        ],
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          height: tile.height,
+          clipBehavior: Clip.hardEdge,
+          decoration: const BoxDecoration(),
+          child: content,
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Edit-mode toolbar
+// ═══════════════════════════════════════════════════════════════
+
+class _EditToolbar extends StatelessWidget {
+  final VoidCallback onReset;
+  final VoidCallback onDone;
+  const _EditToolbar({required this.onReset, required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius:
+            const BorderRadius.vertical(bottom: Radius.circular(12)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.dashboard_customize,
+              color: cs.onPrimaryContainer, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'Customize Dashboard',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: cs.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const Spacer(),
+          TextButton(onPressed: onReset, child: const Text('Reset')),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: onDone,
+            icon: const Icon(Icons.check, size: 18),
+            label: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Editable tile wrapper — button-based resize controls
+// ═══════════════════════════════════════════════════════════════
+
+class _EditableTileWrapper extends ConsumerWidget {
+  final TileConfig tile;
+  final int index;
+  final int totalCount;
+  final ScreenTier tier;
+  final Widget child;
+
+  const _EditableTileWrapper({
+    required this.tile,
+    required this.index,
+    required this.totalCount,
+    required this.tier,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final meta = DashboardScreen._tileMeta[tile.id]!;
+    final notifier = ref.read(dashboardLayoutProvider.notifier);
+    final isFirst = index == 0;
+    final isLast = index == totalCount - 1;
+    final visible = tile.visible;
+    final canWiden = tile.colSpan < kGridColumns;
+    final canNarrow = tile.colSpan > kMinColSpan;
+    final canTaller = tile.height < kMaxTileHeight;
+    final canShorter = tile.height > kMinTileHeight;
+    final isCompact = tier == ScreenTier.compact;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: visible ? 1.0 : 0.45,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        height: tile.height,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: visible
+                ? cs.primary.withValues(alpha: 0.5)
+                : cs.error.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          children: [
+            // ── Tile content (clipped, non-interactive) ──
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: AbsorbPointer(child: child),
+              ),
             ),
 
-          // 1. Summary cards
-          if (dash.summary != null) _SummaryCards(summary: dash.summary!),
-          const SizedBox(height: 24),
+            // ── Semi-transparent overlay for clarity ──
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cs.surface.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+              ),
+            ),
 
-          // 1.5 Calendar heatmap
-          _SectionTitle(title: 'Spending Calendar', icon: Icons.calendar_month),
-          const SizedBox(height: 8),
-          _SpendingCalendar(
-            data: dash.calendarData,
-            focusedMonth: dash.calendarMonth,
-            onMonthChanged: (m) =>
-                ref.read(dashboardProvider.notifier).setCalendarMonth(m),
+            // ── Label badge (top-left) ──
+            Positioned(
+              top: 6,
+              left: 6,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(meta.$2, color: cs.onPrimary, size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      meta.$1,
+                      style: TextStyle(
+                        color: cs.onPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: cs.onPrimary.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${tile.colSpan}col · ${tile.height.round()}px',
+                        style: TextStyle(
+                          color: cs.onPrimary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Control pill (top-right): reorder + visibility ──
+            Positioned(
+              top: 6,
+              right: 6,
+              child: _ControlPill(
+                cs: cs,
+                children: [
+                  _TinyIconButton(
+                    icon: Icons.arrow_upward,
+                    color: cs.onSurface,
+                    onPressed: isFirst
+                        ? null
+                        : () => notifier.reorder(index, index - 1),
+                  ),
+                  _TinyIconButton(
+                    icon: Icons.arrow_downward,
+                    color: cs.onSurface,
+                    onPressed: isLast
+                        ? null
+                        : () => notifier.reorder(index, index + 2),
+                  ),
+                  Container(width: 1, height: 18, color: cs.outlineVariant),
+                  _TinyIconButton(
+                    icon:
+                        visible ? Icons.visibility : Icons.visibility_off,
+                    color: visible ? cs.primary : cs.error,
+                    onPressed: () => notifier.toggleVisibility(tile.id),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Resize controls (bottom-center) ──
+            Positioned(
+              bottom: 6,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _ControlPill(
+                  cs: cs,
+                  children: [
+                    // Width controls (hidden on compact screens)
+                    if (!isCompact) ...[
+                      _TinyIconButton(
+                        icon: Icons.chevron_left,
+                        color: cs.secondary,
+                        onPressed:
+                            canNarrow ? () => notifier.narrowTile(tile.id) : null,
+                        tooltip: 'Narrower',
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Icon(Icons.width_normal,
+                            size: 14, color: cs.outline),
+                      ),
+                      _TinyIconButton(
+                        icon: Icons.chevron_right,
+                        color: cs.secondary,
+                        onPressed:
+                            canWiden ? () => notifier.widenTile(tile.id) : null,
+                        tooltip: 'Wider',
+                      ),
+                      Container(
+                          width: 1, height: 18, color: cs.outlineVariant),
+                    ],
+                    // Height controls
+                    _TinyIconButton(
+                      icon: Icons.expand_less,
+                      color: cs.tertiary,
+                      onPressed:
+                          canShorter ? () => notifier.shorterTile(tile.id) : null,
+                      tooltip: 'Shorter',
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Icon(Icons.height, size: 14, color: cs.outline),
+                    ),
+                    _TinyIconButton(
+                      icon: Icons.expand_more,
+                      color: cs.tertiary,
+                      onPressed:
+                          canTaller ? () => notifier.tallerTile(tile.id) : null,
+                      tooltip: 'Taller',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded pill container for floating control buttons.
+class _ControlPill extends StatelessWidget {
+  final ColorScheme cs;
+  final List<Widget> children;
+  const _ControlPill({required this.cs, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: cs.surface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(height: 24),
-
-          // 2. Spending trends
-          if (dash.spendingTrends.isNotEmpty) ...[
-            _SectionTitle(title: 'Spending Trends', icon: Icons.trending_up),
-            const SizedBox(height: 8),
-            _SpendingTrendsChart(data: dash.spendingTrends),
-            const SizedBox(height: 24),
-          ],
-
-          // 3. Category breakdown
-          if (dash.categorySpending.isNotEmpty) ...[
-            _SectionTitle(title: 'Where Does Your Money Go?', icon: Icons.pie_chart),
-            const SizedBox(height: 8),
-            _CategoryPieChart(data: dash.categorySpending),
-            const SizedBox(height: 24),
-          ],
-
-          // 4. Income vs Expense
-          if (dash.incomeVsExpense.isNotEmpty) ...[
-            _SectionTitle(title: 'Income vs Expense', icon: Icons.bar_chart),
-            const SizedBox(height: 8),
-            _IncomeVsExpenseChart(data: dash.incomeVsExpense),
-            const SizedBox(height: 24),
-          ],
-
-          // 5. Month-over-month
-          if (dash.monthOverMonth != null) ...[
-            _SectionTitle(title: 'Month-over-Month', icon: Icons.compare_arrows),
-            const SizedBox(height: 8),
-            _MonthOverMonthCard(data: dash.monthOverMonth!),
-            const SizedBox(height: 24),
-          ],
-
-          // 6. Top merchants
-          if (dash.topMerchants.isNotEmpty) ...[
-            _SectionTitle(title: 'Top Merchants', icon: Icons.storefront),
-            const SizedBox(height: 8),
-            _TopMerchantsCard(data: dash.topMerchants),
-          ],
-
-          const SizedBox(height: 32),
         ],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+/// Compact icon button for the edit overlay toolbar.
+class _TinyIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+  final String? tooltip;
+  const _TinyIconButton(
+      {required this.icon, required this.color, this.onPressed, this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: IconButton(
+        icon: Icon(icon, size: 16, color: onPressed != null ? color : color.withValues(alpha: 0.35)),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        tooltip: tooltip,
       ),
     );
   }
@@ -324,8 +827,7 @@ class _SpendingTrendsChart extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
         child: Column(
           children: [
-            SizedBox(
-              height: 220,
+            Expanded(
               child: LineChart(
                 LineChartData(
                   gridData: FlGridData(
@@ -478,8 +980,7 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            SizedBox(
-              height: 220,
+            Expanded(
               child: PieChart(
                 PieChartData(
                   pieTouchData: PieTouchData(
@@ -603,8 +1104,7 @@ class _IncomeVsExpenseChart extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
         child: Column(
           children: [
-            SizedBox(
-              height: 220,
+            Expanded(
               child: BarChart(
                 BarChartData(
                   gridData: FlGridData(
@@ -729,7 +1229,8 @@ class _MonthOverMonthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Card(
-      child: Padding(
+      clipBehavior: Clip.hardEdge,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -885,10 +1386,11 @@ class _TopMerchantsCard extends StatelessWidget {
     final maxAmount = data.isNotEmpty ? data.first.amount : 0.0;
 
     return Card(
-      child: Padding(
+      clipBehavior: Clip.hardEdge,
+      child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: List.generate(min(10, data.length), (i) {
+        itemCount: min(10, data.length),
+        itemBuilder: (context, i) {
             final m = data[i];
             final barWidth = maxAmount > 0 ? m.amount / maxAmount : 0.0;
             return Padding(
@@ -938,16 +1440,31 @@ class _TopMerchantsCard extends StatelessWidget {
                 ],
               ),
             );
-          }),
-        ),
+        },
       ),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 1.5 Spending Calendar (Heatmap)
+// 1.5 Spending Calendar (Heatmap with bank-wise split)
 // ═══════════════════════════════════════════════════════════════
+
+/// Fixed color palette for each bank.
+const Map<String, Color> _bankColors = {
+  'HDFC': Color(0xFF1565C0),       // blue 800
+  'ICICI': Color(0xFFEF6C00),      // orange 800
+  'SBI': Color(0xFF2E7D32),        // green 800
+  'AXIS': Color(0xFF6A1B9A),       // purple 800
+  'KOTAK': Color(0xFF00838F),      // cyan 800
+  'YES_BANK': Color(0xFFC62828),   // red 800
+  'BOB': Color(0xFFFF8F00),        // amber 800
+  'FEDERAL_BANK': Color(0xFF283593), // indigo 800
+  'OTHER': Color(0xFF546E7A),      // blue-grey 600
+};
+
+Color _colorForBank(String bank) =>
+    _bankColors[bank.toUpperCase()] ?? _bankColors['OTHER']!;
 
 class _SpendingCalendar extends StatelessWidget {
   final List<SpendingTrend> data;
@@ -964,9 +1481,12 @@ class _SpendingCalendar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Build a map from date string → spending amount
+    // Build maps from date → total spending and date → account breakdown
     final Map<DateTime, double> spendingByDay = {};
+    final Map<DateTime, List<AccountSpending>> accountsByDay = {};
     double maxSpending = 0;
+    final Set<String> banksInMonth = {};
+
     for (final d in data) {
       final parts = d.period.split('-');
       if (parts.length == 3) {
@@ -976,77 +1496,133 @@ class _SpendingCalendar extends StatelessWidget {
           int.parse(parts[2]),
         );
         spendingByDay[dt] = d.spending;
+        accountsByDay[dt] = d.byAccount;
         if (d.spending > maxSpending) maxSpending = d.spending;
+        for (final a in d.byAccount) {
+          banksInMonth.add(a.bank);
+        }
       }
     }
 
     return Card(
-      child: Padding(
+      clipBehavior: Clip.hardEdge,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: TableCalendar<void>(
-          firstDay: DateTime(2020),
-          lastDay: DateTime(2030, 12, 31),
-          focusedDay: focusedMonth,
-          calendarFormat: CalendarFormat.month,
-          availableCalendarFormats: const {CalendarFormat.month: 'Month'},
-          headerStyle: HeaderStyle(
-            formatButtonVisible: false,
-            titleCentered: true,
-            titleTextStyle: Theme.of(context)
-                .textTheme
-                .titleSmall!
-                .copyWith(fontWeight: FontWeight.w600),
-            leftChevronIcon: Icon(Icons.chevron_left, color: cs.primary),
-            rightChevronIcon: Icon(Icons.chevron_right, color: cs.primary),
-          ),
-          daysOfWeekStyle: DaysOfWeekStyle(
-            weekdayStyle: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: cs.onSurface.withValues(alpha: 0.7),
-            ),
-            weekendStyle: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: cs.error.withValues(alpha: 0.7),
-            ),
-          ),
-          onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
-          calendarBuilders: CalendarBuilders(
-            defaultBuilder: (context, day, focusedDay) {
-              return _CalendarCell(
-                day: day,
-                spending: spendingByDay[DateTime(day.year, day.month, day.day)] ?? 0,
-                maxSpending: maxSpending,
-                isToday: false,
-              );
-            },
-            todayBuilder: (context, day, focusedDay) {
-              return _CalendarCell(
-                day: day,
-                spending: spendingByDay[DateTime(day.year, day.month, day.day)] ?? 0,
-                maxSpending: maxSpending,
-                isToday: true,
-              );
-            },
-            outsideBuilder: (context, day, focusedDay) {
-              return Center(
-                child: Text(
-                  '${day.day}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                  ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TableCalendar<void>(
+              firstDay: DateTime(2020),
+              lastDay: DateTime(2030, 12, 31),
+              focusedDay: focusedMonth,
+              calendarFormat: CalendarFormat.month,
+              availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+              headerStyle: HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: Theme.of(context)
+                    .textTheme
+                    .titleSmall!
+                    .copyWith(fontWeight: FontWeight.w600),
+                leftChevronIcon:
+                    Icon(Icons.chevron_left, color: cs.primary),
+                rightChevronIcon:
+                    Icon(Icons.chevron_right, color: cs.primary),
+              ),
+              daysOfWeekStyle: DaysOfWeekStyle(
+                weekdayStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface.withValues(alpha: 0.7),
                 ),
-              );
-            },
-          ),
-          calendarStyle: const CalendarStyle(
-            cellMargin: EdgeInsets.all(2),
-            outsideDaysVisible: true,
-          ),
+                weekendStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: cs.error.withValues(alpha: 0.7),
+                ),
+              ),
+              onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
+              calendarBuilders: CalendarBuilders(
+                defaultBuilder: (context, day, focusedDay) {
+                  final key = DateTime(day.year, day.month, day.day);
+                  return _CalendarCell(
+                    day: day,
+                    spending: spendingByDay[key] ?? 0,
+                    accounts: accountsByDay[key] ?? const [],
+                    maxSpending: maxSpending,
+                    isToday: false,
+                  );
+                },
+                todayBuilder: (context, day, focusedDay) {
+                  final key = DateTime(day.year, day.month, day.day);
+                  return _CalendarCell(
+                    day: day,
+                    spending: spendingByDay[key] ?? 0,
+                    accounts: accountsByDay[key] ?? const [],
+                    maxSpending: maxSpending,
+                    isToday: true,
+                  );
+                },
+                outsideBuilder: (context, day, focusedDay) {
+                  return Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cs.onSurface.withValues(alpha: 0.2),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              calendarStyle: const CalendarStyle(
+                cellMargin: EdgeInsets.all(2),
+                outsideDaysVisible: true,
+              ),
+            ),
+            // Bank legend — only show banks present in this month
+            if (banksInMonth.isNotEmpty)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
+                  children: (banksInMonth.toList()..sort())
+                      .map((bank) => _BankLegendItem(bank: bank))
+                      .toList(),
+                ),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _BankLegendItem extends StatelessWidget {
+  final String bank;
+  const _BankLegendItem({required this.bank});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: _colorForBank(bank),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          bank.replaceAll('_', ' '),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -1054,12 +1630,14 @@ class _SpendingCalendar extends StatelessWidget {
 class _CalendarCell extends StatelessWidget {
   final DateTime day;
   final double spending;
+  final List<AccountSpending> accounts;
   final double maxSpending;
   final bool isToday;
 
   const _CalendarCell({
     required this.day,
     required this.spending,
+    required this.accounts,
     required this.maxSpending,
     required this.isToday,
   });
@@ -1067,33 +1645,53 @@ class _CalendarCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final intensity =
+        maxSpending > 0 ? (spending / maxSpending).clamp(0.0, 1.0) : 0.0;
+    final hasSplits = accounts.length > 1;
 
-    // Compute intensity (0.0 – 1.0)
-    final intensity = maxSpending > 0 ? (spending / maxSpending).clamp(0.0, 1.0) : 0.0;
-
-    Color bgColor;
+    // Build tooltip text with per-bank breakdown
+    String tooltipText;
     if (spending > 0) {
-      // Gradient from light to dark based on intensity
+      final buf = StringBuffer(
+          '${DateFormat.MMMd().format(day)}: ${_currencyFmt.format(spending)}');
+      if (accounts.isNotEmpty) {
+        for (final a in accounts) {
+          buf.write('\n${a.bank.replaceAll("_", " ")}: ${_currencyFmt.format(a.spending)}');
+        }
+      }
+      tooltipText = buf.toString();
+    } else {
+      tooltipText = DateFormat.MMMd().format(day);
+    }
+
+    // Compute background color
+    Color bgColor;
+    if (spending > 0 && hasSplits) {
+      // Blend bank colors weighted by spending share
+      bgColor = _blendBankColors(accounts, spending, intensity);
+    } else if (spending > 0 && accounts.isNotEmpty) {
       bgColor = Color.lerp(
-        Colors.red.shade50,
-        Colors.red.shade600,
+        _colorForBank(accounts.first.bank).withValues(alpha: 0.15),
+        _colorForBank(accounts.first.bank),
         intensity,
       )!;
+    } else if (spending > 0) {
+      bgColor = Color.lerp(
+          Colors.red.shade50, Colors.red.shade600, intensity)!;
     } else {
       bgColor = Colors.transparent;
     }
 
     return Tooltip(
-      message: spending > 0
-          ? '${DateFormat.MMMd().format(day)}: ${_currencyFmt.format(spending)}'
-          : DateFormat.MMMd().format(day),
+      message: tooltipText,
       child: Container(
         margin: const EdgeInsets.all(1),
         decoration: BoxDecoration(
-          color: bgColor,
+          color: spending > 0 && !hasSplits ? bgColor : null,
           borderRadius: BorderRadius.circular(6),
-          border: isToday
-              ? Border.all(color: cs.primary, width: 2)
+          border: isToday ? Border.all(color: cs.primary, width: 2) : null,
+          gradient: spending > 0 && hasSplits
+              ? _buildBankGradient(accounts, spending, intensity)
               : null,
         ),
         alignment: Alignment.center,
@@ -1109,6 +1707,47 @@ class _CalendarCell extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Build a vertical linear gradient with bank color segments.
+  LinearGradient _buildBankGradient(
+      List<AccountSpending> accts, double total, double intensity) {
+    final sorted = List<AccountSpending>.from(accts)
+      ..sort((a, b) => b.spending.compareTo(a.spending));
+    final opacity = 0.35 + intensity * 0.65;
+
+    final colors = <Color>[];
+    final stops = <double>[];
+    double cumulative = 0;
+    for (final a in sorted) {
+      final fraction = total > 0 ? a.spending / total : 0.0;
+      final color = _colorForBank(a.bank).withValues(alpha: opacity);
+      colors.add(color);
+      stops.add(cumulative);
+      cumulative += fraction;
+      colors.add(color);
+      stops.add(cumulative.clamp(0.0, 1.0));
+    }
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: colors,
+      stops: stops,
+    );
+  }
+
+  /// Blend bank colors for the overall cell tint.
+  Color _blendBankColors(
+      List<AccountSpending> accts, double total, double intensity) {
+    double r = 0, g = 0, b = 0;
+    for (final a in accts) {
+      final w = total > 0 ? a.spending / total : 0.0;
+      final c = _colorForBank(a.bank);
+      r += (c.r * 255.0) * w;
+      g += (c.g * 255.0) * w;
+      b += (c.b * 255.0) * w;
+    }
+    return Color.fromRGBO(r.round(), g.round(), b.round(), 0.35 + intensity * 0.65);
   }
 }
 

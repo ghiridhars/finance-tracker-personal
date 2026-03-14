@@ -85,25 +85,56 @@ class CategorySpending {
   }
 }
 
+class AccountSpending {
+  final String bank;
+  final double spending;
+  final int count;
+
+  AccountSpending({
+    required this.bank,
+    required this.spending,
+    required this.count,
+  });
+
+  factory AccountSpending.fromJson(Map<String, dynamic> json) {
+    return AccountSpending(
+      bank: json['bank'] ?? 'OTHER',
+      spending: _d(json['spending']),
+      count: json['count'] ?? 0,
+    );
+  }
+
+  static double _d(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+}
+
 class SpendingTrend {
   final String period;
   final double spending;
   final double income;
   final int count;
+  final List<AccountSpending> byAccount;
 
   SpendingTrend({
     required this.period,
     required this.spending,
     required this.income,
     required this.count,
+    this.byAccount = const [],
   });
 
   factory SpendingTrend.fromJson(Map<String, dynamic> json) {
+    final accountList = json['by_account'] as List<dynamic>? ?? [];
     return SpendingTrend(
       period: json['period'] ?? '',
       spending: _d(json['spending']),
       income: _d(json['income']),
       count: json['count'] ?? 0,
+      byAccount:
+          accountList.map((a) => AccountSpending.fromJson(a)).toList(),
     );
   }
 

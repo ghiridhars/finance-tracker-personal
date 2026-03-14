@@ -9,6 +9,17 @@ alembic==1.13.1
 
 # PDF parsing
 pdfplumber==0.11.4
+pymupdf>=1.24.0
+
+# CSV/Excel parsing
+pandas>=2.2.0
+openpyxl>=3.1.0
+
+# Date parsing
+python-dateutil>=2.9.0
+
+# Encoding detection
+charset-normalizer>=3.3.0
 
 # Data validation
 pydantic==2.9.2

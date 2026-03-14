@@ -61,13 +61,31 @@ User opens Transactions → Loads unified list (default: last 90 days)
 
 ## 3. Dashboard & Analytics Flow
 
-View financial summary, charts, and insights.
+View financial summary, charts, and insights. Dashboard layout is fully customizable.
 
 ```
 User opens Dashboard → Selects time range (7d/30d/90d/6m/1y/all)
   → Loads summary cards + spending trends + category breakdown
   → Can view income vs expense, month-over-month, top merchants
+  → Spending calendar shows per-bank daily heatmap
+  → FAB → Edit mode → Reorder tiles, toggle visibility, resize width/height
+  → Save → Layout persisted to SharedPreferences
 ```
+
+**Dashboard Customization (client-side):**
+
+| Feature | Details |
+|---------|---------|
+| Grid system | 12-column responsive grid. Tiles flow into rows based on `colSpan` |
+| Width resize | Snap stops: 4, 6, 8, 12 columns via ◀▶ buttons |
+| Height resize | 40px increments via ▲▼ buttons (min 120px, max 800px) |
+| Reorder | ↑↓ buttons to move tiles up/down |
+| Visibility | Toggle tiles on/off (dimmed in edit mode) |
+| Responsive | Compact (<600px): all tiles full-width, width controls hidden. Medium (600–1199px): saved layout. Expanded (≥1200px): full controls |
+| Persistence | `SharedPreferences` key `dashboard_layout` stores JSON of tile configs |
+| Animations | `AnimatedContainer` (300ms) for size, `AnimatedOpacity` (200ms) for visibility |
+
+**7 Dashboard Tiles:** Summary, Spending Calendar, Spending Trends, Category Breakdown, Income vs Expense, Month-over-Month, Top Merchants
 
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|

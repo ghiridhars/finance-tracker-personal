@@ -59,7 +59,7 @@ class ParserService:
           - parser: "generic" | "llm"
           - error: error message (if failed)
         """
-        self._validate_upload(file_content)
+        self._validate_pdf(file_content)
         tmp_path = self._save_temp_file(file_content, prefix=f"{bank.value.lower()}-upload-")
 
         try:
@@ -121,11 +121,15 @@ class ParserService:
     # ── Utilities ─────────────────────────────────────────────
 
     def _validate_upload(self, file_content: bytes) -> None:
-        """Validate uploaded file (size + PDF magic)."""
+        """Validate uploaded file size."""
         if len(file_content) > settings.max_upload_size_bytes:
             raise ValueError(
                 f"File too large. Max allowed is {settings.max_upload_size_mb}MB"
             )
+
+    def _validate_pdf(self, file_content: bytes) -> None:
+        """Validate uploaded file (size + PDF magic)."""
+        self._validate_upload(file_content)
         if not file_content[:4].startswith(PDF_MAGIC):
             raise ValueError("Uploaded file is not a valid PDF")
 

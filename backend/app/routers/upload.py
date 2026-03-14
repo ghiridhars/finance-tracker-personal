@@ -184,9 +184,9 @@ async def upload_csv_statement(
     Upload a CSV/Excel bank statement.
 
     Auto-detects column mappings (Date, Description, Debit, Credit, Balance, etc.)
-    Works for any bank's CSV download.
+    Works for any bank's CSV or Excel download.
 
-    Supported file types: .csv, .txt (tab-separated)
+    Supported file types: .csv, .txt (tab-separated), .xlsx, .xls
     """
     # Validate bank and type
     try:
@@ -208,7 +208,7 @@ async def upload_csv_statement(
 
     # Validate file type
     filename = file.filename or "upload.csv"
-    allowed_extensions = (".csv", ".txt", ".tsv")
+    allowed_extensions = (".csv", ".txt", ".tsv", ".xlsx", ".xls")
     if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
         raise HTTPException(
             status_code=415,
@@ -225,7 +225,7 @@ async def upload_csv_statement(
 
         from app.parsers.csv_parser import parse_csv
 
-        result = parse_csv(content, bank_type, statement_type)
+        result = parse_csv(content, bank_type, statement_type, filename=filename)
 
         if not result.success:
             raise HTTPException(

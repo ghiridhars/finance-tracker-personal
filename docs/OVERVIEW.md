@@ -221,6 +221,7 @@ frontend/lib/
 │   ├── transactions_provider.dart      # Unified + legacy transaction state
 │   ├── categories_provider.dart        # Categories + tags
 │   ├── dashboard_provider.dart         # Analytics state
+│   ├── dashboard_layout_provider.dart  # Customizable grid layout state (tile config, edit mode)
 │   ├── accounts_provider.dart          # Accounts + statements
 │   └── budget_provider.dart            # Budgets, goals, reminders, recurring
 ├── screens/
@@ -235,7 +236,7 @@ frontend/lib/
     ├── statement_upload_widget.dart     # Upload with drop zone
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
     ├── unified_transaction_list_widget.dart  # Unified list with filters
-    ├── dashboard_widget.dart           # Charts + summary cards
+    ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts, calendar)
     ├── accounts_widget.dart            # Account management
     ├── budget_goals_widget.dart        # Budgets, goals, reminders
     └── skeleton_widgets.dart           # Shimmer loading placeholders
@@ -245,7 +246,7 @@ frontend/lib/
 
 | Route | Screen/Widget | Description |
 |-------|--------------|-------------|
-| `/` | DashboardWidget | Summary cards, charts |
+| `/` | DashboardWidget | Customizable grid dashboard: summary, charts, calendar, top merchants |
 | `/upload` | StatementUploadWidget | PDF/CSV upload |
 | `/transactions` | UnifiedTransactionListWidget | Searchable transaction list |
 | `/accounts` | AccountsWidget | Account & statement management |
@@ -256,11 +257,21 @@ frontend/lib/
 
 ### Responsive Breakpoints
 
+**App Shell Navigation:**
+
 | Width | Layout | Navigation |
 |-------|--------|-----------|
 | ≥ 900px | Desktop | Expanded NavigationRail (sidebar with labels, 220px) |
 | 600–899px | Tablet | Compact NavigationRail (icons + selected label) |
 | < 600px | Mobile | Bottom NavigationBar + AppBar |
+
+**Dashboard Grid (ScreenTier):**
+
+| Width | Tier | Behavior |
+|-------|------|----------|
+| < 600px | Compact | All tiles forced to 12-col (full width), width controls hidden |
+| 600–1199px | Medium | Tiles use saved colSpan, side-by-side layout |
+| ≥ 1200px | Expanded | Full grid with all resize controls |
 
 ---
 
@@ -641,6 +652,17 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 | Data encryption | AES-256 encryption for account/card numbers at rest | Planned |
 | PostgreSQL option | Switch from SQLite to PostgreSQL for multi-device access | Planned |
 | Backup/Restore | One-click DB backup and restore with download/upload | Planned |
+
+### Phase 8: Customizable Dashboard & Calendar (Completed)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| Spending calendar | Bank-wise heatmap calendar with per-day color-coded breakdown using LinearGradient | ✅ Done |
+| Configurable grid layout | 12-column responsive grid with per-tile colSpan (snap stops: 4/6/8/12) and height (40px steps) | ✅ Done |
+| Tile controls | Reorder (↑↓), visibility toggle, width (◀▶) and height (▲▼) resize buttons | ✅ Done |
+| Responsive breakpoints | ScreenTier (compact/medium/expanded) — compact forces all tiles full-width | ✅ Done |
+| Layout persistence | Dashboard layout saved to SharedPreferences, restored on reload | ✅ Done |
+| Smooth animations | AnimatedContainer for size transitions, AnimatedOpacity for visibility | ✅ Done |
 
 ### Potential Features
 

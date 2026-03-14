@@ -11,7 +11,7 @@ graph TB
     subgraph Client["Frontend — Flutter 3.x"]
         UI["Material Design 3 UI"]
         Router["GoRouter<br/>(8 routes)"]
-        Providers["Riverpod Providers<br/>(7 notifiers)"]
+        Providers["Riverpod Providers<br/>(8 notifiers)"]
         AuthSvc["Auth Service<br/>(JWT token mgmt)"]
         ApiSvc["API Service<br/>(HTTP client)"]
 

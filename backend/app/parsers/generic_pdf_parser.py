@@ -9,18 +9,40 @@ Uses two extraction strategies:
      transaction lines.
 
 Supports any bank's savings or credit card statement PDF.
+
+Uses pymupdf (fitz) for fast text extraction and pdfplumber for table extraction.
 """
 import logging
 import re
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-import pdfplumber
+import fitz  # pymupdf — fast text extraction
+import pdfplumber  # table extraction
 
 from app.models.enums import StatementType, TransactionType
 from app.parsers.base_parser import ParseException, ParseResult
+from app.parsers.patterns import (
+    DATE_PATTERNS,
+    VALUE_DATE_PATTERNS,
+    DESCRIPTION_PATTERNS,
+    DEBIT_PATTERNS,
+    CREDIT_PATTERNS,
+    AMOUNT_PATTERNS,
+    BALANCE_PATTERNS,
+    REFERENCE_PATTERNS,
+    NOISE_PATTERN as _NOISE,
+    LEADING_DATE_RE as _LEADING_DATE,
+    DECIMAL_AMOUNT_RE as _DECIMAL_AMOUNT,
+    INTEGER_AMOUNT_RE as _INTEGER_AMOUNT,
+    parse_date,
+    parse_amount,
+    map_columns,
+    is_table_header,
+    get_cell,
+)
 from app.schemas.credit_card import CreditCardStatementSchema, CreditCardTransactionSchema
 from app.schemas.savings_account import (
     SavingsAccountStatementSchema,
@@ -29,103 +51,13 @@ from app.schemas.savings_account import (
 
 logger = logging.getLogger(__name__)
 
-# ── Column header patterns (for table strategy) ────────────────
-
-DATE_PATTERNS = [
-    r"^date$", r"txn\s*date", r"transaction\s*date", r"posting\s*date", r"^dt$",
-]
-VALUE_DATE_PATTERNS = [r"value\s*date"]
-DESCRIPTION_PATTERNS = [
-    r"description", r"narration", r"particulars", r"details",
-    r"remarks", r"transaction\s*details",
-]
-DEBIT_PATTERNS = [
-    r"^debit$", r"withdrawal", r"^dr$", r"amount\s*\(?\s*debit\s*\)?",
-    r"debit\s*amount",
-]
-CREDIT_PATTERNS = [
-    r"^credit$", r"^deposit", r"^cr$", r"amount\s*\(?\s*credit\s*\)?",
-    r"credit\s*amount",
-]
-BALANCE_PATTERNS = [
-    r"balance", r"closing\s*balance", r"running\s*balance",
-]
-REFERENCE_PATTERNS = [
-    r"reference", r"ref\s*no", r"txn\s*ref", r"chq.*ref",
-    r"utr", r"tran\s*id", r"transaction\s*id",
-]
-AMOUNT_PATTERNS = [
-    r"^amount$", r"transaction\s*amount", r"txn\s*amount",
-]
-
-# ── Date formats to try ─────────────────────────────────────────
-
-DATE_FORMATS = [
-    "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y",
-    "%Y-%m-%d", "%d %b %Y", "%d %b %y", "%d-%b-%Y",
-    "%d-%b-%y", "%d %B %Y", "%d %b, %Y",
-]
-
-# ── Lines to skip (headers, footers, noise) ─────────────────────
-
-_NOISE = re.compile(
-    r"^("
-    r"page\s+\d"
-    r"|note[:\s]"
-    r"|this\s+is\s+a\s+computer"
-    r"|account\s+statement"
-    r"|serial\s+(transaction|no)"
-    r"|no\s+date\s+date"
-    r"|statement\s+(of|from|period)"
-    r"|customer\s+id"
-    r"|customer\s+name"
-    r"|account\s+(details|information|name|number|scheme)"
-    r"|branch\s+(name|sol)"
-    r"|value\s+tran"
-    r"|date\s+(value|particulars)"
-    r"|date\s+type\s+details"
-    r"|\d+x\d+\s+contact"
-    r"|savings\s+account"
-    r"|available\s+balance"
-    r"|mode\s+of\s+operation"
-    r"|joint\s+holders"
-    r"|nomination"
-    r"|account\s+open"
-    r"|micr\s+code"
-    r"|ifsc"
-    r"|swift\s+code"
-    r"|mobile\s+number"
-    r"|email"
-    r"|kyc\s+status"
-    r"|re-kyc"
-    r"|address"
-    r"|communication"
-    r"|ckyc"
-    r"|sb\s+fedbook"
-    r"|click\s+here"
-    r")",
-    re.IGNORECASE,
-)
-
-# Leading date regex — optional serial number + date
-_LEADING_DATE = re.compile(
-    r"^(?:\d{1,4}\s+)?"  # optional serial number
-    r"(\d{2}[/-]\d{2}[/-]\d{2,4})"  # date
-)
-
-# Amount with decimals (Indian or Western comma format)
-_DECIMAL_AMOUNT = re.compile(r"^[\d,]+\.\d{2}$")
-
-# Plain integer amount
-_INTEGER_AMOUNT = re.compile(r"^\d[\d,]*$")
-
 
 class GenericPdfParser:
     """
     Bank-agnostic PDF statement parser.
 
-    Tries table extraction first (cleaner for well-structured PDFs),
-    then falls back to text-based line parsing.
+    Tries table extraction first (pdfplumber for tables),
+    then falls back to text-based line parsing (pymupdf for speed).
     """
 
     def parse(self, file_path: str | Path, statement_type: StatementType) -> ParseResult:
@@ -134,37 +66,43 @@ class GenericPdfParser:
             raise ParseException(f"File not found: {file_path}")
 
         try:
+            # Strategy 1: table extraction (pdfplumber — better for tables)
             with pdfplumber.open(str(file_path)) as pdf:
                 if not pdf.pages:
                     return ParseResult.failure("PDF has no pages")
 
-                # Strategy 1: table extraction
                 result = self._try_table_strategy(pdf, statement_type)
                 if result and result.success:
                     logger.info("Table extraction strategy succeeded")
                     return result
 
-                # Strategy 2: text-based line parsing
-                raw_text = "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
-                result = self._try_text_strategy(raw_text, statement_type)
-                if result and result.success:
-                    logger.info("Text extraction strategy succeeded")
-                    return result
+            # Strategy 2: text-based line parsing (pymupdf — faster text)
+            raw_text = self.extract_raw_text(file_path)
+            result = self._try_text_strategy(raw_text, statement_type)
+            if result and result.success:
+                logger.info("Text extraction strategy succeeded")
+                return result
 
-                return ParseResult.failure(
-                    "Could not extract transactions from PDF using either "
-                    "table or text strategy."
-                )
+            return ParseResult.failure(
+                "Could not extract transactions from PDF using either "
+                "table or text strategy."
+            )
         except ParseException:
             raise
         except Exception as e:
             raise ParseException(f"Failed to parse PDF: {e}", cause=e)
 
     def extract_raw_text(self, file_path: str | Path) -> str:
-        with pdfplumber.open(str(file_path)) as pdf:
-            return "\n".join(page.extract_text() or "" for page in pdf.pages)
+        """Extract text using pymupdf (fitz) — significantly faster than pdfplumber."""
+        try:
+            doc = fitz.open(str(file_path))
+            text = "\n".join(page.get_text() for page in doc)
+            doc.close()
+            return text
+        except Exception:
+            # Fallback to pdfplumber if pymupdf fails
+            with pdfplumber.open(str(file_path)) as pdf:
+                return "\n".join(page.extract_text() or "" for page in pdf.pages)
 
     # ── Strategy 1: Table extraction ──────────────────────────
 
@@ -210,75 +148,13 @@ class GenericPdfParser:
         return self._build_result(transactions, statement_type)
 
     def _is_table_header(self, row: list[str | None]) -> bool:
-        if not row:
-            return False
-        # Check each cell individually so anchored patterns like ^date$ work
-        cells = [(c or "").replace("\n", " ").strip().lower() for c in row]
-        has_date = any(
-            re.search(p, cell) for cell in cells for p in DATE_PATTERNS
-        )
-        has_desc = any(
-            re.search(p, cell) for cell in cells for p in DESCRIPTION_PATTERNS
-        )
-        has_amount = any(
-            re.search(p, cell)
-            for cell in cells
-            for p in DEBIT_PATTERNS + CREDIT_PATTERNS + AMOUNT_PATTERNS + BALANCE_PATTERNS
-        )
-        return has_date and (has_desc or has_amount)
+        return is_table_header(row)
 
     def _map_table_columns(self, header_row: list[str | None]) -> dict[str, int | None]:
-        mapping: dict[str, int | None] = {
-            "date": None,
-            "value_date": None,
-            "description": None,
-            "debit": None,
-            "credit": None,
-            "amount": None,
-            "balance": None,
-            "reference": None,
-        }
-        for idx, cell in enumerate(header_row):
-            if not cell:
-                continue
-            h = cell.replace("\n", " ").strip().lower()
-            if not h:
-                continue
-
-            for p in DATE_PATTERNS:
-                if re.search(p, h) and mapping["date"] is None:
-                    mapping["date"] = idx
-                    break
-            for p in VALUE_DATE_PATTERNS:
-                if re.search(p, h) and mapping["value_date"] is None:
-                    mapping["value_date"] = idx
-                    break
-            for p in DESCRIPTION_PATTERNS:
-                if re.search(p, h) and mapping["description"] is None:
-                    mapping["description"] = idx
-                    break
-            for p in DEBIT_PATTERNS:
-                if re.search(p, h) and mapping["debit"] is None:
-                    mapping["debit"] = idx
-                    break
-            for p in CREDIT_PATTERNS:
-                if re.search(p, h) and mapping["credit"] is None:
-                    mapping["credit"] = idx
-                    break
-            for p in AMOUNT_PATTERNS:
-                if re.search(p, h) and mapping["amount"] is None:
-                    mapping["amount"] = idx
-                    break
-            for p in BALANCE_PATTERNS:
-                if re.search(p, h) and mapping["balance"] is None:
-                    mapping["balance"] = idx
-                    break
-            for p in REFERENCE_PATTERNS:
-                if re.search(p, h) and mapping["reference"] is None:
-                    mapping["reference"] = idx
-                    break
-
-        return mapping
+        return map_columns(
+            [(c or "") for c in header_row],
+            include_value_date=True,
+        )
 
     def _parse_table_rows(
         self,
@@ -292,26 +168,26 @@ class GenericPdfParser:
             if not row or all(not (c or "").strip() for c in row):
                 continue
 
-            date_val = self._cell(row, col_map["date"])
+            date_val = get_cell(row, col_map["date"])
             # Clean newlines from multi-line cells
             date_val = date_val.replace("\n", " ").strip() if date_val else ""
-            txn_date = self._try_parse_date(date_val)
+            txn_date = parse_date(date_val)
             if txn_date is None:
                 continue  # skip non-transaction rows (subtotals, blanks, etc.)
 
-            desc = self._cell(row, col_map["description"])
+            desc = get_cell(row, col_map["description"])
             desc = desc.replace("\n", " ").strip() if desc else ""
 
-            ref = self._cell(row, col_map["reference"])
+            ref = get_cell(row, col_map["reference"])
             ref = ref.replace("\n", " ").strip() if ref else None
 
-            debit = self._parse_amount(self._cell(row, col_map["debit"]))
-            credit = self._parse_amount(self._cell(row, col_map["credit"]))
-            balance = self._parse_amount(self._cell(row, col_map["balance"]))
+            debit = parse_amount(get_cell(row, col_map["debit"]))
+            credit = parse_amount(get_cell(row, col_map["credit"]))
+            balance = parse_amount(get_cell(row, col_map["balance"]))
 
             # Single "amount" column — determine sign
             if debit is None and credit is None and col_map["amount"] is not None:
-                amt = self._parse_amount(self._cell(row, col_map["amount"]))
+                amt = parse_amount(get_cell(row, col_map["amount"]))
                 if amt is not None:
                     if amt < 0:
                         debit = abs(amt)
@@ -391,7 +267,7 @@ class GenericPdfParser:
             return None
         m = re.search(r"([\d,]+(?:\.\d{2})?)\s*(?:CR|DR)?\s*$", line, re.IGNORECASE)
         if m:
-            return self._parse_amount(m.group(1))
+            return parse_amount(m.group(1))
         return None
 
     def _parse_txn_line(self, line: str, statement_type: StatementType) -> dict | None:
@@ -409,7 +285,7 @@ class GenericPdfParser:
             return None
 
         date_str = m.group(1)
-        txn_date = self._try_parse_date(date_str)
+        txn_date = parse_date(date_str)
         if txn_date is None:
             return None
 
@@ -488,20 +364,20 @@ class GenericPdfParser:
         1 token:  [amount]
         """
         if len(tokens) >= 3:
-            d = self._parse_amount(tokens[-3])
-            c = self._parse_amount(tokens[-2])
-            b = self._parse_amount(tokens[-1])
+            d = parse_amount(tokens[-3])
+            c = parse_amount(tokens[-2])
+            b = parse_amount(tokens[-1])
             debit = d if d and d > 0 else None
             credit = c if c and c > 0 else None
             return debit, credit, b
         elif len(tokens) == 2:
-            amt = self._parse_amount(tokens[0])
-            balance = self._parse_amount(tokens[1])
+            amt = parse_amount(tokens[0])
+            balance = parse_amount(tokens[1])
             # Can't reliably determine type from 2 values alone;
             # default to debit — caller can correct via balance analysis
             return amt, None, balance
         elif len(tokens) == 1:
-            amt = self._parse_amount(tokens[0])
+            amt = parse_amount(tokens[0])
             return amt, None, None
         return None, None, None
 
@@ -601,41 +477,6 @@ class GenericPdfParser:
 
         logger.info(f"Generic PDF credit card parse: {len(statement.transactions)} transactions")
         return ParseResult.ok(statement)
-
-    # ── Helpers ────────────────────────────────────────────────
-
-    @staticmethod
-    def _cell(row: list[str | None], idx: int | None) -> str:
-        if idx is None or idx >= len(row):
-            return ""
-        return (row[idx] or "").strip()
-
-    @staticmethod
-    def _parse_amount(value: str | None) -> Optional[Decimal]:
-        if not value or not value.strip():
-            return None
-        cleaned = re.sub(r"[₹$€£\s]", "", value.strip())
-        cleaned = cleaned.replace("(", "-").replace(")", "")
-        if not cleaned or cleaned == "-" or cleaned == "0":
-            return None
-        # Remove commas (handles Indian 1,12,206.68 and Western 112,206.68)
-        cleaned = cleaned.replace(",", "")
-        try:
-            return Decimal(cleaned)
-        except InvalidOperation:
-            return None
-
-    @staticmethod
-    def _try_parse_date(value: str) -> Optional[date]:
-        if not value or not value.strip():
-            return None
-        v = value.strip()
-        for fmt in DATE_FORMATS:
-            try:
-                return datetime.strptime(v, fmt).date()
-            except ValueError:
-                continue
-        return None
 
     # ── Statement metadata extraction ──────────────────────────
 

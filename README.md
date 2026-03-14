@@ -7,7 +7,9 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - **Authentication** — Single-user JWT-based login with registration, bcrypt password hashing, and credential persistence
 - Multi-bank PDF & CSV statement upload (HDFC, ICICI, SBI, Axis, Kotak, Yes Bank, Bank of Baroda, Federal Bank + any other bank)
 - Auto-categorization with 15 default categories and keyword matching
-- Dashboard with spending trends, category breakdown, income vs expense charts
+- Customizable dashboard with spending trends, category breakdown, income vs expense charts
+- 12-column responsive grid layout with per-tile resize, reorder, and visibility controls
+- Spending calendar heatmap with per-bank color-coded breakdown
 - Monthly budgets per category with progress tracking
 - Savings goals with contribution tracking
 - Bill reminders with auto-detection from credit card dues

@@ -244,15 +244,40 @@ class AnalyticsService:
             .all()
         )
 
-        return [
-            {
+        result = []
+        for r in rows:
+            entry: dict = {
                 "period": r.period,
                 "spending": float(r.spending),
                 "income": float(r.income),
                 "count": r.count,
             }
-            for r in rows
-        ]
+            # Per-bank breakdown for daily granularity (calendar heatmap)
+            if granularity == "daily":
+                bank_rows = (
+                    base.filter(
+                        period_expr == r.period,
+                        UnifiedTransaction.type == TransactionType.DEBIT,
+                    )
+                    .with_entities(
+                        func.coalesce(UnifiedTransaction.bank, "OTHER").label("bank"),
+                        func.sum(UnifiedTransaction.amount).label("spending"),
+                        func.count(UnifiedTransaction.id).label("count"),
+                    )
+                    .group_by(func.coalesce(UnifiedTransaction.bank, "OTHER"))
+                    .all()
+                )
+                entry["by_account"] = [
+                    {
+                        "bank": br.bank,
+                        "spending": float(br.spending),
+                        "count": br.count,
+                    }
+                    for br in bank_rows
+                ]
+            result.append(entry)
+
+        return result
 
     # ── Income vs Expense (monthly bar chart) ────────────────
 

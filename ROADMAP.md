@@ -305,3 +305,28 @@
 - `GET /api/v2/gdrive/files` — List files in Drive folder
 - `POST /api/v2/gdrive/sync` — Download + parse new files
 - `POST /api/v2/gdrive/reset` — Reset sync state for re-processing
+
+---
+
+## Phase 8: Customizable Dashboard & Spending Calendar — ✅ COMPLETED
+
+**Goal:** Make the dashboard fully customizable with a responsive grid layout, per-tile resize/reorder/visibility controls, and add a bank-wise spending calendar heatmap.
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 8.1 | Spending calendar heatmap | ✅ Done | Bank-wise daily spending calendar using `table_calendar`. Days show color-coded cells via `LinearGradient` proportional to per-bank spending. Bank legend auto-generated from data. Fixed color palette for 9 banks. |
+| 8.2 | Configurable grid layout | ✅ Done | 12-column grid system. Each tile has `colSpan` (snap stops: 4, 6, 8, 12) and `height` (40px steps, min 120px, max 800px). Tiles flow into rows based on remaining column space. |
+| 8.3 | Tile controls (edit mode) | ✅ Done | FAB enters edit mode. Per-tile controls: reorder (↑↓), visibility toggle (👁), width (◀▶) and height (▲▼) resize buttons. Label badge shows tile name + "Xcol · Ypx" size. Reset to defaults + Save buttons. |
+| 8.4 | Responsive breakpoints | ✅ Done | `ScreenTier` enum: compact (<600px), medium (600–1199px), expanded (≥1200px). Compact forces all tiles to 12-col full width and hides width controls. |
+| 8.5 | Layout persistence | ✅ Done | Dashboard layout (tile order, visibility, colSpan, height) saved to `SharedPreferences` key `dashboard_layout` as JSON. Restored on app load. |
+| 8.6 | Smooth animations | ✅ Done | `AnimatedContainer` (300ms easeInOut) for tile size transitions. `AnimatedOpacity` (200ms) for visibility dimming in edit mode. Button-based controls instead of drag handles for smooth UX. |
+| 8.7 | Responsive charts | ✅ Done | Charts (`LineChart`, `PieChart`, `BarChart`) use `Expanded` to fill available tile height. Non-chart tiles (`TopMerchants`, `MonthOverMonth`, `Calendar`) use `SingleChildScrollView`/`ListView` to handle overflow within bounded tile containers. |
+
+**Files Created:**
+- [frontend/lib/providers/dashboard_layout_provider.dart](frontend/lib/providers/dashboard_layout_provider.dart) — `DashboardLayoutNotifier` with `DashboardTileId` enum (7 tiles), `TileConfig` model, `ScreenTier` enum + `screenTierFor()` factory, `effectiveColSpan()`, `widenTile()`/`narrowTile()`/`tallerTile()`/`shorterTile()` methods, `toggleEditMode()`, `resetToDefaults()`, `reorder()`, `toggleVisibility()`. SharedPreferences persistence.
+
+**Files Modified:**
+- [frontend/lib/widgets/dashboard_widget.dart](frontend/lib/widgets/dashboard_widget.dart) — Complete rewrite. `DashboardScreen` with `LayoutBuilder` for responsive `ScreenTier`, `_buildGridRows()` flowing tiles into rows, `_buildRow()` with flex spacer, `_buildSingleTile()` with `AnimatedContainer`. `_EditableTileWrapper` (button-based controls), `_ControlPill`, `_TinyIconButton`. `_SpendingCalendar` with bank-wise `LinearGradient` cells + bank legend. Charts refactored from `SizedBox(height: 220)` to `Expanded`.
+- [frontend/lib/models/analytics_models.dart](frontend/lib/models/analytics_models.dart) — Added `AccountSpending` class and `byAccount` field on `SpendingTrend` for per-bank calendar data
+- [backend/app/services/analytics_service.py](backend/app/services/analytics_service.py) — `spending_trends()` adds `by_account` array for daily granularity with per-bank spending breakdown
+- [frontend/pubspec.yaml](frontend/pubspec.yaml) — Added `table_calendar` dependency
