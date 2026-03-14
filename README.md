@@ -100,7 +100,7 @@ finance-tracker-v2/
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
 │   │   ├── services/         # Business logic layer (incl. Google Drive sync)
-│   │   └── routers/          # 16 API route modules (~75+ endpoints)
+│   │   └── routers/          # 14 API route modules (~70 endpoints)
 │   ├── alembic/              # Database migrations
 │   └── requirements.txt
 ├── frontend/

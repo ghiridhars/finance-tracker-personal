@@ -36,7 +36,7 @@ Complete technical specification: architecture, database schema, API details, an
 │           Python 3.11+ / FastAPI 0.115                  │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ Routers  │  │ Services │  │  Parsers   │            │
-│  │ (15 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
+│  │ (14 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
 │  └──────────┘  └──────────┘  └────────────┘            │
 │               ↕ SQLAlchemy ORM                          │
 ├─────────────────────────────────────────────────────────┤
@@ -142,9 +142,6 @@ backend/
 │   │   └── gdrive_sync_service.py      # Google Drive file sync + parser dispatch
 │   └── routers/
 │       ├── health.py           # GET /health
-│       ├── parse.py            # Parse-only endpoints
-│       ├── credit_card.py      # Credit card CRUD
-│       ├── statements.py       # Legacy upload
 │       ├── transactions.py     # Legacy transaction queries
 │       ├── upload.py           # v2 unified upload (PDF + CSV)
 │       ├── categories.py       # Category CRUD + keywords
@@ -227,7 +224,6 @@ frontend/lib/
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
 │   ├── login_screen.dart               # Login/register screen (JWT auth)
-│   ├── home_screen.dart                # Legacy tab layout (unused)
 │   └── settings_screen.dart            # Settings UI
 ├── services/
 │   ├── api_service.dart                # HTTP client (all API methods, auth token injection)
@@ -506,9 +502,6 @@ unified_transactions *───* tags (via transaction_tags)
 |--------|:-----:|--------|
 | Health | 1 | `/health` |
 | Authentication | 4 | `/api/auth/` |
-| Parsing | 1 | `/api/parse/` |
-| Credit Card | 3 | `/api/credit-card/` |
-| Savings | 1 | `/api/statements/` |
 | Legacy Transactions | 3 | `/api/transactions` |
 | Upload (v2) | 3 | `/api/v2/statements/` |
 | Categories | 7 | `/api/v2/categories/` |
@@ -522,7 +515,7 @@ unified_transactions *───* tags (via transaction_tags)
 | Recurring | 4 | `/api/v2/recurring/` |
 | Export/Data | 2 | `/api/v2/export/`, `/api/v2/data/` |
 | Google Drive Sync | 4 | `/api/v2/gdrive/` |
-| **Total** | **75** | |
+| **Total** | **70** | |
 
 > See [FLOW.md](FLOW.md) for the complete endpoint reference with parameters and descriptions.
 

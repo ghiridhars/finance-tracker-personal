@@ -23,7 +23,7 @@ graph TB
 
     subgraph Server["Backend — FastAPI 0.115"]
         Auth["Auth Module<br/>(JWT + bcrypt)"]
-        Routers["16 Router Modules<br/>(75+ endpoints)"]
+        Routers["14 Router Modules<br/>(70+ endpoints)"]
         Services["12 Service Classes<br/>(business logic)"]
         Parsers["Parser Registry<br/>(PDF/CSV/LLM)"]
         Models["SQLAlchemy Models<br/>(12 tables)"]
@@ -77,8 +77,6 @@ graph TB
         R12["export.py"]
         R13["gdrive.py"]
         R14["transactions.py<br/>(legacy)"]
-        R15["parse.py<br/>(legacy)"]
-        R16["statements.py / credit_card.py<br/>(legacy)"]
     end
 
     subgraph Business["Service Layer"]

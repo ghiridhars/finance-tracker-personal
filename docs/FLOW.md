@@ -19,14 +19,6 @@ User selects bank + statement type → Picks file → Uploads
 | List supported banks | GET | `/api/v2/banks` | Returns bank/type combos + LLM availability |
 | Upload PDF | POST | `/api/v2/statements/upload` | Params: `bank`, `type` (SAVINGS/CREDIT_CARD), `save` (bool). Body: PDF file |
 | Upload CSV | POST | `/api/v2/statements/upload-csv` | Params: `bank`, `type`, `save`. Body: CSV/TXT file. Auto-detects columns |
-| Parse only (no save) | POST | `/api/parse/hdfc-credit-card` | Legacy endpoint. Params: `debug` (bool). Body: PDF file |
-
-**Legacy endpoints (backward-compatible):**
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Upload savings | POST | `/api/statements/upload` | Params: `bank`, `save`. Body: PDF file |
-| Upload credit card | POST | `/api/credit-card/statements/upload` | Params: `debug`. Body: PDF file |
 
 ---
 
@@ -49,7 +41,7 @@ User opens Transactions → Loads unified list (default: last 90 days)
 | Delete transaction | DELETE | `/api/v2/transactions/{id}` | Permanently removes from unified table |
 | Re-categorize all | POST | `/api/v2/transactions/recategorize` | Re-runs auto-categorization engine on all transactions |
 
-**Legacy endpoints:**
+**Legacy endpoints** (in `transactions.py`):
 
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|
@@ -158,12 +150,7 @@ User opens Accounts → Sees all linked accounts/cards with summaries
 | Delete savings statement | DELETE | `/api/v2/accounts/statements/savings/{id}` | Cascade-deletes raw + unified transactions |
 | Delete CC statement | DELETE | `/api/v2/accounts/statements/credit-card/{id}` | Cascade-deletes raw + unified transactions |
 
-**Legacy endpoints:**
 
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Statements by card | GET | `/api/credit-card/statements/{card_number}` | All statements for a card number |
-| Statements by date | GET | `/api/credit-card/statements` | Params: `start_date`, `end_date` (required) |
 
 ---
 
@@ -346,9 +333,6 @@ Admin configures → shares Drive folder with service account
 |--------|:---------:|---------|
 | Health | 1 | — |
 | Authentication | 4 | — |
-| Parsing | 1 | v1 |
-| Credit Card | 3 | v1 |
-| Savings/Statements | 1 | v1 |
 | Legacy Transactions | 3 | v1 |
 | Upload (Unified) | 3 | v2 |
 | Categories | 7 | v2 |
@@ -362,7 +346,7 @@ Admin configures → shares Drive folder with service account
 | Recurring | 4 | v2 |
 | Export/Data | 2 | v2 |
 | Google Drive Sync | 4 | v2 |
-| **Total** | **75** | |
+| **Total** | **70** | |
 
 > All v2 endpoints are prefixed with `/api/v2/`. Legacy v1 endpoints remain at `/api/` for backward compatibility.
 > Auth endpoints are at `/api/auth/`. The `/health` and `/api/auth/status` endpoints are public; all others require a valid JWT Bearer token.
