@@ -96,8 +96,9 @@ def test_llm_parser(pdf_path: str, verbose: bool = False):
     raw_text = parser.extract_raw_text(pdf_path)
     print(f"Extracted {len(raw_text)} chars of text")
 
-    from app.parsers.llm_parser import parse_with_llm
-    result = parse_with_llm(raw_text)
+    from app.parsers.llm_parser import parse_with_llm_generic
+    from app.models.enums import BankType
+    result = parse_with_llm_generic(raw_text, BankType.OTHER, StatementType.CREDIT_CARD)
 
     if not result.success:
         print(f"❌ LLM PARSE FAILED: {result.error_message}")

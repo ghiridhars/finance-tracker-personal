@@ -1,12 +1,14 @@
 """
 Generic bank-agnostic PDF statement parser.
 
-Uses two extraction strategies:
+Uses three extraction strategies (tried in order):
   1. Table extraction (pdfplumber extract_tables) — works for banks with clean
-     table formatting (e.g., Federal Bank).
-  2. Text-based line parsing — fallback for PDFs where table detection merges
-     columns (e.g., Bank of Baroda). Uses date/amount detection to parse
-     transaction lines.
+     table formatting (e.g., Federal Bank, HDFC).
+  2. Single-line text parsing — for PDFs where each transaction is one line
+     with date + description + amounts.
+  3. Multi-line text parsing — for PDFs where each column value is on a
+     separate line (e.g., Bank of Baroda). Reassembles vertical blocks
+     of serial/date/description/debit/credit/balance into transactions.
 
 Supports any bank's savings or credit card statement PDF.
 
@@ -56,8 +58,10 @@ class GenericPdfParser:
     """
     Bank-agnostic PDF statement parser.
 
-    Tries table extraction first (pdfplumber for tables),
-    then falls back to text-based line parsing (pymupdf for speed).
+    Tries three strategies in order:
+      1. Table extraction (pdfplumber)
+      2. Single-line text parsing
+      3. Multi-line text parsing
     """
 
     def parse(self, file_path: str | Path, statement_type: StatementType) -> ParseResult:
@@ -76,16 +80,38 @@ class GenericPdfParser:
                     logger.info("Table extraction strategy succeeded")
                     return result
 
-            # Strategy 2: text-based line parsing (pymupdf — faster text)
+            # Strategy 2 & 3: text-based parsing (pymupdf — faster text)
             raw_text = self.extract_raw_text(file_path)
+
+            # Temporary: dump text for debugging parse failures
+            try:
+                _dbg = Path(file_path).parent / "last_parsed_text.txt"
+                _dbg.write_text(raw_text, encoding="utf-8")
+                logger.info(f"Dumped extracted text to {_dbg}")
+            except Exception:
+                pass
+
             result = self._try_text_strategy(raw_text, statement_type)
             if result and result.success:
-                logger.info("Text extraction strategy succeeded")
+                logger.info("Single-line text strategy succeeded")
                 return result
 
+            # Strategy 3: multi-line text parsing
+            result = self._try_multiline_strategy(raw_text, statement_type)
+            if result and result.success:
+                logger.info("Multi-line text strategy succeeded")
+                return result
+
+            # Strategy 4: credit card multi-line (date|time + desc + amount)
+            if statement_type == StatementType.CREDIT_CARD:
+                result = self._try_cc_multiline_strategy(raw_text)
+                if result and result.success:
+                    logger.info("Credit card multi-line strategy succeeded")
+                    return result
+
             return ParseResult.failure(
-                "Could not extract transactions from PDF using either "
-                "table or text strategy."
+                "Could not extract transactions from PDF using "
+                "table, single-line text, or multi-line text strategy."
             )
         except ParseException:
             raise
@@ -260,6 +286,284 @@ class GenericPdfParser:
 
         result = self._build_result(raw_txns, statement_type, opening_balance)
         return result
+
+    # ── Strategy 3: Multi-line text parsing ───────────────────
+
+    # Patterns for multi-line detection
+    _ML_DATE_RE = re.compile(r"^\d{2}[/-]\d{2}[/-]\d{2,4}$")
+    _ML_SERIAL_RE = re.compile(r"^\d{1,4}$")
+    _ML_AMOUNT_RE = re.compile(r"^[\d,]+(?:\.\d{1,2})?$")
+    _ML_DASH_RE = re.compile(r"^-$")
+
+    def _try_multiline_strategy(
+        self, text: str, statement_type: StatementType
+    ) -> ParseResult | None:
+        """
+        Parse PDFs where each table column is on its own line.
+
+        Expected repeating block pattern:
+            serial_no       (1-4 digit number)
+            txn_date        (dd-mm-yyyy)
+            value_date      (dd-mm-yyyy, optional)
+            description     (1+ non-amount lines)
+            debit           (amount or "-")
+            credit          (amount or "-")
+            balance         (amount)
+
+        Works for Bank of Baroda and similar layouts.
+        """
+        lines = [l.strip() for l in text.split("\n")]
+
+        # Quick check: does this look like a multi-line format?
+        # Count standalone date lines (not part of larger text)
+        date_lines = sum(1 for l in lines if self._ML_DATE_RE.match(l))
+        if date_lines < 4:  # need at least a few date-only lines
+            return None
+
+        transactions: list[dict] = []
+        opening_balance: Decimal | None = None
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            if not line or _NOISE.search(line):
+                i += 1
+                continue
+
+            # Detect opening balance
+            if line.lower() == "opening balance":
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    val = lines[j].strip()
+                    if self._ML_DASH_RE.match(val):
+                        continue
+                    amt = parse_amount(val)
+                    if amt is not None:
+                        opening_balance = amt
+                        i = j + 1
+                        break
+                else:
+                    i += 1
+                continue
+
+            # Try to parse a transaction block
+            txn = self._try_parse_multiline_block(lines, i)
+            if txn:
+                transactions.append(txn["data"])
+                i = txn["next_index"]
+            else:
+                i += 1
+
+        if not transactions:
+            return None
+
+        return self._build_result(transactions, statement_type, opening_balance)
+
+    def _try_parse_multiline_block(self, lines: list[str], start: int) -> dict | None:
+        """
+        Try to parse a transaction block starting at index `start`.
+
+        Returns {"data": {transaction dict}, "next_index": int} or None.
+        """
+        i = start
+        n = len(lines)
+        if i >= n:
+            return None
+
+        line = lines[i]
+
+        # Step 1: Optional serial number
+        if self._ML_SERIAL_RE.match(line):
+            i += 1
+            if i >= n:
+                return None
+
+        # Step 2: Transaction date (required)
+        if i >= n or not self._ML_DATE_RE.match(lines[i]):
+            return None
+        txn_date = parse_date(lines[i])
+        if txn_date is None:
+            return None
+        i += 1
+
+        # Step 3: Optional value date
+        if i < n and self._ML_DATE_RE.match(lines[i]):
+            i += 1
+
+        # Step 4: Description (1+ lines until we hit amount/dash/serial+date)
+        desc_lines: list[str] = []
+        while i < n:
+            l = lines[i]
+            if self._ML_AMOUNT_RE.match(l) or self._ML_DASH_RE.match(l):
+                break
+            if self._ML_SERIAL_RE.match(l) and i + 1 < n and self._ML_DATE_RE.match(lines[i + 1]):
+                break
+            if _NOISE.search(l):
+                break
+            if not l:
+                break
+            desc_lines.append(l)
+            i += 1
+
+        description = " ".join(desc_lines).strip()
+
+        # Step 5: Debit (amount or "-")
+        if i >= n:
+            return None
+        debit = self._parse_amount_or_dash(lines[i])
+        i += 1
+
+        # Step 6: Credit (amount or "-")
+        if i >= n:
+            return None
+        credit = self._parse_amount_or_dash(lines[i])
+        i += 1
+
+        # Step 7: Balance (required amount)
+        if i >= n:
+            return None
+        balance = parse_amount(lines[i])
+        if balance is None:
+            return None
+        i += 1
+
+        # Must have at least one of debit/credit
+        if debit is None and credit is None:
+            return None
+
+        txn_type = TransactionType.DEBIT if (debit and debit > 0) else TransactionType.CREDIT
+
+        return {
+            "data": {
+                "date": txn_date,
+                "description": description or None,
+                "reference": None,
+                "debit": debit,
+                "credit": credit,
+                "balance": balance,
+                "type": txn_type,
+            },
+            "next_index": i,
+        }
+
+    @staticmethod
+    def _parse_amount_or_dash(text: str) -> Decimal | None:
+        """Parse amount, treating '-' as None."""
+        text = text.strip()
+        if text == "-":
+            return None
+        return parse_amount(text)
+
+    # ── Strategy 4: Credit card multi-line parsing ──────────
+
+    # Date with pipe+time: "18/01/2026| 14:34" or "18/01/2026 | 14:34"
+    _CC_DATE_TIME_RE = re.compile(
+        r"^(\d{2}[/-]\d{2}[/-]\d{2,4})\s*\|\s*\d{2}:\d{2}"
+    )
+    # Amount line: optional "+" then currency symbol/letter then amount
+    # e.g., " C 245.00", "+  C 26,317.00", "+ \u20b9 245.00"
+    _CC_AMOUNT_RE = re.compile(
+        r"^(\+)?\s*[C\u20b9$]\s*([\d,]+\.\d{2})$"
+    )
+
+    def _try_cc_multiline_strategy(self, text: str) -> ParseResult | None:
+        """
+        Parse credit card PDFs where transactions span multiple lines.
+
+        Pattern (e.g., HDFC RuPay):
+            DD/MM/YYYY| HH:MM           \u2190 date line
+            [EMI]                        \u2190 optional prefix
+            description [(Ref# xxx)]    \u2190 description
+            [+]  C amount               \u2190 amount (+ = credit/payment)
+            l                            \u2190 category indicator (skip)
+        """
+        lines = [l.strip() for l in text.split("\n")]
+
+        # Quick check: do we have date|time lines?
+        date_time_count = sum(1 for l in lines if self._CC_DATE_TIME_RE.match(l))
+        if date_time_count < 3:
+            return None
+
+        transactions: list[dict] = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Look for date|time line
+            m = self._CC_DATE_TIME_RE.match(line)
+            if not m:
+                i += 1
+                continue
+
+            txn_date = parse_date(m.group(1))
+            if txn_date is None:
+                i += 1
+                continue
+            i += 1
+
+            # Collect description lines until we hit an amount line
+            desc_lines: list[str] = []
+            is_credit = False
+            amount: Decimal | None = None
+            ref: str | None = None
+
+            while i < len(lines):
+                l = lines[i]
+
+                # Check if this is the amount line
+                am = self._CC_AMOUNT_RE.match(l)
+                if am:
+                    is_credit = am.group(1) == "+"
+                    amount = parse_amount(am.group(2))
+                    i += 1
+                    # Skip trailing category indicator (single char like "l")
+                    if i < len(lines) and len(lines[i].strip()) <= 2:
+                        i += 1
+                    break
+
+                # Check if we hit the next date (no amount found — skip)
+                if self._CC_DATE_TIME_RE.match(l):
+                    break
+
+                # Skip noise
+                if _NOISE.search(l):
+                    i += 1
+                    continue
+
+                # Extract reference number if present
+                ref_m = re.search(r"\(Ref#\s*([^)]+)\)", l)
+                if ref_m:
+                    ref = ref_m.group(1).strip()
+
+                if l and l != "l":  # skip standalone category markers
+                    desc_lines.append(l)
+                i += 1
+
+            if amount is None or amount <= 0:
+                continue
+
+            description = " ".join(desc_lines).strip()
+            # Clean up "EMI" prefix that appears on a separate line before desc
+            if description.startswith("EMI "):
+                description = description[4:].strip()
+
+            txn_type = TransactionType.CREDIT if is_credit else TransactionType.DEBIT
+
+            transactions.append({
+                "date": txn_date,
+                "description": description or None,
+                "reference": ref,
+                "debit": amount if not is_credit else None,
+                "credit": amount if is_credit else None,
+                "balance": None,
+                "type": txn_type,
+            })
+
+        if not transactions:
+            return None
+
+        return self._build_credit_card_result(transactions)
 
     def _try_opening_balance(self, line: str) -> Optional[Decimal]:
         """Detect 'Opening Balance' lines and extract the balance value."""
@@ -495,9 +799,27 @@ class GenericPdfParser:
             meta["period_from"] = period.group(1)
             meta["period_to"] = period.group(2)
 
-        # Account number patterns
-        acct = re.search(r"account\s*(?:number|no)[:\s]*(\w+)", text, re.IGNORECASE)
-        if acct:
-            meta["account_number"] = acct.group(1)
+        # Account number patterns (savings)
+        acct_patterns = [
+            r"account\s*(?:number|no\.?)[:\s]*(\d[\d\s]{5,}\d)",
+            r"a/c\s*(?:number|no\.?)[:\s]*(\d[\d\s]{5,}\d)",
+            r"account\s*(?:number|no\.?)[:\s]*(\w+)",
+        ]
+        for pat in acct_patterns:
+            acct = re.search(pat, text, re.IGNORECASE)
+            if acct:
+                meta["account_number"] = acct.group(1).strip()
+                break
+
+        # Credit card number — masked patterns like 4632 02XX XXXX 4418
+        card_patterns = [
+            r"card\s*(?:number|no\.?)[:\s]*([\dXx*]{4}[\s-]?[\dXx*]{4}[\s-]?[\dXx*]{4}[\s-]?[\dXx*]{4})",
+            r"(\d{4,6}[Xx*]{4,6}\d{4})",  # contiguous masked: 463202XXXXXX4418
+        ]
+        for pat in card_patterns:
+            card = re.search(pat, text, re.IGNORECASE)
+            if card:
+                meta["card_number"] = card.group(1).strip()
+                break
 
         return meta

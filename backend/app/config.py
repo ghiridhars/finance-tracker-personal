@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = 1440  # 24 hours
 
     # LLM fallback parser
-    llm_provider: str = "gemini"  # "gemini" | "ollama" | "none"
+    llm_provider: str = "none"  # "gemini" | "ollama" | "none"
     gemini_api_key: str = ""  # Set via GEMINI_API_KEY env var
     gemini_model: str = "gemini-2.0-flash"
     ollama_model: str = "llama3.2"

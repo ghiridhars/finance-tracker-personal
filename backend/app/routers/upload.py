@@ -105,9 +105,11 @@ async def upload_statement_v2(
         )
 
         if not result.get("success"):
+            error_detail = result.get("error", "Failed to parse statement")
+            logger.warning(f"Statement parse failed [{bank_type.value}/{statement_type.value}]: {error_detail}")
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", "Failed to parse statement"),
+                detail=error_detail,
             )
 
         statement = result.get("statement")

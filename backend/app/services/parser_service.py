@@ -71,12 +71,15 @@ class ParserService:
             except Exception:
                 pass
 
-            # Step 1: Generic PDF parser (table extraction → text fallback)
+            # Step 1: Generic PDF parser (table → single-line text → multi-line text)
             result = parser.parse(tmp_path, statement_type)
 
             if result.success and result.result:
                 txn_count = len(getattr(result.result, "transactions", []))
                 if txn_count > 0:
+                    self._apply_account_identity(
+                        result.result, bank, statement_type, raw_text,
+                    )
                     logger.info(f"Generic parser succeeded: {txn_count} transactions")
                     return {
                         "success": True,
@@ -117,6 +120,34 @@ class ParserService:
 
         finally:
             Path(tmp_path).unlink(missing_ok=True)
+
+    # ── Account identity helpers ──────────────────────────────
+
+    @staticmethod
+    def _apply_account_identity(
+        statement,
+        bank: BankType,
+        statement_type: StatementType,
+        raw_text: str,
+    ) -> None:
+        """Set bank name and extracted identifiers on the parsed statement.
+
+        Ensures different banks' statements don't collapse into a single
+        account when grouped by (account_number, account_holder_name).
+        """
+        meta = GenericPdfParser.extract_metadata(raw_text) if raw_text else {}
+        bank_label = bank.value.replace("_", " ").title()  # FEDERAL_BANK → Federal Bank
+
+        if statement_type == StatementType.CREDIT_CARD:
+            if not getattr(statement, "card_holder_name", None):
+                statement.card_holder_name = bank_label
+            if not getattr(statement, "card_number", None) and meta.get("card_number"):
+                statement.card_number = meta["card_number"]
+        else:
+            if not getattr(statement, "account_holder_name", None):
+                statement.account_holder_name = bank_label
+            if not getattr(statement, "account_number", None) and meta.get("account_number"):
+                statement.account_number = meta["account_number"]
 
     # ── Utilities ─────────────────────────────────────────────
 
