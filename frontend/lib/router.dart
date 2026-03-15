@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/app_shell.dart';
+import 'screens/calendar_screen.dart';
 import 'widgets/dashboard_widget.dart';
 import 'widgets/statement_upload_widget.dart';
 import 'widgets/unified_transaction_list_widget.dart';
@@ -24,6 +25,7 @@ import 'screens/settings_screen.dart';
 /// Route path constants for type-safe navigation.
 class AppRoutes {
   static const dashboard = '/';
+  static const calendar = '/calendar';
   static const upload = '/upload';
   static const transactions = '/transactions';
   static const accounts = '/accounts';
@@ -57,16 +59,16 @@ const List<NavDestination> navDestinations = [
     path: AppRoutes.dashboard,
   ),
   NavDestination(
+    label: 'Calendar',
+    icon: Icons.calendar_month_outlined,
+    selectedIcon: Icons.calendar_month,
+    path: AppRoutes.calendar,
+  ),
+  NavDestination(
     label: 'Upload',
     icon: Icons.upload_file_outlined,
     selectedIcon: Icons.upload_file,
     path: AppRoutes.upload,
-  ),
-  NavDestination(
-    label: 'Transactions',
-    icon: Icons.receipt_long_outlined,
-    selectedIcon: Icons.receipt_long,
-    path: AppRoutes.transactions,
   ),
   NavDestination(
     label: 'Accounts',
@@ -79,18 +81,6 @@ const List<NavDestination> navDestinations = [
     icon: Icons.savings_outlined,
     selectedIcon: Icons.savings,
     path: AppRoutes.budget,
-  ),
-  NavDestination(
-    label: 'Savings',
-    icon: Icons.account_balance_outlined,
-    selectedIcon: Icons.account_balance,
-    path: AppRoutes.savings,
-  ),
-  NavDestination(
-    label: 'Credit Card',
-    icon: Icons.credit_card_outlined,
-    selectedIcon: Icons.credit_card,
-    path: AppRoutes.creditCard,
   ),
   NavDestination(
     label: 'Settings',
@@ -111,6 +101,12 @@ final GoRouter router = GoRouter(
           path: AppRoutes.dashboard,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: DashboardScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.calendar,
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: CalendarScreen(),
           ),
         ),
         GoRoute(

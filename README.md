@@ -9,7 +9,8 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - Auto-categorization with 15 default categories and keyword matching
 - Customizable dashboard with spending trends, category breakdown, income vs expense charts
 - 12-column responsive grid layout with per-tile resize, reorder, and visibility controls
-- Spending calendar heatmap with per-bank color-coded breakdown
+- Full-page spending calendar heatmap with per-bank color-coded breakdown and editable transaction categories
+- **Account-centric transactions** — Click any account to view its filtered transactions inline with editable categories
 - Monthly budgets per category with progress tracking
 - Savings goals with contribution tracking
 - Bill reminders with auto-detection from credit card dues
@@ -106,13 +107,13 @@ finance-tracker-v2/
 ├── frontend/
 │   ├── lib/
 │   │   ├── main.dart         # App entry (MaterialApp.router)
-│   │   ├── router.dart       # GoRouter config (8 routes)
+│   │   ├── router.dart       # GoRouter config (6 nav destinations)
 │   │   ├── theme.dart        # Light/dark theme
 │   │   ├── models/           # Dart data models
 │   │   ├── providers/        # Riverpod state management
-│   │   ├── screens/          # App shell, login, settings
+│   │   ├── screens/          # App shell, login, settings, calendar
 │   │   ├── services/         # API client + auth service
-│   │   └── widgets/          # Dashboard, upload, transactions, etc.
+│   │   └── widgets/          # Dashboard, upload, accounts, etc.
 │   └── pubspec.yaml
 ├── docker-compose.yml
 └── docs/

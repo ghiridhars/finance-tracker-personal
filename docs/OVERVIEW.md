@@ -28,7 +28,7 @@ Complete technical specification: architecture, database schema, API details, an
 │        Flutter 3.x (Web / Windows Desktop)              │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ GoRouter  │  │ Riverpod │  │  Widgets   │            │
-│  │ (8 routes)│  │ (State)  │  │ (Material 3)│           │
+│  │ (6 nav)   │  │ (State)  │  │ (Material 3)│           │
 │  └──────────┘  └──────────┘  └────────────┘            │
 │               ↕ HTTP (REST JSON)                        │
 ├─────────────────────────────────────────────────────────┤
@@ -201,7 +201,7 @@ All settings are loaded from environment variables or `.env` file via `pydantic-
 ```
 frontend/lib/
 ├── main.dart                   # MaterialApp.router with ProviderScope
-├── router.dart                 # GoRouter: 8 routes, ShellRoute, NavDestination
+├── router.dart                 # GoRouter: 6 nav destinations, ShellRoute, NavDestination
 ├── theme.dart                  # Light/dark ThemeData, page transitions
 ├── models/
 │   ├── credit_card_models.dart
@@ -223,6 +223,7 @@ frontend/lib/
 │   └── budget_provider.dart            # Budgets, goals, reminders, recurring
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
+│   ├── calendar_screen.dart            # Full-page spending calendar with editable transaction popup
 │   ├── login_screen.dart               # Login/register screen (JWT auth)
 │   └── settings_screen.dart            # Settings UI
 ├── services/
@@ -231,9 +232,9 @@ frontend/lib/
 └── widgets/
     ├── statement_upload_widget.dart     # Upload with drop zone
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
-    ├── unified_transaction_list_widget.dart  # Unified list with filters
-    ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts, calendar)
-    ├── accounts_widget.dart            # Account management
+    ├── unified_transaction_list_widget.dart  # Unified list with filters + editable categories
+    ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts)
+    ├── accounts_widget.dart            # Account cards → inline filtered transactions
     ├── budget_goals_widget.dart        # Budgets, goals, reminders
     └── skeleton_widgets.dart           # Shimmer loading placeholders
 ```
@@ -242,14 +243,14 @@ frontend/lib/
 
 | Route | Screen/Widget | Description |
 |-------|--------------|-------------|
-| `/` | DashboardWidget | Customizable grid dashboard: summary, charts, calendar, top merchants |
+| `/` | DashboardWidget | Customizable grid dashboard: summary, charts, top merchants |
 | `/upload` | StatementUploadWidget | PDF/CSV upload |
-| `/transactions` | UnifiedTransactionListWidget | Searchable transaction list |
-| `/accounts` | AccountsWidget | Account & statement management |
+| `/calendar` | CalendarScreen | Full-page spending calendar with daily transaction popup (editable categories) |
+| `/accounts` | AccountsWidget | Account cards → click to view filtered transactions inline |
 | `/budget` | BudgetGoalsWidget | Budgets, goals, reminders |
-| `/savings` | TransactionListWidget (savings) | Legacy savings view |
-| `/credit-card` | TransactionListWidget (credit card) | Legacy CC view |
 | `/settings` | SettingsScreen | App preferences |
+
+> **Removed routes:** `/transactions`, `/savings`, `/credit-card` were removed from the navigation sidebar. Transactions are now accessed via Account cards or the Calendar popup. The `/transactions` route still exists internally for deep-linking.
 
 ### Responsive Breakpoints
 
@@ -656,6 +657,15 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 | Responsive breakpoints | ScreenTier (compact/medium/expanded) — compact forces all tiles full-width | ✅ Done |
 | Layout persistence | Dashboard layout saved to SharedPreferences, restored on reload | ✅ Done |
 | Smooth animations | AnimatedContainer for size transitions, AnimatedOpacity for visibility | ✅ Done |
+
+### Phase 9: Accounts & Transactions Refactor (Completed)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| Calendar as standalone page | Full-page spending calendar with clickable days showing transaction popup with editable categories | ✅ Done |
+| Account-centric transactions | Click account card → view filtered transactions inline. Backend `account_identifier` filter added | ✅ Done |
+| Simplified navigation | Removed standalone Transactions/Savings/Credit Card sidebar tabs. Added Calendar | ✅ Done |
+| Editable categories everywhere | Category chips on transaction tiles in Calendar popup and Account transactions. Tap to change | ✅ Done |
 
 ### Potential Features
 

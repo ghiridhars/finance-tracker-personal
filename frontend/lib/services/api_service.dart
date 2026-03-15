@@ -251,6 +251,7 @@ class ApiService {
     String? to,
     int? categoryId,
     String? bank,
+    String? accountIdentifier,
     String? sourceType,
     String? type,
     String? search,
@@ -264,6 +265,7 @@ class ApiService {
     if (to != null) params['to'] = to;
     if (categoryId != null) params['category_id'] = categoryId.toString();
     if (bank != null) params['bank'] = bank;
+    if (accountIdentifier != null) params['account_identifier'] = accountIdentifier;
     if (sourceType != null) params['source_type'] = sourceType;
     if (type != null) params['type'] = type;
     if (search != null) params['search'] = search;

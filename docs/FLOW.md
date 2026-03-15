@@ -27,14 +27,15 @@ User selects bank + statement type → Picks file → Uploads
 View, search, filter, and manage transactions across all sources.
 
 ```
-User opens Transactions → Loads unified list (default: last 90 days)
-  → Applies filters (date, category, bank, search, amount range)
-  → Views paginated results → Can edit category, add tags, delete
+User clicks an Account card → Loads filtered transactions for that account
+  → Or opens Calendar → Clicks a day → Sees daily transactions popup
+  → Can edit category via tappable chip (all views)
+  → Can delete transactions (swipe-to-delete)
 ```
 
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|
-| List transactions | GET | `/api/v2/transactions` | Params: `from`, `to`, `category_id`, `bank`, `source_type`, `type`, `search`, `min_amount`, `max_amount`, `limit` (1–500), `offset` |
+| List transactions | GET | `/api/v2/transactions` | Params: `from`, `to`, `category_id`, `bank`, `account_identifier`, `source_type`, `type`, `search`, `min_amount`, `max_amount`, `limit` (1–500), `offset` |
 | Count transactions | GET | `/api/v2/transactions/count` | Same filters minus limit/offset. Returns total count |
 | Get single transaction | GET | `/api/v2/transactions/{id}` | Full transaction detail |
 | Update transaction | PATCH | `/api/v2/transactions/{id}` | Body: `category_id`, `merchant_name`, `notes`, `tag_ids` |
@@ -139,7 +140,9 @@ View linked accounts, browse statement history, and manage uploads.
 
 ```
 User opens Accounts → Sees all linked accounts/cards with summaries
-  → Drills into statement history → Can delete statements (cascades to transactions)
+  → Clicks an account → Views filtered transactions inline (UnifiedTransactionListWidget)
+  → Can edit category on any transaction → Back button returns to accounts list
+  → Can delete statements (cascades to transactions)
 ```
 
 | Step | Method | Endpoint | Details |

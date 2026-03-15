@@ -11,6 +11,8 @@ import '../models/account_models.dart';
 import '../providers/accounts_provider.dart';
 import '../services/api_service.dart';
 import 'skeleton_widgets.dart';
+import 'unified_transaction_list_widget.dart';
+import '../providers/transactions_provider.dart';
 
 final _currencyFormat = NumberFormat.currency(symbol: '\u20B9', decimalDigits: 2);
 
@@ -66,9 +68,31 @@ class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
 
     // If an account is selected, show statement history
     if (accountsState.selectedAccountId != null) {
-      return _StatementHistoryView(
-        accountId: accountsState.selectedAccountId!,
-        accountType: accountsState.selectedAccountType!,
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    ref.read(accountsProvider.notifier).clearSelection();
+                    ref.read(unifiedTransactionsProvider.notifier).setFilters(
+                      clearAccountIdentifier: true,
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Account Transactions',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+          ),
+          const Expanded(child: UnifiedTransactionListWidget()),
+        ],
       );
     }
 
@@ -285,8 +309,17 @@ class _AccountCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () =>
-            ref.read(accountsProvider.notifier).selectAccount(account),
+        onTap: () {
+          ref.read(accountsProvider.notifier).selectAccount(account);
+          ref.read(unifiedTransactionsProvider.notifier).setFilters(
+            accountIdentifier: account.identifier,
+            clearCategory: true,
+            clearBank: true,
+            clearSourceType: true,
+            clearType: true,
+            clearSearch: true,
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -516,251 +549,4 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// Statement History View
-// ──────────────────────────────────────────────────────────────
-
-class _StatementHistoryView extends ConsumerWidget {
-  final String accountId;
-  final String accountType;
-
-  const _StatementHistoryView({
-    required this.accountId,
-    required this.accountType,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final accountsState = ref.watch(accountsProvider);
-    final isSavings = accountType == 'SAVINGS';
-
-    return Column(
-      children: [
-        // Header bar with back button
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () =>
-                    ref.read(accountsProvider.notifier).clearSelection(),
-                tooltip: 'Back to accounts',
-              ),
-              Icon(
-                isSavings ? Icons.account_balance : Icons.credit_card,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${isSavings ? "Savings" : "Credit Card"} Statements — ****${accountId.length > 4 ? accountId.substring(accountId.length - 4) : accountId}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Text(
-                '${isSavings ? accountsState.savingsTotal : accountsState.ccTotal} total',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-        ),
-
-        // Loading indicator
-        if (accountsState.isLoading)
-          const LinearProgressIndicator(),
-
-        // Statement list
-        Expanded(
-          child: isSavings
-              ? _SavingsStatementsList(
-                  statements: accountsState.savingsStatements)
-              : _CreditCardStatementsList(
-                  statements: accountsState.ccStatements),
-        ),
-      ],
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Savings Statements List
-// ──────────────────────────────────────────────────────────────
-
-class _SavingsStatementsList extends ConsumerWidget {
-  final List<SavingsStatementSummary> statements;
-  const _SavingsStatementsList({required this.statements});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (statements.isEmpty) {
-      return const Center(child: Text('No statements found'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: statements.length,
-      itemBuilder: (context, index) {
-        final stmt = statements[index];
-        return Dismissible(
-          key: ValueKey(stmt.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: Colors.red.shade400,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.delete, color: Colors.white),
-          ),
-          confirmDismiss: (_) => _confirmDelete(context, 'savings statement'),
-          onDismissed: (_) {
-            ref
-                .read(accountsProvider.notifier)
-                .deleteSavingsStatement(stmt.id);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Statement deleted')),
-            );
-          },
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).colorScheme.primaryContainer,
-                child: const Icon(Icons.description, size: 20),
-              ),
-              title: Text(
-                '${stmt.fromDate ?? "?"} → ${stmt.toDate ?? "?"}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              subtitle: Text(
-                '${stmt.transactionCount} transactions'
-                '${stmt.openingBalance != null ? " · Opening: ${_currencyFormat.format(stmt.openingBalance)}" : ""}',
-              ),
-              trailing: stmt.closingBalance != null
-                  ? Text(
-                      _currencyFormat.format(stmt.closingBalance),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700),
-                    )
-                  : null,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Credit Card Statements List
-// ──────────────────────────────────────────────────────────────
-
-class _CreditCardStatementsList extends ConsumerWidget {
-  final List<CreditCardStatementSummary> statements;
-  const _CreditCardStatementsList({required this.statements});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (statements.isEmpty) {
-      return const Center(child: Text('No statements found'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: statements.length,
-      itemBuilder: (context, index) {
-        final stmt = statements[index];
-        return Dismissible(
-          key: ValueKey(stmt.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: Colors.red.shade400,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.delete, color: Colors.white),
-          ),
-          confirmDismiss: (_) =>
-              _confirmDelete(context, 'credit card statement'),
-          onDismissed: (_) {
-            ref
-                .read(accountsProvider.notifier)
-                .deleteCreditCardStatement(stmt.id);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Statement deleted')),
-            );
-          },
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                child: const Icon(Icons.credit_card, size: 20),
-              ),
-              title: Text(
-                'Statement: ${stmt.statementDate ?? "?"}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              subtitle: Text(
-                '${stmt.transactionCount} transactions'
-                '${stmt.dueDate != null ? " · Due: ${stmt.dueDate}" : ""}',
-              ),
-              trailing: stmt.totalDues != null
-                  ? Text(
-                      _currencyFormat.format(stmt.totalDues),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade700),
-                    )
-                  : null,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────────────────────
-
-Future<bool?> _confirmDelete(BuildContext context, String itemType) {
-  return showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Delete Statement'),
-      content: Text(
-        'Are you sure you want to delete this $itemType? '
-        'All associated transactions (including unified) will be permanently removed.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.red,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
-  );
-}
+// Removed Statement History Views

@@ -330,3 +330,31 @@
 - [frontend/lib/models/analytics_models.dart](frontend/lib/models/analytics_models.dart) — Added `AccountSpending` class and `byAccount` field on `SpendingTrend` for per-bank calendar data
 - [backend/app/services/analytics_service.py](backend/app/services/analytics_service.py) — `spending_trends()` adds `by_account` array for daily granularity with per-bank spending breakdown
 - [frontend/pubspec.yaml](frontend/pubspec.yaml) — Added `table_calendar` dependency
+
+---
+
+## Phase 9: Accounts & Transactions Refactor — ✅ COMPLETED
+
+**Goal:** Remove standalone Transactions/Savings/Credit Card tabs, integrate transaction viewing into the Accounts section, separate the spending calendar into its own full-page screen, and make transaction categories editable everywhere.
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 9.1 | Spending Calendar as standalone page | ✅ Done | Extracted spending calendar from the dashboard into its own sidebar item (`CalendarScreen`). Full-page view using `table_calendar`. Click a day to see that day's transactions in a popup dialog. |
+| 9.2 | Account-centric transactions | ✅ Done | Clicking an account card now shows its filtered transactions inline using `UnifiedTransactionListWidget`, replacing the old `_StatementHistoryView`. Backend supports `account_identifier` query parameter for filtering. |
+| 9.3 | Remove redundant sidebar tabs | ✅ Done | Removed standalone "Transactions", "Savings", and "Credit Card" navigation destinations from the sidebar. The Calendar page was added as a new sidebar item. |
+| 9.4 | Editable categories in Calendar | ✅ Done | Calendar popup (`_DailyTransactionsPopup`) converted to `ConsumerStatefulWidget`. Tapping a category chip or "+ Category" button opens a picker dialog. Updates refresh the list immediately. |
+| 9.5 | Dead code cleanup | ✅ Done | Removed `_StatementHistoryView`, `_SavingsStatementsList`, `_CreditCardStatementsList`, and `_confirmDelete` from `accounts_widget.dart`. |
+
+**Backend Changes:**
+- [backend/app/schemas/transaction.py](backend/app/schemas/transaction.py) — Added `account_identifier` to `TransactionQueryParams`
+- [backend/app/services/transaction_service.py](backend/app/services/transaction_service.py) — Filter by `account_identifier` in `query()` and `count()`
+- [backend/app/routers/unified_transactions.py](backend/app/routers/unified_transactions.py) — Accept `account_identifier` query parameter
+
+**Frontend Changes:**
+- [frontend/lib/screens/calendar_screen.dart](frontend/lib/screens/calendar_screen.dart) — New standalone calendar screen with editable categories in daily popup
+- [frontend/lib/router.dart](frontend/lib/router.dart) — Removed Transactions/Savings/Credit Card nav destinations; added Calendar
+- [frontend/lib/services/api_service.dart](frontend/lib/services/api_service.dart) — Added `accountIdentifier` parameter to `getUnifiedTransactions`
+- [frontend/lib/providers/transactions_provider.dart](frontend/lib/providers/transactions_provider.dart) — Added `accountIdentifierFilter` to state and notifier
+- [frontend/lib/providers/accounts_provider.dart](frontend/lib/providers/accounts_provider.dart) — Simplified `selectAccount` (no longer fetches statements)
+- [frontend/lib/widgets/accounts_widget.dart](frontend/lib/widgets/accounts_widget.dart) — Replaced `_StatementHistoryView` with embedded `UnifiedTransactionListWidget`; removed all statement list dead code
+

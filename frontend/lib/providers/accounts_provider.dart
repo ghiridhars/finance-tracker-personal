@@ -81,37 +81,13 @@ class AccountsNotifier extends Notifier<AccountsState> {
     }
   }
 
-  /// Select an account and load its statements.
-  Future<void> selectAccount(Account account) async {
+  /// Select an account (triggers the UI to show its transactions)
+  void selectAccount(Account account) {
     state = state.copyWith(
       selectedAccountId: account.identifier,
       selectedAccountType: account.type,
-      isLoading: true,
       clearError: true,
     );
-    try {
-      if (account.isSavings) {
-        final result = await ApiService.getSavingsStatements(
-          accountNumber: account.identifier,
-        );
-        state = state.copyWith(
-          savingsStatements: result.items,
-          savingsTotal: result.total,
-          isLoading: false,
-        );
-      } else {
-        final result = await ApiService.getCreditCardStatements(
-          cardNumber: account.identifier,
-        );
-        state = state.copyWith(
-          ccStatements: result.items,
-          ccTotal: result.total,
-          isLoading: false,
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
   }
 
   /// Clear account selection (go back to accounts list).

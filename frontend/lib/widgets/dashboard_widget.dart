@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/dashboard_layout_provider.dart';
 import '../models/analytics_models.dart';
@@ -29,7 +28,6 @@ class DashboardScreen extends ConsumerWidget {
   /// Check whether a tile has data to display.
   bool _hasData(DashboardTileId id, DashboardState dash) => switch (id) {
         DashboardTileId.summary => dash.summary != null,
-        DashboardTileId.calendar => true,
         DashboardTileId.trends => dash.spendingTrends.isNotEmpty,
         DashboardTileId.categories => dash.categorySpending.isNotEmpty,
         DashboardTileId.incomeExpense => dash.incomeVsExpense.isNotEmpty,
@@ -41,12 +39,6 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildTile(DashboardTileId id, DashboardState dash, WidgetRef ref) {
     return switch (id) {
       DashboardTileId.summary => _SummaryCards(summary: dash.summary!),
-      DashboardTileId.calendar => _SpendingCalendar(
-          data: dash.calendarData,
-          focusedMonth: dash.calendarMonth,
-          onMonthChanged: (m) =>
-              ref.read(dashboardProvider.notifier).setCalendarMonth(m),
-        ),
       DashboardTileId.trends =>
           _SpendingTrendsChart(data: dash.spendingTrends),
       DashboardTileId.categories =>
@@ -63,7 +55,6 @@ class DashboardScreen extends ConsumerWidget {
   /// Section title and icon for each tile.
   static const Map<DashboardTileId, (String, IconData)> _tileMeta = {
     DashboardTileId.summary: ('Summary', Icons.dashboard),
-    DashboardTileId.calendar: ('Spending Calendar', Icons.calendar_month),
     DashboardTileId.trends: ('Spending Trends', Icons.trending_up),
     DashboardTileId.categories: ('Where Does Your Money Go?', Icons.pie_chart),
     DashboardTileId.incomeExpense: ('Income vs Expense', Icons.bar_chart),
@@ -240,6 +231,9 @@ class DashboardScreen extends ConsumerWidget {
         0, (s, t) => s + effectiveColSpan(t.$1, tier));
     final remaining = kGridColumns - usedCols;
 
+    final double maxTileHeight = rowTiles.fold<double>(
+        0, (max, t) => t.$1.height > max ? t.$1.height : max);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,6 +250,7 @@ class DashboardScreen extends ConsumerWidget {
               dash,
               ref,
               context,
+              maxTileHeight,
             ),
           ),
         ],
@@ -277,6 +272,7 @@ class DashboardScreen extends ConsumerWidget {
     DashboardState dash,
     WidgetRef ref,
     BuildContext context,
+    double renderHeight,
   ) {
     final hasData = _hasData(tile.id, dash);
 
@@ -300,6 +296,7 @@ class DashboardScreen extends ConsumerWidget {
         index: index,
         totalCount: totalCount,
         tier: tier,
+        renderHeight: renderHeight,
         child: content,
       );
     }
@@ -318,7 +315,7 @@ class DashboardScreen extends ConsumerWidget {
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-          height: tile.height,
+          height: renderHeight,
           clipBehavior: Clip.hardEdge,
           decoration: const BoxDecoration(),
           child: content,
@@ -382,6 +379,7 @@ class _EditableTileWrapper extends ConsumerWidget {
   final int index;
   final int totalCount;
   final ScreenTier tier;
+  final double renderHeight;
   final Widget child;
 
   const _EditableTileWrapper({
@@ -389,6 +387,7 @@ class _EditableTileWrapper extends ConsumerWidget {
     required this.index,
     required this.totalCount,
     required this.tier,
+    required this.renderHeight,
     required this.child,
   });
 
@@ -412,7 +411,7 @@ class _EditableTileWrapper extends ConsumerWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-        height: tile.height,
+        height: renderHeight,
         decoration: BoxDecoration(
           border: Border.all(
             color: visible
@@ -1446,310 +1445,6 @@ class _TopMerchantsCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// 1.5 Spending Calendar (Heatmap with bank-wise split)
-// ═══════════════════════════════════════════════════════════════
-
-/// Fixed color palette for each bank.
-const Map<String, Color> _bankColors = {
-  'HDFC': Color(0xFF1565C0),       // blue 800
-  'ICICI': Color(0xFFEF6C00),      // orange 800
-  'SBI': Color(0xFF2E7D32),        // green 800
-  'AXIS': Color(0xFF6A1B9A),       // purple 800
-  'KOTAK': Color(0xFF00838F),      // cyan 800
-  'YES_BANK': Color(0xFFC62828),   // red 800
-  'BOB': Color(0xFFFF8F00),        // amber 800
-  'FEDERAL_BANK': Color(0xFF283593), // indigo 800
-  'OTHER': Color(0xFF546E7A),      // blue-grey 600
-};
-
-Color _colorForBank(String bank) =>
-    _bankColors[bank.toUpperCase()] ?? _bankColors['OTHER']!;
-
-class _SpendingCalendar extends StatelessWidget {
-  final List<SpendingTrend> data;
-  final DateTime focusedMonth;
-  final ValueChanged<DateTime> onMonthChanged;
-
-  const _SpendingCalendar({
-    required this.data,
-    required this.focusedMonth,
-    required this.onMonthChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    // Build maps from date → total spending and date → account breakdown
-    final Map<DateTime, double> spendingByDay = {};
-    final Map<DateTime, List<AccountSpending>> accountsByDay = {};
-    double maxSpending = 0;
-    final Set<String> banksInMonth = {};
-
-    for (final d in data) {
-      final parts = d.period.split('-');
-      if (parts.length == 3) {
-        final dt = DateTime(
-          int.parse(parts[0]),
-          int.parse(parts[1]),
-          int.parse(parts[2]),
-        );
-        spendingByDay[dt] = d.spending;
-        accountsByDay[dt] = d.byAccount;
-        if (d.spending > maxSpending) maxSpending = d.spending;
-        for (final a in d.byAccount) {
-          banksInMonth.add(a.bank);
-        }
-      }
-    }
-
-    return Card(
-      clipBehavior: Clip.hardEdge,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TableCalendar<void>(
-              firstDay: DateTime(2020),
-              lastDay: DateTime(2030, 12, 31),
-              focusedDay: focusedMonth,
-              calendarFormat: CalendarFormat.month,
-              availableCalendarFormats: const {CalendarFormat.month: 'Month'},
-              headerStyle: HeaderStyle(
-                formatButtonVisible: false,
-                titleCentered: true,
-                titleTextStyle: Theme.of(context)
-                    .textTheme
-                    .titleSmall!
-                    .copyWith(fontWeight: FontWeight.w600),
-                leftChevronIcon:
-                    Icon(Icons.chevron_left, color: cs.primary),
-                rightChevronIcon:
-                    Icon(Icons.chevron_right, color: cs.primary),
-              ),
-              daysOfWeekStyle: DaysOfWeekStyle(
-                weekdayStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface.withValues(alpha: 0.7),
-                ),
-                weekendStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: cs.error.withValues(alpha: 0.7),
-                ),
-              ),
-              onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
-              calendarBuilders: CalendarBuilders(
-                defaultBuilder: (context, day, focusedDay) {
-                  final key = DateTime(day.year, day.month, day.day);
-                  return _CalendarCell(
-                    day: day,
-                    spending: spendingByDay[key] ?? 0,
-                    accounts: accountsByDay[key] ?? const [],
-                    maxSpending: maxSpending,
-                    isToday: false,
-                  );
-                },
-                todayBuilder: (context, day, focusedDay) {
-                  final key = DateTime(day.year, day.month, day.day);
-                  return _CalendarCell(
-                    day: day,
-                    spending: spendingByDay[key] ?? 0,
-                    accounts: accountsByDay[key] ?? const [],
-                    maxSpending: maxSpending,
-                    isToday: true,
-                  );
-                },
-                outsideBuilder: (context, day, focusedDay) {
-                  return Center(
-                    child: Text(
-                      '${day.day}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.2),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              calendarStyle: const CalendarStyle(
-                cellMargin: EdgeInsets.all(2),
-                outsideDaysVisible: true,
-              ),
-            ),
-            // Bank legend — only show banks present in this month
-            if (banksInMonth.isNotEmpty)
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 6,
-                  children: (banksInMonth.toList()..sort())
-                      .map((bank) => _BankLegendItem(bank: bank))
-                      .toList(),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BankLegendItem extends StatelessWidget {
-  final String bank;
-  const _BankLegendItem({required this.bank});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: _colorForBank(bank),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          bank.replaceAll('_', ' '),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    );
-  }
-}
-
-class _CalendarCell extends StatelessWidget {
-  final DateTime day;
-  final double spending;
-  final List<AccountSpending> accounts;
-  final double maxSpending;
-  final bool isToday;
-
-  const _CalendarCell({
-    required this.day,
-    required this.spending,
-    required this.accounts,
-    required this.maxSpending,
-    required this.isToday,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final intensity =
-        maxSpending > 0 ? (spending / maxSpending).clamp(0.0, 1.0) : 0.0;
-    final hasSplits = accounts.length > 1;
-
-    // Build tooltip text with per-bank breakdown
-    String tooltipText;
-    if (spending > 0) {
-      final buf = StringBuffer(
-          '${DateFormat.MMMd().format(day)}: ${_currencyFmt.format(spending)}');
-      if (accounts.isNotEmpty) {
-        for (final a in accounts) {
-          buf.write('\n${a.bank.replaceAll("_", " ")}: ${_currencyFmt.format(a.spending)}');
-        }
-      }
-      tooltipText = buf.toString();
-    } else {
-      tooltipText = DateFormat.MMMd().format(day);
-    }
-
-    // Compute background color
-    Color bgColor;
-    if (spending > 0 && hasSplits) {
-      // Blend bank colors weighted by spending share
-      bgColor = _blendBankColors(accounts, spending, intensity);
-    } else if (spending > 0 && accounts.isNotEmpty) {
-      bgColor = Color.lerp(
-        _colorForBank(accounts.first.bank).withValues(alpha: 0.15),
-        _colorForBank(accounts.first.bank),
-        intensity,
-      )!;
-    } else if (spending > 0) {
-      bgColor = Color.lerp(
-          Colors.red.shade50, Colors.red.shade600, intensity)!;
-    } else {
-      bgColor = Colors.transparent;
-    }
-
-    return Tooltip(
-      message: tooltipText,
-      child: Container(
-        margin: const EdgeInsets.all(1),
-        decoration: BoxDecoration(
-          color: spending > 0 && !hasSplits ? bgColor : null,
-          borderRadius: BorderRadius.circular(6),
-          border: isToday ? Border.all(color: cs.primary, width: 2) : null,
-          gradient: spending > 0 && hasSplits
-              ? _buildBankGradient(accounts, spending, intensity)
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          '${day.day}',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-            color: spending > 0 && intensity > 0.5
-                ? Colors.white
-                : cs.onSurface,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build a vertical linear gradient with bank color segments.
-  LinearGradient _buildBankGradient(
-      List<AccountSpending> accts, double total, double intensity) {
-    final sorted = List<AccountSpending>.from(accts)
-      ..sort((a, b) => b.spending.compareTo(a.spending));
-    final opacity = 0.35 + intensity * 0.65;
-
-    final colors = <Color>[];
-    final stops = <double>[];
-    double cumulative = 0;
-    for (final a in sorted) {
-      final fraction = total > 0 ? a.spending / total : 0.0;
-      final color = _colorForBank(a.bank).withValues(alpha: opacity);
-      colors.add(color);
-      stops.add(cumulative);
-      cumulative += fraction;
-      colors.add(color);
-      stops.add(cumulative.clamp(0.0, 1.0));
-    }
-    return LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: colors,
-      stops: stops,
-    );
-  }
-
-  /// Blend bank colors for the overall cell tint.
-  Color _blendBankColors(
-      List<AccountSpending> accts, double total, double intensity) {
-    double r = 0, g = 0, b = 0;
-    for (final a in accts) {
-      final w = total > 0 ? a.spending / total : 0.0;
-      final c = _colorForBank(a.bank);
-      r += (c.r * 255.0) * w;
-      g += (c.g * 255.0) * w;
-      b += (c.b * 255.0) * w;
-    }
-    return Color.fromRGBO(r.round(), g.round(), b.round(), 0.35 + intensity * 0.65);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // Shared Helpers

@@ -219,6 +219,7 @@ class UnifiedTransactionsState {
   final DateRangePreset preset;
   final int? categoryFilter;
   final String? bankFilter;
+  final String? accountIdentifierFilter;
   final String? sourceTypeFilter;
   final String? typeFilter;
   final String? searchQuery;
@@ -232,6 +233,7 @@ class UnifiedTransactionsState {
     this.preset = DateRangePreset.last3Months,
     this.categoryFilter,
     this.bankFilter,
+    this.accountIdentifierFilter,
     this.sourceTypeFilter,
     this.typeFilter,
     this.searchQuery,
@@ -246,12 +248,14 @@ class UnifiedTransactionsState {
     DateRangePreset? preset,
     int? categoryFilter,
     String? bankFilter,
+    String? accountIdentifierFilter,
     String? sourceTypeFilter,
     String? typeFilter,
     String? searchQuery,
     bool clearError = false,
     bool clearCategoryFilter = false,
     bool clearBankFilter = false,
+    bool clearAccountIdentifierFilter = false,
     bool clearSourceTypeFilter = false,
     bool clearTypeFilter = false,
     bool clearSearch = false,
@@ -266,6 +270,9 @@ class UnifiedTransactionsState {
       categoryFilter:
           clearCategoryFilter ? null : (categoryFilter ?? this.categoryFilter),
       bankFilter: clearBankFilter ? null : (bankFilter ?? this.bankFilter),
+      accountIdentifierFilter: clearAccountIdentifierFilter
+          ? null
+          : (accountIdentifierFilter ?? this.accountIdentifierFilter),
       sourceTypeFilter: clearSourceTypeFilter
           ? null
           : (sourceTypeFilter ?? this.sourceTypeFilter),
@@ -295,6 +302,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
         to: state.toDate != null ? _formatDate(state.toDate!) : null,
         categoryId: state.categoryFilter,
         bank: state.bankFilter,
+        accountIdentifier: state.accountIdentifierFilter,
         sourceType: state.sourceTypeFilter,
         type: state.typeFilter,
         search: state.searchQuery,
@@ -308,11 +316,13 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
   void setFilters({
     int? categoryId,
     String? bank,
+    String? accountIdentifier,
     String? sourceType,
     String? type,
     String? search,
     bool clearCategory = false,
     bool clearBank = false,
+    bool clearAccountIdentifier = false,
     bool clearSourceType = false,
     bool clearType = false,
     bool clearSearch = false,
@@ -320,11 +330,13 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
     state = state.copyWith(
       categoryFilter: categoryId,
       bankFilter: bank,
+      accountIdentifierFilter: accountIdentifier,
       sourceTypeFilter: sourceType,
       typeFilter: type,
       searchQuery: search,
       clearCategoryFilter: clearCategory,
       clearBankFilter: clearBank,
+      clearAccountIdentifierFilter: clearAccountIdentifier,
       clearSourceTypeFilter: clearSourceType,
       clearTypeFilter: clearType,
       clearSearch: clearSearch,
@@ -359,6 +371,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
       preset: preset,
       categoryFilter: state.categoryFilter,
       bankFilter: state.bankFilter,
+      accountIdentifierFilter: state.accountIdentifierFilter,
       sourceTypeFilter: state.sourceTypeFilter,
       typeFilter: state.typeFilter,
       searchQuery: state.searchQuery,

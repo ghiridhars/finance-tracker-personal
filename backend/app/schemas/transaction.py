@@ -48,6 +48,7 @@ class TransactionQueryParams(BaseModel):
     to_date: Optional[datetime.date] = None
     category_id: Optional[int] = None
     bank: Optional[str] = None
+    account_identifier: Optional[str] = None
     source_type: Optional[SourceType] = None
     type: Optional[TransactionType] = None
     search: Optional[str] = None

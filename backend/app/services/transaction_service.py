@@ -152,6 +152,7 @@ class UnifiedTransactionService:
         to_date: date | None = None,
         category_id: int | None = None,
         bank: str | None = None,
+        account_identifier: str | None = None,
         source_type: SourceType | None = None,
         tx_type: TransactionType | None = None,
         search: str | None = None,
@@ -170,6 +171,8 @@ class UnifiedTransactionService:
             q = q.filter(UnifiedTransaction.category_id == category_id)
         if bank:
             q = q.filter(UnifiedTransaction.bank == bank)
+        if account_identifier:
+            q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
         if source_type:
             q = q.filter(UnifiedTransaction.source_type == source_type)
         if tx_type:
@@ -198,6 +201,7 @@ class UnifiedTransactionService:
         to_date: date | None = None,
         category_id: int | None = None,
         bank: str | None = None,
+        account_identifier: str | None = None,
         source_type: SourceType | None = None,
         tx_type: TransactionType | None = None,
         search: str | None = None,
@@ -214,6 +218,8 @@ class UnifiedTransactionService:
             q = q.filter(UnifiedTransaction.category_id == category_id)
         if bank:
             q = q.filter(UnifiedTransaction.bank == bank)
+        if account_identifier:
+            q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
         if source_type:
             q = q.filter(UnifiedTransaction.source_type == source_type)
         if tx_type:

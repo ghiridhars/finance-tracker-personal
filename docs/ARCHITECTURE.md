@@ -10,7 +10,7 @@ Visual architecture reference for the full-stack application.
 graph TB
     subgraph Client["Frontend — Flutter 3.x"]
         UI["Material Design 3 UI"]
-        Router["GoRouter<br/>(8 routes)"]
+        Router["GoRouter<br/>(6 nav destinations)"]
         Providers["Riverpod Providers<br/>(8 notifiers)"]
         AuthSvc["Auth Service<br/>(JWT token mgmt)"]
         ApiSvc["API Service<br/>(HTTP client)"]
@@ -371,17 +371,15 @@ graph TB
 
     subgraph Shell["App Shell"]
         AppShell["AppShell<br/>(responsive layout)"]
-        GoRouter["GoRouter<br/>(8 routes)"]
+        GoRouter["GoRouter<br/>(6 nav destinations)"]
     end
 
     subgraph Screens["Screens & Widgets"]
         Dashboard["DashboardWidget<br/>charts + summary"]
         Upload["StatementUploadWidget<br/>drag-drop + bank selector"]
-        Txns["UnifiedTransactionListWidget<br/>search + filter + export"]
-        Accounts["AccountsWidget<br/>account + statement mgmt"]
+        Calendar["CalendarScreen<br/>spending heatmap + editable transactions"]
+        Accounts["AccountsWidget<br/>account cards + inline transaction list"]
         Budget["BudgetGoalsWidget<br/>budgets + goals + reminders"]
-        Savings["TransactionListWidget<br/>(savings)"]
-        CreditCard["TransactionListWidget<br/>(credit card)"]
         Settings["SettingsScreen<br/>theme + currency + URL"]
     end
 
@@ -410,9 +408,10 @@ graph TB
 
     Dashboard --> DashProv
     Upload --> StmtProv
-    Txns --> TxnProv
-    Txns --> CatProv
+    Calendar --> DashProv
+    Calendar --> CatProv
     Accounts --> AccProv
+    Accounts --> TxnProv
     Budget --> BudProv
     Settings --> AppSettings
 

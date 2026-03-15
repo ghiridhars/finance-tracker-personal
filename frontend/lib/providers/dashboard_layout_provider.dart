@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 enum DashboardTileId {
   summary,
-  calendar,
   trends,
   categories,
   incomeExpense,
@@ -21,7 +20,6 @@ enum DashboardTileId {
 extension DashboardTileLabel on DashboardTileId {
   String get label => switch (this) {
         DashboardTileId.summary => 'Summary Cards',
-        DashboardTileId.calendar => 'Spending Calendar',
         DashboardTileId.trends => 'Spending Trends',
         DashboardTileId.categories => 'Category Breakdown',
         DashboardTileId.incomeExpense => 'Income vs Expense',
@@ -126,7 +124,6 @@ class DashboardLayoutState {
 
 const List<TileConfig> _defaultTiles = [
   TileConfig(id: DashboardTileId.summary, height: 200, colSpan: 12),
-  TileConfig(id: DashboardTileId.calendar, height: 440, colSpan: 12),
   TileConfig(id: DashboardTileId.trends, height: 320, colSpan: 12),
   TileConfig(id: DashboardTileId.categories, height: 340, colSpan: 6),
   TileConfig(id: DashboardTileId.incomeExpense, height: 340, colSpan: 6),
