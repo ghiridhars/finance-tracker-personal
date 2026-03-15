@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
 
 /// State class holding app-wide settings.
 class AppSettings {
@@ -43,11 +44,16 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
     final baseUrl = prefs.getString(_baseUrlKey);
     final currency = prefs.getString(_currencyKey);
 
+    final resolvedUrl = baseUrl ?? 'http://127.0.0.1:8080';
+
+    // Sync base URL into ApiService on load
+    ApiService.setBaseUrl(resolvedUrl);
+
     state = AppSettings(
       themeMode: themeIndex != null
           ? ThemeMode.values[themeIndex]
           : ThemeMode.system,
-      baseUrl: baseUrl ?? 'http://127.0.0.1:8080',
+      baseUrl: resolvedUrl,
       currency: currency ?? '₹',
     );
   }
@@ -69,6 +75,8 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> setBaseUrl(String url) async {
+    // Sync into ApiService immediately
+    ApiService.setBaseUrl(url);
     state = state.copyWith(baseUrl: url);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_baseUrlKey, url);

@@ -142,6 +142,52 @@ class UnifiedTransactionService:
             )
         return created
 
+    # ── Shared filter builder ────────────────────────────────
+
+    @staticmethod
+    def _apply_filters(
+        q,
+        *,
+        from_date: date | None = None,
+        to_date: date | None = None,
+        category_id: int | None = None,
+        bank: str | None = None,
+        account_identifier: str | None = None,
+        source_type: SourceType | None = None,
+        tx_type: TransactionType | None = None,
+        search: str | None = None,
+        min_amount: Decimal | None = None,
+        max_amount: Decimal | None = None,
+    ):
+        """Apply the standard filter chain to a query. Used by query() and count()."""
+        if from_date:
+            q = q.filter(UnifiedTransaction.date >= from_date)
+        if to_date:
+            q = q.filter(UnifiedTransaction.date <= to_date)
+        if category_id is not None:
+            q = q.filter(UnifiedTransaction.category_id == category_id)
+        if bank:
+            q = q.filter(UnifiedTransaction.bank == bank)
+        if account_identifier:
+            q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
+        if source_type:
+            q = q.filter(UnifiedTransaction.source_type == source_type)
+        if tx_type:
+            q = q.filter(UnifiedTransaction.type == tx_type)
+        if search:
+            pattern = f"%{search}%"
+            q = q.filter(
+                or_(
+                    UnifiedTransaction.description.ilike(pattern),
+                    UnifiedTransaction.merchant_name.ilike(pattern),
+                )
+            )
+        if min_amount is not None:
+            q = q.filter(UnifiedTransaction.amount >= min_amount)
+        if max_amount is not None:
+            q = q.filter(UnifiedTransaction.amount <= max_amount)
+        return q
+
     # ── Querying ─────────────────────────────────────────────
 
     @staticmethod
@@ -161,35 +207,14 @@ class UnifiedTransactionService:
         limit: int = 100,
         offset: int = 0,
     ) -> list[UnifiedTransaction]:
-        q = db.query(UnifiedTransaction)
-
-        if from_date:
-            q = q.filter(UnifiedTransaction.date >= from_date)
-        if to_date:
-            q = q.filter(UnifiedTransaction.date <= to_date)
-        if category_id is not None:
-            q = q.filter(UnifiedTransaction.category_id == category_id)
-        if bank:
-            q = q.filter(UnifiedTransaction.bank == bank)
-        if account_identifier:
-            q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
-        if source_type:
-            q = q.filter(UnifiedTransaction.source_type == source_type)
-        if tx_type:
-            q = q.filter(UnifiedTransaction.type == tx_type)
-        if search:
-            pattern = f"%{search}%"
-            q = q.filter(
-                or_(
-                    UnifiedTransaction.description.ilike(pattern),
-                    UnifiedTransaction.merchant_name.ilike(pattern),
-                )
-            )
-        if min_amount is not None:
-            q = q.filter(UnifiedTransaction.amount >= min_amount)
-        if max_amount is not None:
-            q = q.filter(UnifiedTransaction.amount <= max_amount)
-
+        q = UnifiedTransactionService._apply_filters(
+            db.query(UnifiedTransaction),
+            from_date=from_date, to_date=to_date,
+            category_id=category_id, bank=bank,
+            account_identifier=account_identifier,
+            source_type=source_type, tx_type=tx_type,
+            search=search, min_amount=min_amount, max_amount=max_amount,
+        )
         q = q.order_by(UnifiedTransaction.date.desc(), UnifiedTransaction.id.desc())
         return q.offset(offset).limit(limit).all()
 
@@ -209,33 +234,14 @@ class UnifiedTransactionService:
         max_amount: Decimal | None = None,
     ) -> int:
         """Count matching transactions (for pagination metadata)."""
-        q = db.query(UnifiedTransaction)
-        if from_date:
-            q = q.filter(UnifiedTransaction.date >= from_date)
-        if to_date:
-            q = q.filter(UnifiedTransaction.date <= to_date)
-        if category_id is not None:
-            q = q.filter(UnifiedTransaction.category_id == category_id)
-        if bank:
-            q = q.filter(UnifiedTransaction.bank == bank)
-        if account_identifier:
-            q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
-        if source_type:
-            q = q.filter(UnifiedTransaction.source_type == source_type)
-        if tx_type:
-            q = q.filter(UnifiedTransaction.type == tx_type)
-        if search:
-            pattern = f"%{search}%"
-            q = q.filter(
-                or_(
-                    UnifiedTransaction.description.ilike(pattern),
-                    UnifiedTransaction.merchant_name.ilike(pattern),
-                )
-            )
-        if min_amount is not None:
-            q = q.filter(UnifiedTransaction.amount >= min_amount)
-        if max_amount is not None:
-            q = q.filter(UnifiedTransaction.amount <= max_amount)
+        q = UnifiedTransactionService._apply_filters(
+            db.query(UnifiedTransaction),
+            from_date=from_date, to_date=to_date,
+            category_id=category_id, bank=bank,
+            account_identifier=account_identifier,
+            source_type=source_type, tx_type=tx_type,
+            search=search, min_amount=min_amount, max_amount=max_amount,
+        )
         return q.count()
 
     @staticmethod

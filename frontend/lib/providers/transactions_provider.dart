@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/unified_transaction_models.dart';
 import '../services/api_service.dart';
+import 'date_range_mixin.dart';
 
 /// Date range filter preset.
 enum DateRangePreset {
@@ -58,10 +59,10 @@ class TransactionsState {
 }
 
 /// Notifier for savings transactions.
-class SavingsTransactionsNotifier extends Notifier<TransactionsState> {
+class SavingsTransactionsNotifier extends Notifier<TransactionsState>
+    with DateRangeMixin {
   @override
   TransactionsState build() {
-    // Set default date range (last 30 days)
     final now = DateTime.now();
     final from = now.subtract(const Duration(days: 30));
     return TransactionsState(
@@ -76,10 +77,10 @@ class SavingsTransactionsNotifier extends Notifier<TransactionsState> {
     try {
       final txns = await ApiService.getSavingsTransactions(
         from: state.fromDate != null
-            ? _formatDate(state.fromDate!)
+            ? formatDate(state.fromDate!)
             : null,
         to: state.toDate != null
-            ? _formatDate(state.toDate!)
+            ? formatDate(state.toDate!)
             : null,
       );
       state = state.copyWith(transactions: txns, isLoading: false);
@@ -102,34 +103,15 @@ class SavingsTransactionsNotifier extends Notifier<TransactionsState> {
   }
 
   void applyPreset(DateRangePreset preset) {
-    final now = DateTime.now();
-    DateTime? from;
-    DateTime? to = now;
-
-    switch (preset) {
-      case DateRangePreset.last7Days:
-        from = now.subtract(const Duration(days: 7));
-      case DateRangePreset.last30Days:
-        from = now.subtract(const Duration(days: 30));
-      case DateRangePreset.last3Months:
-        from = DateTime(now.year, now.month - 3, now.day);
-      case DateRangePreset.thisYear:
-        from = DateTime(now.year, 1, 1);
-      case DateRangePreset.all:
-        from = null;
-        to = null;
-      case DateRangePreset.custom:
-        return; // Custom is set via setDateRange
-    }
-    setDateRange(from, to, preset);
+    if (preset == DateRangePreset.custom) return;
+    final range = resolveDateRange(preset);
+    setDateRange(range.from, range.to, preset);
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }
 
 /// Notifier for credit card transactions.
-class CreditCardTransactionsNotifier extends Notifier<TransactionsState> {
+class CreditCardTransactionsNotifier extends Notifier<TransactionsState>
+    with DateRangeMixin {
   @override
   TransactionsState build() {
     final now = DateTime.now();
@@ -146,10 +128,10 @@ class CreditCardTransactionsNotifier extends Notifier<TransactionsState> {
     try {
       final txns = await ApiService.getCreditCardTransactions(
         from: state.fromDate != null
-            ? _formatDate(state.fromDate!)
+            ? formatDate(state.fromDate!)
             : null,
         to: state.toDate != null
-            ? _formatDate(state.toDate!)
+            ? formatDate(state.toDate!)
             : null,
       );
       state = state.copyWith(transactions: txns, isLoading: false);
@@ -172,30 +154,10 @@ class CreditCardTransactionsNotifier extends Notifier<TransactionsState> {
   }
 
   void applyPreset(DateRangePreset preset) {
-    final now = DateTime.now();
-    DateTime? from;
-    DateTime? to = now;
-
-    switch (preset) {
-      case DateRangePreset.last7Days:
-        from = now.subtract(const Duration(days: 7));
-      case DateRangePreset.last30Days:
-        from = now.subtract(const Duration(days: 30));
-      case DateRangePreset.last3Months:
-        from = DateTime(now.year, now.month - 3, now.day);
-      case DateRangePreset.thisYear:
-        from = DateTime(now.year, 1, 1);
-      case DateRangePreset.all:
-        from = null;
-        to = null;
-      case DateRangePreset.custom:
-        return;
-    }
-    setDateRange(from, to, preset);
+    if (preset == DateRangePreset.custom) return;
+    final range = resolveDateRange(preset);
+    setDateRange(range.from, range.to, preset);
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }
 
 /// Providers
@@ -282,7 +244,8 @@ class UnifiedTransactionsState {
   }
 }
 
-class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
+class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
+    with DateRangeMixin {
   @override
   UnifiedTransactionsState build() {
     final now = DateTime.now();
@@ -298,8 +261,8 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final txns = await ApiService.getUnifiedTransactions(
-        from: state.fromDate != null ? _formatDate(state.fromDate!) : null,
-        to: state.toDate != null ? _formatDate(state.toDate!) : null,
+        from: state.fromDate != null ? formatDate(state.fromDate!) : null,
+        to: state.toDate != null ? formatDate(state.toDate!) : null,
         categoryId: state.categoryFilter,
         bank: state.bankFilter,
         accountIdentifier: state.accountIdentifierFilter,
@@ -345,29 +308,12 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
   }
 
   void applyPreset(DateRangePreset preset) {
-    final now = DateTime.now();
-    DateTime? from;
-    DateTime? to = now;
-
-    switch (preset) {
-      case DateRangePreset.last7Days:
-        from = now.subtract(const Duration(days: 7));
-      case DateRangePreset.last30Days:
-        from = now.subtract(const Duration(days: 30));
-      case DateRangePreset.last3Months:
-        from = DateTime(now.year, now.month - 3, now.day);
-      case DateRangePreset.thisYear:
-        from = DateTime(now.year, 1, 1);
-      case DateRangePreset.all:
-        from = null;
-        to = null;
-      case DateRangePreset.custom:
-        return;
-    }
+    if (preset == DateRangePreset.custom) return;
+    final range = resolveDateRange(preset);
     state = UnifiedTransactionsState(
       transactions: state.transactions,
-      fromDate: from,
-      toDate: to,
+      fromDate: range.from,
+      toDate: range.to,
       preset: preset,
       categoryFilter: state.categoryFilter,
       bankFilter: state.bankFilter,
@@ -387,9 +333,6 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState> {
       state = state.copyWith(error: e.toString());
     }
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }
 
 final unifiedTransactionsProvider =
