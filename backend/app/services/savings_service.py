@@ -74,20 +74,18 @@ class SavingsAccountStatementService:
 
     @staticmethod
     def get_transactions(
-        db: Session, from_date: date, to_date: date
+        db: Session, from_date: date | None, to_date: date | None
     ) -> list[SavingsAccountTransaction]:
         """
         Replaces: SavingsAccountStatementService.getTransactions(LocalDate, LocalDate)
         Replaces: SavingsAccountTransactionRepository.findByDateBetween(LocalDate, LocalDate)
         """
-        return (
-            db.query(SavingsAccountTransaction)
-            .filter(
-                SavingsAccountTransaction.date >= from_date,
-                SavingsAccountTransaction.date <= to_date,
-            )
-            .all()
-        )
+        query = db.query(SavingsAccountTransaction)
+        if from_date is not None:
+            query = query.filter(SavingsAccountTransaction.date >= from_date)
+        if to_date is not None:
+            query = query.filter(SavingsAccountTransaction.date <= to_date)
+        return query.all()
 
 
 def _map_dto_to_statement(

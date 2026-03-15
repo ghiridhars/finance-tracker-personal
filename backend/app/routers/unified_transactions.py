@@ -39,11 +39,6 @@ def list_transactions(
     Query unified transactions with optional filters.
     Defaults: last 90 days if no date range specified.
     """
-    if from_date is None:
-        from_date = date.today() - timedelta(days=90)
-    if to_date is None:
-        to_date = date.today()
-
     transactions = UnifiedTransactionService.query(
         db,
         from_date=from_date,
@@ -75,11 +70,6 @@ def count_transactions(
     db: Session = Depends(get_db),
 ):
     """Count matching transactions (for pagination metadata)."""
-    if from_date is None:
-        from_date = date.today() - timedelta(days=90)
-    if to_date is None:
-        to_date = date.today()
-
     total = UnifiedTransactionService.count(
         db,
         from_date=from_date,

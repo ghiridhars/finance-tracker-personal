@@ -86,37 +86,33 @@ class CreditCardStatementService:
 
     @staticmethod
     def get_statements_by_date_range(
-        db: Session, start_date: date, end_date: date
+        db: Session, start_date: date | None, end_date: date | None
     ) -> list[CreditCardStatement]:
         """
         Replaces: CreditCardStatementService.getStatementsByDateRange(LocalDate, LocalDate)
         Replaces: CreditCardStatementRepository.findByStatementDateBetween(LocalDate, LocalDate)
         """
-        return (
-            db.query(CreditCardStatement)
-            .filter(
-                CreditCardStatement.statement_date >= start_date,
-                CreditCardStatement.statement_date <= end_date,
-            )
-            .all()
-        )
+        query = db.query(CreditCardStatement)
+        if start_date is not None:
+            query = query.filter(CreditCardStatement.statement_date >= start_date)
+        if end_date is not None:
+            query = query.filter(CreditCardStatement.statement_date <= end_date)
+        return query.all()
 
     @staticmethod
     def get_transactions_by_date_range(
-        db: Session, start_date: date, end_date: date
+        db: Session, start_date: date | None, end_date: date | None
     ) -> list[CreditCardTransaction]:
         """
         Replaces: CreditCardStatementService.getTransactionsByDateRange(LocalDate, LocalDate)
         Replaces: CreditCardTransactionRepository.findByDateBetween(LocalDate, LocalDate)
         """
-        return (
-            db.query(CreditCardTransaction)
-            .filter(
-                CreditCardTransaction.date >= start_date,
-                CreditCardTransaction.date <= end_date,
-            )
-            .all()
-        )
+        query = db.query(CreditCardTransaction)
+        if start_date is not None:
+            query = query.filter(CreditCardTransaction.date >= start_date)
+        if end_date is not None:
+            query = query.filter(CreditCardTransaction.date <= end_date)
+        return query.all()
 
 
 def _map_dto_to_statement(

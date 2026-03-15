@@ -33,10 +33,6 @@ def get_savings_transactions(
 
     Defaults: from = 30 days ago, to = today (same as Java version).
     """
-    if from_date is None:
-        from_date = date.today() - timedelta(days=30)
-    if to_date is None:
-        to_date = date.today()
 
     transactions = SavingsAccountStatementService.get_transactions(db, from_date, to_date)
     return [SavingsAccountTransactionSchema.model_validate(t) for t in transactions]
@@ -52,10 +48,6 @@ def get_credit_card_transactions(
     Get credit card transactions by date range.
     FIX: This endpoint was missing in the Java version (only savings were queryable).
     """
-    if from_date is None:
-        from_date = date.today() - timedelta(days=30)
-    if to_date is None:
-        to_date = date.today()
 
     transactions = CreditCardStatementService.get_transactions_by_date_range(db, from_date, to_date)
     return [CreditCardTransactionSchema.model_validate(t) for t in transactions]
@@ -73,10 +65,6 @@ def get_transactions_default(
 
     Replaces: GET /api/transactions in TransactionController.java
     """
-    if from_date is None:
-        from_date = date.today() - timedelta(days=30)
-    if to_date is None:
-        to_date = date.today()
 
     transactions = SavingsAccountStatementService.get_transactions(db, from_date, to_date)
     return [SavingsAccountTransactionSchema.model_validate(t) for t in transactions]
