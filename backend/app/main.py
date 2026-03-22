@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import auth_router
 from app.config import settings
-from app.database import create_tables
+from app.database import create_tables, migrate_schema
 from app.routers import (
     health_router,
     transactions_router,
@@ -32,6 +32,8 @@ from app.routers import (
     reminders_router,
     export_router,
     gdrive_router,
+    transfers_router,
+    upi_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Starting Finance Tracker v2 (Python + FastAPI)")
     create_tables()
+    migrate_schema()
     logger.info(f"Database initialized: {settings.database_url}")
 
     # Seed default categories
@@ -168,6 +171,8 @@ for protected_router in [
     reminders_router,
     export_router,
     gdrive_router,
+    transfers_router,
+    upi_router,
 ]:
     # Inject auth dependency into every route of each protected router
     protected_router.dependencies.append(Depends(get_current_user))

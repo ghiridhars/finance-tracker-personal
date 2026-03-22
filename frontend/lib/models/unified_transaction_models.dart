@@ -1,5 +1,6 @@
 /// Unified transaction model — single representation for all transaction types.
 import 'category_models.dart';
+import 'converters.dart';
 import 'enums.dart';
 
 class UnifiedTransaction {
@@ -17,6 +18,9 @@ class UnifiedTransaction {
   final String? merchantName;
   final String? notes;
   final String? referenceNumber;
+  final bool isTransfer;
+  final String? transferGroupId;
+  final String? transferType;
   final List<Tag> tags;
   final String? createdAt;
 
@@ -35,6 +39,9 @@ class UnifiedTransaction {
     this.merchantName,
     this.notes,
     this.referenceNumber,
+    this.isTransfer = false,
+    this.transferGroupId,
+    this.transferType,
     this.tags = const [],
     this.createdAt,
   });
@@ -44,7 +51,7 @@ class UnifiedTransaction {
       id: json['id'],
       date: json['date'],
       description: json['description'],
-      amount: _toDouble(json['amount']),
+      amount: toDouble(json['amount']),
       type: json['type'] != null
           ? TransactionType.fromString(json['type'])
           : null,
@@ -59,18 +66,15 @@ class UnifiedTransaction {
       merchantName: json['merchant_name'],
       notes: json['notes'],
       referenceNumber: json['reference_number'],
+      isTransfer: json['is_transfer'] ?? false,
+      transferGroupId: json['transfer_group_id'],
+      transferType: json['transfer_type'],
       tags: (json['tags'] as List<dynamic>?)
               ?.map((t) => Tag.fromJson(t))
               .toList() ??
           [],
       createdAt: json['created_at'],
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 
   /// Display-friendly source label

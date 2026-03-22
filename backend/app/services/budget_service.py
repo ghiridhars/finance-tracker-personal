@@ -102,6 +102,7 @@ class BudgetService:
             .filter(
                 UnifiedTransaction.category_id == category_id,
                 UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
                 extract("year", UnifiedTransaction.date) == year,
                 extract("month", UnifiedTransaction.date) == month,
             )

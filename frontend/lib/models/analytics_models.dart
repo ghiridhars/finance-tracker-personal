@@ -1,4 +1,5 @@
 /// Models for analytics/dashboard data from the backend.
+import 'converters.dart';
 
 class DashboardSummary {
   final String fromDate;
@@ -29,21 +30,15 @@ class DashboardSummary {
     return DashboardSummary(
       fromDate: json['from_date'] ?? '',
       toDate: json['to_date'] ?? '',
-      totalIncome: _d(json['total_income']),
-      totalSpending: _d(json['total_spending']),
-      netSavings: _d(json['net_savings']),
+      totalIncome: toDouble(json['total_income']) ?? 0,
+      totalSpending: toDouble(json['total_spending']) ?? 0,
+      netSavings: toDouble(json['net_savings']) ?? 0,
       transactionCount: json['transaction_count'] ?? 0,
-      avgTransaction: _d(json['avg_transaction']),
+      avgTransaction: toDouble(json['avg_transaction']) ?? 0,
       topSpendingCategory: json['top_spending_category'],
-      topSpendingAmount: _d(json['top_spending_amount']),
+      topSpendingAmount: toDouble(json['top_spending_amount']) ?? 0,
       activeBanks: json['active_banks'] ?? 0,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -72,16 +67,10 @@ class CategorySpending {
       category: json['category'] ?? 'Unknown',
       color: json['color'],
       icon: json['icon'],
-      amount: _d(json['amount']),
-      percentage: _d(json['percentage']),
+      amount: toDouble(json['amount']) ?? 0,
+      percentage: toDouble(json['percentage']) ?? 0,
       count: json['count'] ?? 0,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -99,15 +88,9 @@ class AccountSpending {
   factory AccountSpending.fromJson(Map<String, dynamic> json) {
     return AccountSpending(
       bank: json['bank'] ?? 'OTHER',
-      spending: _d(json['spending']),
+      spending: toDouble(json['spending']) ?? 0,
       count: json['count'] ?? 0,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -130,18 +113,12 @@ class SpendingTrend {
     final accountList = json['by_account'] as List<dynamic>? ?? [];
     return SpendingTrend(
       period: json['period'] ?? '',
-      spending: _d(json['spending']),
-      income: _d(json['income']),
+      spending: toDouble(json['spending']) ?? 0,
+      income: toDouble(json['income']) ?? 0,
       count: json['count'] ?? 0,
       byAccount:
           accountList.map((a) => AccountSpending.fromJson(a)).toList(),
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -161,16 +138,10 @@ class IncomeVsExpense {
   factory IncomeVsExpense.fromJson(Map<String, dynamic> json) {
     return IncomeVsExpense(
       month: json['month'] ?? '',
-      income: _d(json['income']),
-      expense: _d(json['expense']),
-      net: _d(json['net']),
+      income: toDouble(json['income']) ?? 0,
+      expense: toDouble(json['expense']) ?? 0,
+      net: toDouble(json['net']) ?? 0,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -190,16 +161,10 @@ class MonthComparison {
   factory MonthComparison.fromJson(Map<String, dynamic> json) {
     return MonthComparison(
       category: json['category'] ?? '',
-      current: _d(json['current']),
-      previous: _d(json['previous']),
-      changePct: json['change_pct'] != null ? _d(json['change_pct']) : null,
+      current: toDouble(json['current']) ?? 0,
+      previous: toDouble(json['previous']) ?? 0,
+      changePct: json['change_pct'] != null ? (toDouble(json['change_pct']) ?? 0) : null,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -224,22 +189,16 @@ class MonthOverMonth {
     return MonthOverMonth(
       currentMonth: json['current_month'] ?? '',
       previousMonth: json['previous_month'] ?? '',
-      currentTotal: _d(json['current_total']),
-      previousTotal: _d(json['previous_total']),
+      currentTotal: toDouble(json['current_total']) ?? 0,
+      previousTotal: toDouble(json['previous_total']) ?? 0,
       totalChangePct: json['total_change_pct'] != null
-          ? _d(json['total_change_pct'])
+          ? (toDouble(json['total_change_pct']) ?? 0)
           : null,
       comparison: (json['comparison'] as List<dynamic>?)
               ?.map((c) => MonthComparison.fromJson(c))
               .toList() ??
           [],
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }
 
@@ -259,15 +218,9 @@ class MerchantSpending {
   factory MerchantSpending.fromJson(Map<String, dynamic> json) {
     return MerchantSpending(
       merchant: json['merchant'] ?? 'Unknown',
-      amount: _d(json['amount']),
+      amount: toDouble(json['amount']) ?? 0,
       count: json['count'] ?? 0,
-      percentage: _d(json['percentage']),
+      percentage: toDouble(json['percentage']) ?? 0,
     );
-  }
-
-  static double _d(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
   }
 }

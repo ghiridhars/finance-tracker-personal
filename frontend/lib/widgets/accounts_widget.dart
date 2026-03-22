@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import 'skeleton_widgets.dart';
 import 'unified_transaction_list_widget.dart';
 import '../providers/transactions_provider.dart';
+import 'upi_management_widget.dart';
 
 final _currencyFormat = NumberFormat.currency(symbol: '\u20B9', decimalDigits: 2);
 
@@ -80,6 +81,7 @@ class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
                     ref.read(accountsProvider.notifier).clearSelection();
                     ref.read(unifiedTransactionsProvider.notifier).setFilters(
                       clearAccountIdentifier: true,
+                      clearIsTransfer: true,
                     );
                   },
                 ),
@@ -316,6 +318,7 @@ class _AccountCard extends ConsumerWidget {
             clearCategory: true,
             clearBank: true,
             clearSourceType: true,
+            clearIsTransfer: true,
             clearType: true,
             clearSearch: true,
           );
@@ -455,6 +458,11 @@ class _AccountCard extends ConsumerWidget {
                       ?.copyWith(color: cs.outline),
                 ),
               ],
+              // UPI IDs linked to this account
+              AccountUpiSection(
+                accountType: account.type,
+                accountIdentifier: account.identifier,
+              ),
             ],
           ),
         ),

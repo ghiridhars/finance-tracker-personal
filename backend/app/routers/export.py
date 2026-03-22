@@ -97,7 +97,6 @@ def _export_csv(transactions, from_date, to_date):
         "Bank",
         "Source Type",
         "Reference",
-        "Balance",
     ])
 
     # Data rows
@@ -111,8 +110,7 @@ def _export_csv(transactions, from_date, to_date):
             tx.category.name if tx.category else "",
             tx.bank or "",
             tx.source_type.value if tx.source_type else "",
-            tx.reference or "",
-            str(tx.balance) if tx.balance else "",
+            tx.reference_number or "",
         ])
 
     output.seek(0)
@@ -136,8 +134,7 @@ def _tx_to_dict(tx):
         "category": tx.category.name if tx.category else None,
         "bank": tx.bank,
         "source_type": tx.source_type.value if tx.source_type else None,
-        "reference": tx.reference,
-        "balance": float(tx.balance) if tx.balance else None,
+        "reference": tx.reference_number,
     }
 
 
@@ -149,34 +146,20 @@ def clear_all_data(db: Session = Depends(get_db)):
     """
     from app.models.savings_account import SavingsAccountTransaction, SavingsAccountStatement
     from app.models.credit_card import CreditCardTransaction, CreditCardStatement
+    from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransaction
+    from app.models.transaction import UnifiedTransaction
 
-    tables_to_clear = []
-
-    # Import all models that might exist
-    try:
-        from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransaction
-        tables_to_clear.extend([RecurringTransaction, BillReminder, SavingsGoal, Budget])
-    except ImportError:
-        pass
-
-    try:
-        from app.models.transaction import UnifiedTransaction
-        tables_to_clear.append(UnifiedTransaction)
-    except ImportError:
-        pass
-
-    tables_to_clear.extend([
+    tables_to_clear = [
+        RecurringTransaction,
+        BillReminder,
+        SavingsGoal,
+        Budget,
+        UnifiedTransaction,
         CreditCardTransaction,
         SavingsAccountTransaction,
         CreditCardStatement,
         SavingsAccountStatement,
-    ])
-
-    try:
-        from app.models.account import Account
-        tables_to_clear.append(Account)
-    except ImportError:
-        pass
+    ]
 
     total_deleted = 0
     for model in tables_to_clear:

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.models.enums import BankType, StatementType
-from app.parsers.base_parser import ParseException, ParserProfile
+from app.parsers.base_parser import ParseException
 from app.parsers.generic_pdf_parser import GenericPdfParser
 from app.schemas.credit_card import CreditCardStatementSchema
 from app.schemas.savings_account import SavingsAccountStatementSchema
@@ -173,19 +173,3 @@ class ParserService:
         tmp.write(content)
         tmp.close()
         return tmp.name
-
-    @staticmethod
-    def _load_parser_profile(filename: str) -> ParserProfile | None:
-        """Attempt to load a YAML parser profile from the resources directory."""
-        try:
-            import yaml
-
-            profile_path = Path(__file__).parent.parent / "resources" / filename
-            if profile_path.exists():
-                with open(profile_path) as f:
-                    data = yaml.safe_load(f)
-                    if data and "regions" in data:
-                        return ParserProfile(regions=data["regions"])
-        except Exception:
-            pass
-        return None

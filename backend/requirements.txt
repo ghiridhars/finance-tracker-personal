@@ -36,12 +36,6 @@ python-multipart==0.0.12
 # CORS
 starlette==0.38.6
 
-# YAML support
-pyyaml==6.0.2
-
-# Logging
-loguru==0.7.2
-
 # Testing
 pytest==8.3.3
 pytest-asyncio==0.24.0

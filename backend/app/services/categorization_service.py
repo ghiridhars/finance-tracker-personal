@@ -2,8 +2,11 @@
 Auto-categorization engine and merchant normalization.
 
 Responsibilities:
-  1. Match transaction descriptions against category keywords → assign category_id.
-  2. Extract a clean merchant name from raw bank descriptions.
+  1. Extract UPI IDs from descriptions and match against known UPI mappings.
+  2. Match transaction descriptions against category keywords → assign category_id.
+  3. Extract a clean merchant name from raw bank descriptions.
+
+Priority order: UPI ID match → keyword match.
 """
 import logging
 import re
@@ -12,8 +15,57 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.category import Category, CategoryKeyword
+from app.models.upi import UpiId
 
 logger = logging.getLogger(__name__)
+
+# ── UPI ID extraction ────────────────────────────────────────
+
+# Matches UPI handles like user@hdfcbank, swiggy@axisbank, 9876543210@paytm
+_UPI_HANDLE_RE = re.compile(r"[\w.-]+@[a-zA-Z][\w]*", re.IGNORECASE)
+
+
+def extract_upi_id(description: str | None) -> str | None:
+    """
+    Extract a UPI handle from a raw bank transaction description.
+
+    Examples:
+        "UPI-SWIGGY-swiggy@axisbank-123456" → "swiggy@axisbank"
+        "UPI/CR/1234/user@hdfcbank/Ref" → "user@hdfcbank"
+        "NEFT CR-ACME CORP-REF123456789" → None
+    """
+    if not description:
+        return None
+    match = _UPI_HANDLE_RE.search(description)
+    return match.group(0).lower() if match else None
+
+
+def match_upi_id(
+    db: Session,
+    description: str | None,
+) -> tuple[Optional[int], bool, Optional[str]]:
+    """
+    Check if the description contains a known UPI handle.
+
+    Returns:
+        (category_id, is_own_transfer, matched_upi_handle)
+        - category_id: category from the UPI mapping, or None
+        - is_own_transfer: True if the UPI belongs to the user's own account
+        - matched_upi_handle: the UPI handle that matched, or None
+    """
+    upi_handle = extract_upi_id(description)
+    if not upi_handle:
+        return None, False, None
+
+    upi_entry = (
+        db.query(UpiId)
+        .filter(UpiId.upi_handle == upi_handle)
+        .first()
+    )
+    if not upi_entry:
+        return None, False, upi_handle
+
+    return upi_entry.category_id, upi_entry.is_own, upi_handle
 
 # ── Merchant normalization patterns ──────────────────────────
 
@@ -102,10 +154,25 @@ def auto_categorize(
 def categorize_and_normalize(
     db: Session,
     description: str | None,
-) -> tuple[Optional[int], Optional[str]]:
+) -> tuple[Optional[int], Optional[str], bool]:
     """
-    Convenience function: returns (category_id, merchant_name) for a description.
+    Convenience function: returns (category_id, merchant_name, is_own_transfer).
+
+    Priority order:
+      1. UPI ID match (most specific)
+      2. Keyword match (fallback)
     """
-    category_id = auto_categorize(db, description)
+    is_own_transfer = False
+
+    # 1. Try UPI-based categorization first
+    upi_cat_id, is_own, _ = match_upi_id(db, description)
+    if is_own:
+        is_own_transfer = True
+    category_id = upi_cat_id
+
+    # 2. Fall back to keyword matching if no UPI category
+    if category_id is None:
+        category_id = auto_categorize(db, description)
+
     merchant_name = normalize_merchant(description)
-    return category_id, merchant_name
+    return category_id, merchant_name, is_own_transfer

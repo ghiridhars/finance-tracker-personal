@@ -1,4 +1,5 @@
 /// Credit Card models.
+import 'converters.dart';
 import 'enums.dart';
 
 class CreditCardTransaction {
@@ -23,18 +24,12 @@ class CreditCardTransaction {
       id: json['id'],
       date: json['date'],
       description: json['description'],
-      amount: _toDouble(json['amount']),
+      amount: toDouble(json['amount']),
       type: json['type'] != null
           ? TransactionType.fromString(json['type'])
           : null,
       referenceNumber: json['reference_number'],
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 
   @override
@@ -73,12 +68,10 @@ class CreditCardStatement {
       dueDate: json['due_date'],
       cardNumber: json['card_number'],
       cardHolderName: json['card_holder_name'],
-      creditLimit: CreditCardTransaction._toDouble(json['credit_limit']),
-      availableCredit:
-          CreditCardTransaction._toDouble(json['available_credit']),
-      totalDues: CreditCardTransaction._toDouble(json['total_dues']),
-      minimumAmountDue:
-          CreditCardTransaction._toDouble(json['minimum_amount_due']),
+      creditLimit: toDouble(json['credit_limit']),
+      availableCredit: toDouble(json['available_credit']),
+      totalDues: toDouble(json['total_dues']),
+      minimumAmountDue: toDouble(json['minimum_amount_due']),
       transactions: (json['transactions'] as List<dynamic>?)
               ?.map((t) => CreditCardTransaction.fromJson(t))
               .toList() ??

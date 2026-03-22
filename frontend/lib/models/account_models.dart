@@ -1,4 +1,5 @@
 /// Account & Statement management models for Phase 4.
+import 'converters.dart';
 
 class Account {
   final String type; // SAVINGS or CREDIT_CARD
@@ -42,17 +43,12 @@ class Account {
       statementCount: json['statement_count'] ?? 0,
       transactionCount: json['transaction_count'] ?? 0,
       lastStatementDate: json['last_statement_date'],
-      balance: _toDouble(json['balance']),
-      creditLimit: _toDouble(json['credit_limit']),
-      availableCredit: _toDouble(json['available_credit']),
+      balance: toDouble(json['balance']),
+      creditLimit: toDouble(json['credit_limit']),
+      availableCredit: toDouble(json['available_credit']),
     );
   }
 
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
 }
 
 /// Lightweight summary of a savings statement (without embedded transactions).
@@ -84,16 +80,10 @@ class SavingsStatementSummary {
       accountHolderName: json['account_holder_name'],
       fromDate: json['from_date'],
       toDate: json['to_date'],
-      openingBalance: _toDouble(json['opening_balance']),
-      closingBalance: _toDouble(json['closing_balance']),
+      openingBalance: toDouble(json['opening_balance']),
+      closingBalance: toDouble(json['closing_balance']),
       transactionCount: (json['transactions'] as List?)?.length ?? 0,
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 }
 
@@ -128,17 +118,11 @@ class CreditCardStatementSummary {
       cardHolderName: json['card_holder_name'],
       statementDate: json['statement_date'],
       dueDate: json['due_date'],
-      totalDues: _toDouble(json['total_dues']),
-      creditLimit: _toDouble(json['credit_limit']),
-      minimumAmountDue: _toDouble(json['minimum_amount_due']),
+      totalDues: toDouble(json['total_dues']),
+      creditLimit: toDouble(json['credit_limit']),
+      minimumAmountDue: toDouble(json['minimum_amount_due']),
       transactionCount: (json['transactions'] as List?)?.length ?? 0,
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 }
 

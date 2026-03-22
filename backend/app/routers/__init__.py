@@ -11,6 +11,8 @@ from app.routers.goals import router as goals_router
 from app.routers.reminders import router as reminders_router
 from app.routers.export import router as export_router
 from app.routers.gdrive import router as gdrive_router
+from app.routers.transfers import router as transfers_router
+from app.routers.upi import router as upi_router
 
 __all__ = [
     "health_router",
@@ -26,4 +28,6 @@ __all__ = [
     "reminders_router",
     "export_router",
     "gdrive_router",
+    "transfers_router",
+    "upi_router",
 ]

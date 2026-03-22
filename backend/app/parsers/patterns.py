@@ -11,6 +11,8 @@ from typing import Optional
 
 from dateutil import parser as dateutil_parser
 
+MAX_REASONABLE_AMOUNT = Decimal("10000000000")  # 10 billion
+
 # ── Column header patterns (case-insensitive) ──────────────────
 
 DATE_PATTERNS = [
@@ -129,8 +131,13 @@ def parse_amount(value: str | None) -> Optional[Decimal]:
     if not cleaned or cleaned == "-" or cleaned == "0":
         return None
     cleaned = cleaned.replace(",", "")
+    if not re.fullmatch(r"[+-]?\d+(?:\.\d{1,2})?", cleaned):
+        return None
     try:
-        return Decimal(cleaned)
+        amount = Decimal(cleaned)
+        if abs(amount) > MAX_REASONABLE_AMOUNT:
+            return None
+        return amount
     except InvalidOperation:
         return None
 

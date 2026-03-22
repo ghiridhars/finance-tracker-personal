@@ -44,3 +44,9 @@ class SourceType(str, enum.Enum):
     """Source of a unified transaction — links back to the original table."""
     SAVINGS = "SAVINGS"
     CREDIT_CARD = "CREDIT_CARD"
+
+
+class TransferType(str, enum.Enum):
+    """Type of inter-account transfer."""
+    INTERNAL_TRANSFER = "INTERNAL_TRANSFER"
+    CC_BILL_PAYMENT = "CC_BILL_PAYMENT"

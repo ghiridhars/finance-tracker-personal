@@ -5,6 +5,7 @@ from app.models.category import Category, CategoryKeyword
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import UnifiedTransaction
 from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransaction
+from app.models.upi import UpiId
 
 __all__ = [
     "TransactionType",
@@ -24,4 +25,5 @@ __all__ = [
     "SavingsGoal",
     "BillReminder",
     "RecurringTransaction",
+    "UpiId",
 ]

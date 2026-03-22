@@ -1,5 +1,6 @@
 /// Savings Account Transaction model.
 /// Replaces: Transaction interface in React's TransactionList.tsx
+import 'converters.dart';
 import 'enums.dart';
 
 class SavingsTransaction {
@@ -32,19 +33,13 @@ class SavingsTransaction {
       date: json['date'],
       description: json['description'],
       referenceNumber: json['reference_number'],
-      withdrawalAmount: _toDouble(json['withdrawal_amount']),
-      depositAmount: _toDouble(json['deposit_amount']),
-      closingBalance: _toDouble(json['closing_balance']),
+      withdrawalAmount: toDouble(json['withdrawal_amount']),
+      depositAmount: toDouble(json['deposit_amount']),
+      closingBalance: toDouble(json['closing_balance']),
       type: json['type'] != null
           ? TransactionType.fromString(json['type'])
           : null,
     );
-  }
-
-  static double? _toDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 
   @override
@@ -86,8 +81,8 @@ class SavingsStatement {
       branchName: json['branch_name'],
       fromDate: json['from_date'],
       toDate: json['to_date'],
-      openingBalance: SavingsTransaction._toDouble(json['opening_balance']),
-      closingBalance: SavingsTransaction._toDouble(json['closing_balance']),
+      openingBalance: toDouble(json['opening_balance']),
+      closingBalance: toDouble(json['closing_balance']),
       transactions: (json['transactions'] as List<dynamic>?)
               ?.map((t) => SavingsTransaction.fromJson(t))
               .toList() ??

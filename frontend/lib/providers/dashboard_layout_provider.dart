@@ -88,17 +88,24 @@ class TileConfig {
         'height': height,
       };
 
-  factory TileConfig.fromJson(Map<String, dynamic> json) {
+  /// Returns null when the stored id is no longer a valid [DashboardTileId].
+  /// Callers should filter out nulls to avoid phantom duplicates.
+  static TileConfig? tryFromJson(Map<String, dynamic> json) {
+    final rawId = json['id'] as String?;
+    if (rawId == null) return null;
+    final matched = DashboardTileId.values.where((e) => e.name == rawId);
+    if (matched.isEmpty) return null;
     return TileConfig(
-      id: DashboardTileId.values.firstWhere(
-        (e) => e.name == json['id'],
-        orElse: () => DashboardTileId.summary,
-      ),
+      id: matched.first,
       visible: json['visible'] ?? true,
       colSpan: (json['colSpan'] as int?) ?? kGridColumns,
       height: (json['height'] as num?)?.toDouble() ?? 300,
     );
   }
+
+  factory TileConfig.fromJson(Map<String, dynamic> json) =>
+      tryFromJson(json) ??
+      TileConfig(id: DashboardTileId.summary);
 }
 
 // ── Layout state ────────────────────────────────────────────
@@ -148,8 +155,15 @@ class DashboardLayoutNotifier extends Notifier<DashboardLayoutState> {
     if (raw == null) return;
     try {
       final List<dynamic> list = jsonDecode(raw);
-      final loaded = list.map((j) => TileConfig.fromJson(j)).toList();
-      final seenIds = loaded.map((t) => t.id).toSet();
+
+      // Filter out unknown tile ids and deduplicate (first occurrence wins).
+      final seenIds = <DashboardTileId>{};
+      final loaded = list
+          .map((j) => TileConfig.tryFromJson(j as Map<String, dynamic>))
+          .whereType<TileConfig>()
+          .where((t) => seenIds.add(t.id))
+          .toList();
+
       final merged = [
         ...loaded,
         for (final d in _defaultTiles)

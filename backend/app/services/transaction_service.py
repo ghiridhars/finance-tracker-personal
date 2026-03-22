@@ -52,13 +52,12 @@ class UnifiedTransactionService:
             if existing:
                 continue
 
-            amount = abs(tx.amount) if tx.amount else None
-            category_id, merchant_name = categorize_and_normalize(db, tx.description)
+            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description)
 
             unified = UnifiedTransaction(
                 date=tx.date,
                 description=tx.description,
-                amount=amount,
+                amount=tx.amount,
                 type=tx.type,
                 source_type=SourceType.CREDIT_CARD,
                 source_transaction_id=tx.id,
@@ -67,6 +66,7 @@ class UnifiedTransactionService:
                 category_id=category_id,
                 merchant_name=merchant_name,
                 reference_number=tx.reference_number,
+                is_transfer=is_own_transfer,
             )
             db.add(unified)
             created.append(unified)
@@ -79,6 +79,8 @@ class UnifiedTransactionService:
                 f"Created {len(created)} unified transactions from CC statement "
                 f"(card={statement.card_number})"
             )
+            # Auto-detect transfer pairs for newly created transactions
+            _run_transfer_detection(db, created)
         return created
 
     @staticmethod
@@ -114,7 +116,7 @@ class UnifiedTransactionService:
                 amount = Decimal("0")
                 tx_type = tx.type
 
-            category_id, merchant_name = categorize_and_normalize(db, tx.description)
+            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description)
 
             unified = UnifiedTransaction(
                 date=tx.date,
@@ -128,6 +130,7 @@ class UnifiedTransactionService:
                 category_id=category_id,
                 merchant_name=merchant_name,
                 reference_number=tx.reference_number,
+                is_transfer=is_own_transfer,
             )
             db.add(unified)
             created.append(unified)
@@ -140,6 +143,8 @@ class UnifiedTransactionService:
                 f"Created {len(created)} unified transactions from savings statement "
                 f"(account={statement.account_number})"
             )
+            # Auto-detect transfer pairs for newly created transactions
+            _run_transfer_detection(db, created)
         return created
 
     # ── Shared filter builder ────────────────────────────────
@@ -154,6 +159,7 @@ class UnifiedTransactionService:
         bank: str | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
+        is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
@@ -172,6 +178,8 @@ class UnifiedTransactionService:
             q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
         if source_type:
             q = q.filter(UnifiedTransaction.source_type == source_type)
+        if is_transfer is not None:
+            q = q.filter(UnifiedTransaction.is_transfer == is_transfer)
         if tx_type:
             q = q.filter(UnifiedTransaction.type == tx_type)
         if search:
@@ -200,6 +208,7 @@ class UnifiedTransactionService:
         bank: str | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
+        is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
@@ -212,7 +221,7 @@ class UnifiedTransactionService:
             from_date=from_date, to_date=to_date,
             category_id=category_id, bank=bank,
             account_identifier=account_identifier,
-            source_type=source_type, tx_type=tx_type,
+            source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
             search=search, min_amount=min_amount, max_amount=max_amount,
         )
         q = q.order_by(UnifiedTransaction.date.desc(), UnifiedTransaction.id.desc())
@@ -228,6 +237,7 @@ class UnifiedTransactionService:
         bank: str | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
+        is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
@@ -239,7 +249,7 @@ class UnifiedTransactionService:
             from_date=from_date, to_date=to_date,
             category_id=category_id, bank=bank,
             account_identifier=account_identifier,
-            source_type=source_type, tx_type=tx_type,
+            source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
             search=search, min_amount=min_amount, max_amount=max_amount,
         )
         return q.count()
@@ -322,13 +332,16 @@ class UnifiedTransactionService:
         transactions = db.query(UnifiedTransaction).all()
         updated = 0
         for tx in transactions:
-            new_cat_id, new_merchant = categorize_and_normalize(db, tx.description)
+            new_cat_id, new_merchant, is_own_transfer = categorize_and_normalize(db, tx.description)
             changed = False
             if new_cat_id and tx.category_id != new_cat_id:
                 tx.category_id = new_cat_id
                 changed = True
             if new_merchant and tx.merchant_name != new_merchant:
                 tx.merchant_name = new_merchant
+                changed = True
+            if is_own_transfer and not tx.is_transfer:
+                tx.is_transfer = True
                 changed = True
             if changed:
                 updated += 1
@@ -337,3 +350,18 @@ class UnifiedTransactionService:
             db.commit()
             logger.info(f"Re-categorized {updated} transactions.")
         return updated
+
+
+# ── Module-level helper (avoids circular import) ─────────────
+
+def _run_transfer_detection(db: Session, transactions: list[UnifiedTransaction]) -> None:
+    """Run transfer detection for newly created transactions (best-effort)."""
+    try:
+        from app.services.transfer_detection_service import TransferDetectionService
+
+        tx_ids = [tx.id for tx in transactions]
+        pairs = TransferDetectionService.detect_for_transactions(db, tx_ids)
+        if pairs:
+            logger.info(f"Auto-linked {len(pairs)} transfer pair(s) after upload")
+    except Exception:
+        logger.warning("Transfer detection failed after upload", exc_info=True)

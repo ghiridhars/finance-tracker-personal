@@ -13,6 +13,8 @@ export 'api/analytics_api.dart';
 export 'api/account_api.dart';
 export 'api/budget_api.dart';
 export 'api/export_api.dart';
+export 'api/transfers_api.dart';
+export 'api/upi_api.dart';
 
 import 'api/api_client.dart';
 import 'api/transaction_api.dart';
@@ -21,6 +23,8 @@ import 'api/analytics_api.dart';
 import 'api/account_api.dart';
 import 'api/budget_api.dart';
 import 'api/export_api.dart';
+import 'api/transfers_api.dart';
+import 'api/upi_api.dart';
 
 import '../models/savings_models.dart';
 import '../models/credit_card_models.dart';
@@ -29,6 +33,7 @@ import '../models/unified_transaction_models.dart';
 import '../models/analytics_models.dart';
 import '../models/account_models.dart';
 import '../models/budget_models.dart';
+import '../models/upi_models.dart';
 
 /// Backward-compatible facade. All methods delegate to domain-specific API classes.
 /// New code should use TransactionApi, UploadApi, AnalyticsApi, etc. directly.
@@ -86,12 +91,12 @@ class ApiService {
 
   static Future<List<UnifiedTransaction>> getUnifiedTransactions({
     String? from, String? to, int? categoryId, String? bank,
-    String? accountIdentifier, String? sourceType, String? type,
+    String? accountIdentifier, String? sourceType, bool? isTransfer, String? type,
     String? search, double? minAmount, double? maxAmount,
     int limit = 100, int offset = 0,
   }) => TransactionApi.getUnifiedTransactions(
     from: from, to: to, categoryId: categoryId, bank: bank,
-    accountIdentifier: accountIdentifier, sourceType: sourceType, type: type,
+    accountIdentifier: accountIdentifier, sourceType: sourceType, isTransfer: isTransfer, type: type,
     search: search, minAmount: minAmount, maxAmount: maxAmount,
     limit: limit, offset: offset,
   );
@@ -230,4 +235,51 @@ class ApiService {
   }) => ExportApi.syncFromGDrive(bank: bank, statementType: statementType, fileIds: fileIds, force: force);
   static Future<Map<String, dynamic>> resetGDriveSync({List<String>? fileIds}) =>
       ExportApi.resetGDriveSync(fileIds: fileIds);
+
+  // ── Transfers ─────────────────────────────────────────────
+
+  static Future<TransferDetectResult> detectTransfers() =>
+      TransfersApi.detectTransfers();
+  static Future<TransferPair> linkTransfer({
+    required int transactionId1,
+    required int transactionId2,
+    String transferType = 'INTERNAL_TRANSFER',
+  }) => TransfersApi.linkTransfer(
+    transactionId1: transactionId1,
+    transactionId2: transactionId2,
+    transferType: transferType,
+  );
+  static Future<void> unlinkTransfer(String transferGroupId) =>
+      TransfersApi.unlinkTransfer(transferGroupId);
+  static Future<List<TransferPair>> listTransfers() =>
+      TransfersApi.listTransfers();
+  static Future<TransferPair> updateTransferType(
+    String transferGroupId,
+    String transferType,
+  ) => TransfersApi.updateTransferType(transferGroupId, transferType);
+
+  // ── UPI IDs ───────────────────────────────────────────────
+
+  static Future<List<UpiId>> getUpiIds({bool? isOwn, String? accountIdentifier}) =>
+      UpiApi.getUpiIds(isOwn: isOwn, accountIdentifier: accountIdentifier);
+  static Future<UpiId> createUpiId({
+    required String upiHandle, String? label,
+    String? accountType, String? accountIdentifier,
+    int? categoryId, bool isOwn = false,
+  }) => UpiApi.createUpiId(
+    upiHandle: upiHandle, label: label,
+    accountType: accountType, accountIdentifier: accountIdentifier,
+    categoryId: categoryId, isOwn: isOwn,
+  );
+  static Future<UpiId> updateUpiId(int upiId, {
+    String? label, String? accountType, String? accountIdentifier,
+    int? categoryId, bool? isOwn,
+  }) => UpiApi.updateUpiId(upiId,
+    label: label, accountType: accountType,
+    accountIdentifier: accountIdentifier,
+    categoryId: categoryId, isOwn: isOwn,
+  );
+  static Future<void> deleteUpiId(int upiId) => UpiApi.deleteUpiId(upiId);
+  static Future<UpiRescanResult> rescanUpiTransactions() =>
+      UpiApi.rescanTransactions();
 }

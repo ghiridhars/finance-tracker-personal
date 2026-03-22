@@ -1,13 +1,6 @@
 /// Phase 5 models — Budget, SavingsGoal, BillReminder, RecurringTransaction.
 import 'category_models.dart';
-
-// ── Helper ──────────────────────────────────────────────────
-
-double? _toDouble(dynamic value) {
-  if (value == null) return null;
-  if (value is num) return value.toDouble();
-  return double.tryParse(value.toString());
-}
+import 'converters.dart';
 
 // ── Budget ──────────────────────────────────────────────────
 
@@ -40,7 +33,7 @@ class Budget {
       categoryId: json['category_id'],
       year: json['year'],
       month: json['month'],
-      amount: _toDouble(json['amount']) ?? 0,
+      amount: toDouble(json['amount']) ?? 0,
       rollover: json['rollover'] ?? false,
       notes: json['notes'],
       createdAt: json['created_at'],
@@ -90,11 +83,11 @@ class BudgetProgress {
       categoryIcon: json['category_icon'],
       year: json['year'],
       month: json['month'],
-      budgetAmount: _toDouble(json['budget_amount']) ?? 0,
-      spentAmount: _toDouble(json['spent_amount']) ?? 0,
-      remaining: _toDouble(json['remaining']) ?? 0,
-      percentageUsed: _toDouble(json['percentage_used']) ?? 0,
-      rolloverAmount: _toDouble(json['rollover_amount']) ?? 0,
+      budgetAmount: toDouble(json['budget_amount']) ?? 0,
+      spentAmount: toDouble(json['spent_amount']) ?? 0,
+      remaining: toDouble(json['remaining']) ?? 0,
+      percentageUsed: toDouble(json['percentage_used']) ?? 0,
+      rolloverAmount: toDouble(json['rollover_amount']) ?? 0,
       isOverBudget: json['is_over_budget'] ?? false,
     );
   }
@@ -123,9 +116,9 @@ class BudgetSummary {
     return BudgetSummary(
       year: json['year'],
       month: json['month'],
-      totalBudgeted: _toDouble(json['total_budgeted']) ?? 0,
-      totalSpent: _toDouble(json['total_spent']) ?? 0,
-      overallPercentage: _toDouble(json['overall_percentage']) ?? 0,
+      totalBudgeted: toDouble(json['total_budgeted']) ?? 0,
+      totalSpent: toDouble(json['total_spent']) ?? 0,
+      overallPercentage: toDouble(json['overall_percentage']) ?? 0,
       overBudgetCount: json['over_budget_count'] ?? 0,
       categories: (json['categories'] as List<dynamic>?)
               ?.map((c) => BudgetProgress.fromJson(c))
@@ -170,15 +163,15 @@ class SavingsGoal {
     return SavingsGoal(
       id: json['id'],
       name: json['name'] ?? '',
-      targetAmount: _toDouble(json['target_amount']) ?? 0,
-      currentAmount: _toDouble(json['current_amount']) ?? 0,
+      targetAmount: toDouble(json['target_amount']) ?? 0,
+      currentAmount: toDouble(json['current_amount']) ?? 0,
       deadline: json['deadline'],
       icon: json['icon'],
       color: json['color'],
       notes: json['notes'],
       isCompleted: json['is_completed'] ?? false,
       createdAt: json['created_at'],
-      percentage: _toDouble(json['percentage']) ?? 0,
+      percentage: toDouble(json['percentage']) ?? 0,
       daysRemaining: json['days_remaining'],
     );
   }
@@ -225,7 +218,7 @@ class BillReminder {
     return BillReminder(
       id: json['id'],
       name: json['name'] ?? '',
-      amount: _toDouble(json['amount']),
+      amount: toDouble(json['amount']),
       categoryId: json['category_id'],
       isRecurring: json['is_recurring'] ?? true,
       frequency: json['frequency'],
@@ -281,7 +274,7 @@ class RecurringTransaction {
       id: json['id'],
       merchantName: json['merchant_name'] ?? '',
       descriptionPattern: json['description_pattern'],
-      averageAmount: _toDouble(json['average_amount']) ?? 0,
+      averageAmount: toDouble(json['average_amount']) ?? 0,
       frequency: json['frequency'] ?? '',
       categoryId: json['category_id'],
       category:

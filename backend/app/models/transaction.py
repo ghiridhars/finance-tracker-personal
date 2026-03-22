@@ -9,13 +9,13 @@ from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import (
-    String, Date, DateTime, Numeric, Integer, Text,
+    Boolean, String, Date, DateTime, Numeric, Integer, Text,
     ForeignKey, Enum as SAEnum, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import TransactionType, SourceType, BankType
+from app.models.enums import TransactionType, SourceType, BankType, TransferType
 from app.models.category import Category
 from app.models.tag import Tag, TransactionTag
 
@@ -61,6 +61,11 @@ class UnifiedTransaction(Base):
     # User annotations
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reference_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Transfer linking
+    is_transfer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    transfer_group_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    transfer_type: Mapped[Optional[str]] = mapped_column(SAEnum(TransferType), nullable=True)
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(

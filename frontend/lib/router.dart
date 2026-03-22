@@ -4,11 +4,8 @@
 /// Routes:
 ///   /                    → Dashboard
 ///   /upload              → Statement Upload
-///   /transactions        → All Transactions (unified)
 ///   /accounts            → Accounts & Statements
 ///   /budget              → Budget & Goals
-///   /savings             → Savings Transactions
-///   /credit-card         → Credit Card Transactions
 ///   /settings            → Settings
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -16,8 +13,6 @@ import 'screens/app_shell.dart';
 import 'screens/calendar_screen.dart';
 import 'widgets/dashboard_widget.dart';
 import 'widgets/statement_upload_widget.dart';
-import 'widgets/unified_transaction_list_widget.dart';
-import 'widgets/transaction_list_widget.dart';
 import 'widgets/accounts_widget.dart';
 import 'widgets/budget_goals_widget.dart';
 import 'screens/settings_screen.dart';
@@ -27,11 +22,8 @@ class AppRoutes {
   static const dashboard = '/';
   static const calendar = '/calendar';
   static const upload = '/upload';
-  static const transactions = '/transactions';
   static const accounts = '/accounts';
   static const budget = '/budget';
-  static const savings = '/savings';
-  static const creditCard = '/credit-card';
   static const settings = '/settings';
 }
 
@@ -116,12 +108,6 @@ final GoRouter router = GoRouter(
           ),
         ),
         GoRoute(
-          path: AppRoutes.transactions,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: UnifiedTransactionListWidget(),
-          ),
-        ),
-        GoRoute(
           path: AppRoutes.accounts,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: AccountsWidget(),
@@ -131,18 +117,6 @@ final GoRouter router = GoRouter(
           path: AppRoutes.budget,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: BudgetGoalsWidget(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.savings,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: TransactionListWidget(type: TransactionViewType.savings),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.creditCard,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: TransactionListWidget(type: TransactionViewType.creditCard),
           ),
         ),
         GoRoute(

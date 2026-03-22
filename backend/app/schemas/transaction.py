@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import TransactionType, SourceType
+from app.models.enums import TransactionType, SourceType, TransferType
 from app.schemas.category import CategorySchema
 from app.schemas.tag import TagSchema
 
@@ -28,6 +28,9 @@ class UnifiedTransactionSchema(BaseModel):
     merchant_name: Optional[str] = None
     notes: Optional[str] = None
     reference_number: Optional[str] = None
+    is_transfer: bool = False
+    transfer_group_id: Optional[str] = None
+    transfer_type: Optional[TransferType] = None
     tags: list[TagSchema] = []
     created_at: Optional[datetime.datetime] = None
 
@@ -56,3 +59,25 @@ class TransactionQueryParams(BaseModel):
     max_amount: Optional[Decimal] = None
     limit: int = 100
     offset: int = 0
+
+
+# ── Transfer linking schemas ─────────────────────────────────
+
+class TransferLinkRequest(BaseModel):
+    """Request to manually link two transactions as a transfer pair."""
+    transaction_id_1: int
+    transaction_id_2: int
+    transfer_type: TransferType = TransferType.INTERNAL_TRANSFER
+
+
+class TransferPairSchema(BaseModel):
+    """Response schema for a linked transfer pair."""
+    transfer_group_id: str
+    transfer_type: Optional[TransferType] = None
+    transactions: list[UnifiedTransactionSchema] = []
+
+
+class TransferDetectResult(BaseModel):
+    """Response from auto-detection: how many pairs were linked."""
+    linked_count: int
+    details: list[TransferPairSchema] = []

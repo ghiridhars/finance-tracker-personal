@@ -20,8 +20,17 @@ class UnifiedTransactionListWidget extends ConsumerStatefulWidget {
 
 class _UnifiedTransactionListWidgetState
     extends ConsumerState<UnifiedTransactionListWidget> {
+  static const int _allCategoriesMenuValue = -1;
+  static const String _allSourcesMenuValue = '__ALL_SOURCES__';
+  static const String _transfersOnlyMenuValue = '__TRANSFERS_ONLY__';
+
   final TextEditingController _searchController = TextEditingController();
   bool _initialized = false;
+
+  bool _isTransfersCategory(Category category) {
+    final name = category.name.trim().toLowerCase();
+    return name == 'transfers' || name.contains('transfer');
+  }
 
   @override
   void dispose() {
@@ -110,31 +119,44 @@ class _UnifiedTransactionListWidgetState
 
           // Category filter dropdown
           if (catState.categories.isNotEmpty)
-            PopupMenuButton<int?>(
+            PopupMenuButton<int>(
               icon: Badge(
                 isLabelVisible: txState.categoryFilter != null,
                 child: const Icon(Icons.category),
               ),
               tooltip: 'Filter by category',
               onSelected: (catId) {
-                if (catId == null) {
+                if (catId == _allCategoriesMenuValue) {
                   ref
                       .read(unifiedTransactionsProvider.notifier)
-                      .setFilters(clearCategory: true);
+                      .setFilters(clearCategory: true, clearIsTransfer: true);
                 } else {
+                  final selectedCategory = catState.categories
+                      .where((c) => c.id == catId)
+                      .cast<Category?>()
+                      .firstWhere((c) => c != null, orElse: () => null);
+                  if (selectedCategory != null &&
+                      _isTransfersCategory(selectedCategory)) {
+                    ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(isTransfer: true, clearCategory: true);
+                    return;
+                  }
                   ref
                       .read(unifiedTransactionsProvider.notifier)
-                      .setFilters(categoryId: catId);
+                      .setFilters(categoryId: catId, clearIsTransfer: true);
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem<int?>(
-                  value: null,
+                const PopupMenuItem<int>(
+                  value: _allCategoriesMenuValue,
                   child: Text('All Categories'),
                 ),
                 const PopupMenuDivider(),
-                ...catState.categories.map((c) => PopupMenuItem<int?>(
-                      value: c.id,
+                ...catState.categories
+                    .where((c) => c.id != null)
+                    .map((c) => PopupMenuItem<int>(
+                      value: c.id!,
                       child: Row(
                         children: [
                           _categoryDot(c),
@@ -147,27 +169,36 @@ class _UnifiedTransactionListWidgetState
             ),
 
           // Source type filter
-          PopupMenuButton<String?>(
+          PopupMenuButton<String>(
             icon: Badge(
-              isLabelVisible: txState.sourceTypeFilter != null,
+              isLabelVisible:
+                  txState.sourceTypeFilter != null || txState.isTransferFilter == true,
               child: const Icon(Icons.account_balance),
             ),
             tooltip: 'Filter by source',
             onSelected: (value) {
-              if (value == null) {
+              if (value == _allSourcesMenuValue) {
                 ref
                     .read(unifiedTransactionsProvider.notifier)
-                    .setFilters(clearSourceType: true);
+                    .setFilters(clearSourceType: true, clearIsTransfer: true);
+              } else if (value == _transfersOnlyMenuValue) {
+                ref
+                    .read(unifiedTransactionsProvider.notifier)
+                    .setFilters(isTransfer: true, clearSourceType: true);
               } else {
                 ref
                     .read(unifiedTransactionsProvider.notifier)
-                    .setFilters(sourceType: value);
+                    .setFilters(sourceType: value, clearIsTransfer: true);
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem<String?>(
-                  value: null, child: Text('All Sources')),
+              const PopupMenuItem<String>(
+                value: _allSourcesMenuValue,
+                child: Text('All Sources'),
+              ),
               const PopupMenuDivider(),
+              const PopupMenuItem(
+                  value: _transfersOnlyMenuValue, child: Text('Transfers')),
               const PopupMenuItem(
                   value: 'SAVINGS', child: Text('Savings')),
               const PopupMenuItem(
@@ -256,6 +287,35 @@ class _UnifiedTransactionListWidgetState
             Text(
               'Upload a statement to see transactions here',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                if (state.preset != DateRangePreset.all)
+                  OutlinedButton(
+                    onPressed: () => ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .applyPreset(DateRangePreset.all),
+                    child: const Text('Try All time'),
+                  ),
+                if (state.accountIdentifierFilter != null)
+                  OutlinedButton(
+                    onPressed: () => ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(clearAccountIdentifier: true),
+                    child: const Text('Show all accounts'),
+                  ),
+                if (state.categoryFilter != null || state.isTransferFilter == true)
+                  OutlinedButton(
+                    onPressed: () => ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(clearCategory: true, clearIsTransfer: true),
+                    child: const Text('Clear category filter'),
+                  ),
+              ],
             ),
           ],
         ),
@@ -481,6 +541,33 @@ class _TransactionTile extends StatelessWidget {
                     child: Text(
                       transaction.bank!,
                       style: const TextStyle(fontSize: 10),
+                    ),
+                  ),
+                ],
+                if (transaction.isTransfer) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.swap_horiz,
+                            size: 10, color: Colors.orange.shade700),
+                        const SizedBox(width: 2),
+                        Text(
+                          transaction.transferType == 'CC_BILL_PAYMENT'
+                              ? 'CC Payment'
+                              : 'Transfer',
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.orange.shade700),
+                        ),
+                      ],
                     ),
                   ),
                 ],

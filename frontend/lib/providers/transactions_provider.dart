@@ -183,6 +183,7 @@ class UnifiedTransactionsState {
   final String? bankFilter;
   final String? accountIdentifierFilter;
   final String? sourceTypeFilter;
+  final bool? isTransferFilter;
   final String? typeFilter;
   final String? searchQuery;
 
@@ -197,6 +198,7 @@ class UnifiedTransactionsState {
     this.bankFilter,
     this.accountIdentifierFilter,
     this.sourceTypeFilter,
+    this.isTransferFilter,
     this.typeFilter,
     this.searchQuery,
   });
@@ -212,6 +214,7 @@ class UnifiedTransactionsState {
     String? bankFilter,
     String? accountIdentifierFilter,
     String? sourceTypeFilter,
+    bool? isTransferFilter,
     String? typeFilter,
     String? searchQuery,
     bool clearError = false,
@@ -219,6 +222,7 @@ class UnifiedTransactionsState {
     bool clearBankFilter = false,
     bool clearAccountIdentifierFilter = false,
     bool clearSourceTypeFilter = false,
+    bool clearIsTransferFilter = false,
     bool clearTypeFilter = false,
     bool clearSearch = false,
   }) {
@@ -238,6 +242,9 @@ class UnifiedTransactionsState {
       sourceTypeFilter: clearSourceTypeFilter
           ? null
           : (sourceTypeFilter ?? this.sourceTypeFilter),
+        isTransferFilter: clearIsTransferFilter
+          ? null
+          : (isTransferFilter ?? this.isTransferFilter),
       typeFilter: clearTypeFilter ? null : (typeFilter ?? this.typeFilter),
       searchQuery: clearSearch ? null : (searchQuery ?? this.searchQuery),
     );
@@ -246,6 +253,8 @@ class UnifiedTransactionsState {
 
 class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     with DateRangeMixin {
+  int _requestId = 0;
+
   @override
   UnifiedTransactionsState build() {
     final now = DateTime.now();
@@ -258,6 +267,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
   }
 
   Future<void> loadTransactions() async {
+    final requestId = ++_requestId;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final txns = await ApiService.getUnifiedTransactions(
@@ -267,11 +277,14 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         bank: state.bankFilter,
         accountIdentifier: state.accountIdentifierFilter,
         sourceType: state.sourceTypeFilter,
+        isTransfer: state.isTransferFilter,
         type: state.typeFilter,
         search: state.searchQuery,
       );
+      if (requestId != _requestId) return;
       state = state.copyWith(transactions: txns, isLoading: false);
     } catch (e) {
+      if (requestId != _requestId) return;
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
@@ -281,12 +294,14 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     String? bank,
     String? accountIdentifier,
     String? sourceType,
+    bool? isTransfer,
     String? type,
     String? search,
     bool clearCategory = false,
     bool clearBank = false,
     bool clearAccountIdentifier = false,
     bool clearSourceType = false,
+    bool clearIsTransfer = false,
     bool clearType = false,
     bool clearSearch = false,
   }) {
@@ -295,12 +310,14 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       bankFilter: bank,
       accountIdentifierFilter: accountIdentifier,
       sourceTypeFilter: sourceType,
+      isTransferFilter: isTransfer,
       typeFilter: type,
       searchQuery: search,
       clearCategoryFilter: clearCategory,
       clearBankFilter: clearBank,
       clearAccountIdentifierFilter: clearAccountIdentifier,
       clearSourceTypeFilter: clearSourceType,
+      clearIsTransferFilter: clearIsTransfer,
       clearTypeFilter: clearType,
       clearSearch: clearSearch,
     );
@@ -319,6 +336,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       bankFilter: state.bankFilter,
       accountIdentifierFilter: state.accountIdentifierFilter,
       sourceTypeFilter: state.sourceTypeFilter,
+      isTransferFilter: state.isTransferFilter,
       typeFilter: state.typeFilter,
       searchQuery: state.searchQuery,
     );

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/upi_management_widget.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -630,6 +631,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       child: const Text('Sign Out'),
                     ),
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              // ── UPI ID Management ───────────────────────────
+              _SectionHeader(title: 'UPI IDs', icon: Icons.qr_code_2),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: const UpiManagementPanel(),
                 ),
               ),
 

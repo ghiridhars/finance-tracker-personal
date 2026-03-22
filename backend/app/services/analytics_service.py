@@ -44,9 +44,8 @@ class AnalyticsService:
         q = db.query(UnifiedTransaction).filter(
             UnifiedTransaction.date >= from_date,
             UnifiedTransaction.date <= to_date,
+            UnifiedTransaction.is_transfer == False,
         )
-
-        # Income = sum of CREDIT amounts
         income = (
             q.filter(UnifiedTransaction.type == TransactionType.CREDIT)
             .with_entities(func.coalesce(func.sum(UnifiedTransaction.amount), 0))
@@ -77,13 +76,12 @@ class AnalyticsService:
                 UnifiedTransaction.date >= from_date,
                 UnifiedTransaction.date <= to_date,
                 UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
             )
             .group_by(Category.name)
             .order_by(func.sum(UnifiedTransaction.amount).desc())
             .first()
         )
-
-        # Active banks
         active_banks = (
             db.query(func.distinct(UnifiedTransaction.bank))
             .filter(
@@ -139,6 +137,7 @@ class AnalyticsService:
                 UnifiedTransaction.date >= from_date,
                 UnifiedTransaction.date <= to_date,
                 UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
             )
             .group_by(Category.id, Category.name, Category.color, Category.icon)
             .order_by(func.sum(UnifiedTransaction.amount).desc())
@@ -156,6 +155,7 @@ class AnalyticsService:
                 UnifiedTransaction.date <= to_date,
                 UnifiedTransaction.type == TransactionType.DEBIT,
                 UnifiedTransaction.category_id.is_(None),
+                UnifiedTransaction.is_transfer == False,
             )
             .first()
         )
@@ -213,6 +213,7 @@ class AnalyticsService:
         base = db.query(UnifiedTransaction).filter(
             UnifiedTransaction.date >= from_date,
             UnifiedTransaction.date <= to_date,
+            UnifiedTransaction.is_transfer == False,
         )
 
         if granularity == "monthly":
@@ -318,6 +319,7 @@ class AnalyticsService:
             .filter(
                 UnifiedTransaction.date >= from_date,
                 UnifiedTransaction.date <= to_date,
+                UnifiedTransaction.is_transfer == False,
             )
             .group_by(period_expr)
             .order_by(period_expr)
@@ -371,6 +373,7 @@ class AnalyticsService:
                     UnifiedTransaction.date >= start,
                     UnifiedTransaction.date <= end,
                     UnifiedTransaction.type == TransactionType.DEBIT,
+                    UnifiedTransaction.is_transfer == False,
                 )
                 .group_by(func.coalesce(Category.name, "Uncategorized"))
                 .all()
@@ -440,6 +443,7 @@ class AnalyticsService:
                 UnifiedTransaction.date >= from_date,
                 UnifiedTransaction.date <= to_date,
                 UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
             )
             .group_by(
                 func.coalesce(UnifiedTransaction.merchant_name, UnifiedTransaction.description)
@@ -496,6 +500,7 @@ class AnalyticsService:
             .filter(
                 UnifiedTransaction.date >= from_date,
                 UnifiedTransaction.date <= to_date,
+                UnifiedTransaction.is_transfer == False,
             )
             .group_by(func.coalesce(UnifiedTransaction.bank, "Unknown"))
             .order_by(func.sum(UnifiedTransaction.amount).desc())

@@ -1,20 +1,34 @@
-/// Responsive App Shell — adapts layout based on screen width.
-///
-/// Breakpoints:
-///   ≥ 900px  → Expanded NavigationRail (sidebar with labels)
-///   600–899  → Compact NavigationRail (icons only)
-///   < 600    → Bottom NavigationBar (mobile)
-///
-/// The shell wraps all routes via GoRouter ShellRoute.
+// Responsive App Shell — adapts layout based on screen width.
+//
+// Breakpoints:
+//   ≥ 900px  → Expanded NavigationRail (sidebar with labels)
+//   600–899  → Compact NavigationRail (icons only)
+//   < 600    → Bottom NavigationBar (mobile)
+//
+// The shell wraps all routes via GoRouter ShellRoute.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/accounts_provider.dart';
+import '../providers/budget_provider.dart';
+import '../providers/categories_provider.dart';
+import '../providers/dashboard_provider.dart';
+import '../providers/transfers_provider.dart';
+import '../providers/transactions_provider.dart';
+import '../providers/upi_provider.dart';
 import '../router.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
+
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  bool _isRefreshing = false;
 
   /// Determine which nav index is active based on the current route.
   int _currentIndex(BuildContext context) {
@@ -29,8 +43,34 @@ class AppShell extends ConsumerWidget {
     context.go(navDestinations[index].path);
   }
 
+  Future<void> _refreshAll() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    try {
+      await Future.wait([
+        ref.read(dashboardProvider.notifier).loadDashboard(),
+        ref.read(accountsProvider.notifier).loadAccounts(),
+        ref.read(budgetProvider.notifier).loadAll(),
+        ref.read(categoriesProvider.notifier).loadCategories(),
+        ref.read(upiProvider.notifier).loadUpiIds(),
+        ref.read(transfersProvider.notifier).loadAll(),
+        ref.read(unifiedTransactionsProvider.notifier).loadTransactions(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data refreshed'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
 
     return LayoutBuilder(
@@ -49,7 +89,13 @@ class AppShell extends ConsumerWidget {
                   selectedIndex: currentIdx,
                   onDestinationSelected: (i) =>
                       _onDestinationSelected(context, i),
-                  leading: _RailHeader(settings: settings, ref: ref, extended: true),
+                  leading: _RailHeader(
+                    settings: settings,
+                    ref: ref,
+                    extended: true,
+                    isRefreshing: _isRefreshing,
+                    onRefresh: _refreshAll,
+                  ),
                   destinations: navDestinations
                       .map((d) => NavigationRailDestination(
                             icon: Icon(d.icon),
@@ -59,7 +105,7 @@ class AppShell extends ConsumerWidget {
                       .toList(),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: child),
+                Expanded(child: widget.child),
               ],
             ),
           );
@@ -75,7 +121,13 @@ class AppShell extends ConsumerWidget {
                   onDestinationSelected: (i) =>
                       _onDestinationSelected(context, i),
                   labelType: NavigationRailLabelType.selected,
-                  leading: _RailHeader(settings: settings, ref: ref, extended: false),
+                  leading: _RailHeader(
+                    settings: settings,
+                    ref: ref,
+                    extended: false,
+                    isRefreshing: _isRefreshing,
+                    onRefresh: _refreshAll,
+                  ),
                   destinations: navDestinations
                       .map((d) => NavigationRailDestination(
                             icon: Icon(d.icon),
@@ -85,7 +137,7 @@ class AppShell extends ConsumerWidget {
                       .toList(),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: child),
+                Expanded(child: widget.child),
               ],
             ),
           );
@@ -97,11 +149,12 @@ class AppShell extends ConsumerWidget {
             title: Text(navDestinations[currentIdx].label),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             actions: [
+              _RefreshButton(isRefreshing: _isRefreshing, onRefresh: _refreshAll),
               _ThemeToggleButton(settings: settings, ref: ref),
               const SizedBox(width: 8),
             ],
           ),
-          body: child,
+          body: widget.child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: currentIdx,
             onDestinationSelected: (i) =>
@@ -121,16 +174,20 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-/// Rail header — shows app title + theme toggle.
+/// Rail header — shows app title + theme toggle + refresh button.
 class _RailHeader extends StatelessWidget {
   final AppSettings settings;
   final WidgetRef ref;
   final bool extended;
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
 
   const _RailHeader({
     required this.settings,
     required this.ref,
     required this.extended,
+    required this.isRefreshing,
+    required this.onRefresh,
   });
 
   @override
@@ -168,9 +225,33 @@ class _RailHeader extends StatelessWidget {
             const SizedBox(height: 4),
           ],
           _ThemeToggleButton(settings: settings, ref: ref),
+          _RefreshButton(isRefreshing: isRefreshing, onRefresh: onRefresh),
           const Divider(),
         ],
       ),
+    );
+  }
+}
+
+/// Refresh button — shows a spinner while data is loading, refresh icon when idle.
+class _RefreshButton extends StatelessWidget {
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
+
+  const _RefreshButton({required this.isRefreshing, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: isRefreshing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh),
+      tooltip: isRefreshing ? 'Refreshing…' : 'Refresh all data',
+      onPressed: isRefreshing ? null : onRefresh,
     );
   }
 }
