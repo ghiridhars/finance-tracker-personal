@@ -8,11 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.category_service import CategoryService
+from app.models.category import MccCategory
 from app.schemas.category import (
     CategorySchema,
     CategoryCreateSchema,
     CategoryUpdateSchema,
     KeywordAddSchema,
+    MccCategorySchema,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,13 @@ router = APIRouter(prefix="/api/v2/categories", tags=["Categories"])
 def list_categories(db: Session = Depends(get_db)):
     """List all top-level categories with their keywords."""
     return [CategorySchema.model_validate(c) for c in CategoryService.get_all(db)]
+
+
+@router.get("/mcc", response_model=list[MccCategorySchema])
+def list_mcc_codes(db: Session = Depends(get_db)):
+    """List all MCC codes and their mapped categories."""
+    mccs = db.query(MccCategory).order_by(MccCategory.mcc_code).all()
+    return [MccCategorySchema.model_validate(mcc) for mcc in mccs]
 
 
 @router.get("/{category_id}", response_model=CategorySchema)

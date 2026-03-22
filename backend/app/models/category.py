@@ -55,3 +55,20 @@ class CategoryKeyword(Base):
 
     def __repr__(self) -> str:
         return f"<CategoryKeyword(id={self.id}, keyword='{self.keyword}', category_id={self.category_id})>"
+
+
+class MccCategory(Base):
+    """
+    Maps a 4-digit Merchant Category Code (MCC) to a Category.
+    """
+    __tablename__ = "mcc_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    mcc_code: Mapped[str] = mapped_column(String(4), unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    category: Mapped["Category"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<MccCategory(mcc='{self.mcc_code}', category_id={self.category_id})>"

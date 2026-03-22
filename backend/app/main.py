@@ -62,12 +62,19 @@ async def lifespan(app: FastAPI):
     migrate_schema()
     logger.info(f"Database initialized: {settings.database_url}")
 
-    # Seed default categories
+    # Seed default categories + upgrade keywords + MCC codes
     from app.database import SessionLocal
     from app.services.category_service import CategoryService
     seed_db = SessionLocal()
     try:
         CategoryService.seed_defaults(seed_db)
+        added = CategoryService.upgrade_keywords(seed_db)
+        if added:
+            logger.info(f"Keyword upgrade: {added} new keywords added")
+            
+        mcc_added = CategoryService.seed_mcc_codes(seed_db)
+        if mcc_added:
+            logger.info(f"MCC seed: {mcc_added} new MCC codes added")
     finally:
         seed_db.close()
 

@@ -110,6 +110,9 @@ def update_transaction(
     """
     Update category, merchant name, notes, or tags on a unified transaction.
     Use this for manual re-categorization.
+
+    Self-improving: When the user changes the category, the system learns
+    the UPI handle → category mapping for future auto-categorization.
     """
     kwargs = {}
     if data.category_id is not None:
@@ -124,6 +127,16 @@ def update_transaction(
     tx = UnifiedTransactionService.update(db, transaction_id, **kwargs)
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Self-improving: learn from the user's category choice
+    if data.category_id is not None and tx.description:
+        from app.services.categorization_service import learn_from_categorization
+        learned = learn_from_categorization(db, tx.description, data.category_id)
+        if learned:
+            logger.info(
+                f"Learned category mapping from user correction on tx {transaction_id}"
+            )
+
     return UnifiedTransactionSchema.model_validate(tx)
 
 

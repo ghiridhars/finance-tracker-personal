@@ -3,10 +3,16 @@ Auto-categorization engine and merchant normalization.
 
 Responsibilities:
   1. Extract UPI IDs from descriptions and match against known UPI mappings.
-  2. Match transaction descriptions against category keywords → assign category_id.
-  3. Extract a clean merchant name from raw bank descriptions.
+  2. Extract merchant name from UPI handles and match against keywords.
+  3. Match MCC (Merchant Category Codes) from UPI descriptions → assign category.
+  4. Match transaction descriptions against regex patterns for common types.
+  5. Match transaction descriptions against category keywords → assign category_id.
+  6. Extract a clean merchant name from raw bank descriptions.
+  7. Auto-detect own-account transfers from UPI handle patterns.
+  8. Learn from user corrections — auto-create UPI handle → category mappings.
 
-Priority order: UPI ID match → keyword match.
+Priority order:
+  UPI ID match → UPI merchant extraction → MCC code → regex patterns → keyword match.
 """
 import logging
 import re
@@ -14,7 +20,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, MccCategory
 from app.models.upi import UpiId
 
 logger = logging.getLogger(__name__)
@@ -67,6 +73,173 @@ def match_upi_id(
 
     return upi_entry.category_id, upi_entry.is_own, upi_handle
 
+
+# Simple helper to avoid repeated string-based category queries per transaction
+def _get_category_id_by_name(db: Session, name: str) -> Optional[int]:
+    cat = db.query(Category).filter(Category.name == name).first()
+    return cat.id if cat else None
+
+
+# ── MCC (Merchant Category Code) mapping ─────────────────────
+
+# Extract 4-digit MCC from the end of UPI transaction descriptions
+# Format: .../5814 or /5812 at the very end of the description
+_MCC_RE = re.compile(r"/(\d{4})\s*$")
+
+
+_MCC_CACHE: dict[str, int] | None = None
+
+def clear_mcc_cache() -> None:
+    """Clear the in-memory MCC cache, e.g., if codes are updated via API."""
+    global _MCC_CACHE
+    _MCC_CACHE = None
+
+def _get_cached_mcc_category_id(db: Session, mcc: str) -> Optional[int]:
+    global _MCC_CACHE
+    if _MCC_CACHE is None:
+        _MCC_CACHE = {}
+        for row in db.query(MccCategory).all():
+            _MCC_CACHE[row.mcc_code] = row.category_id
+    return _MCC_CACHE.get(mcc)
+
+
+def _match_mcc_code(
+    db: Session,
+    description: str,
+) -> Optional[int]:
+    """
+    Extract a 4-digit MCC code from the end of a UPI transaction description
+    and map it using the in-memory cache of the MccCategory table.
+
+    Examples:
+        "UPIOUT/.../swiggyupi@axb/5814" → Food & Dining
+        "UPIOUT/.../Q529620232@ybl/5262" → Shopping
+        "UPIOUT/.../boism-8547085267@boi/Mer/4121" → Transport
+    """
+    match = _MCC_RE.search(description)
+    if not match:
+        return None
+
+    mcc = match.group(1)
+    
+    # 1. Fast memory lookup for the MCC code
+    cat_id = _get_cached_mcc_category_id(db, mcc)
+    if cat_id:
+        return cat_id
+
+    # 2. Try airline range (3000-3350 are all airlines) if not found
+    mcc_int = int(mcc)
+    if 3000 <= mcc_int <= 3350:
+        return _get_category_id_by_name(db, "Travel")
+
+    return None
+
+# ── Own-account transfer detection ───────────────────────────
+
+def _is_own_upi_transfer(
+    db: Session,
+    upi_handle: str | None,
+) -> bool:
+    """
+    Check if a UPI handle likely belongs to the user by matching
+    the local part (username) against known own UPI handles.
+
+    E.g., if 'ghiridhars@ybl' is registered as own, then
+    'ghiridhars@axl', 'ghiridhars@barodampay' are also recognized.
+    """
+    if not upi_handle:
+        return False
+
+    local_part = upi_handle.split("@")[0].lower()
+
+    # Skip phone numbers — too ambiguous
+    if re.match(r"^\d+$", local_part):
+        return False
+
+    # Get all own UPI IDs
+    own_upis = db.query(UpiId).filter(UpiId.is_own == True).all()
+    for own in own_upis:
+        own_local = own.upi_handle.split("@")[0].lower()
+        if local_part == own_local:
+            return True
+
+    return False
+
+
+def auto_register_own_upi(
+    db: Session,
+    upi_handle: str,
+) -> bool:
+    """
+    Registers a UPI handle as own. Assumes it has already been verified as own
+    by the caller (e.g. via _is_own_upi_transfer).
+    Returns True if registered.
+    """
+    existing = db.query(UpiId).filter(UpiId.upi_handle == upi_handle).first()
+    if existing:
+        return False  # Already registered
+
+    new_upi = UpiId(
+        upi_handle=upi_handle,
+        label=f"Auto-detected own UPI",
+        is_own=True,
+    )
+    db.add(new_upi)
+    db.commit()
+    logger.info(f"Auto-registered own UPI: {upi_handle}")
+    return True
+
+
+# ── Learn from user corrections ──────────────────────────────
+
+def learn_from_categorization(
+    db: Session,
+    transaction_description: str | None,
+    category_id: int,
+) -> bool:
+    """
+    When a user manually categorizes a transaction, extract the UPI handle
+    and auto-create a mapping in the upi_ids table for future auto-categorization.
+
+    This is the self-improving loop: every user correction teaches the system
+    to categorize future transactions from the same UPI handle automatically.
+
+    Returns True if a new mapping was created.
+    """
+    upi_handle = extract_upi_id(transaction_description)
+    if not upi_handle:
+        return False
+
+    # Don't learn from own-account transfers
+    if _is_own_upi_transfer(db, upi_handle):
+        return False
+
+    # Check if this UPI handle already has a mapping
+    existing = db.query(UpiId).filter(UpiId.upi_handle == upi_handle).first()
+    if existing:
+        if existing.category_id != category_id:
+            # Update existing mapping to the new category
+            existing.category_id = category_id
+            db.commit()
+            logger.info(
+                f"Updated UPI mapping: {upi_handle} → category_id={category_id}"
+            )
+            return True
+        return False  # Already mapped correctly
+
+    # Create new UPI handle → category mapping
+    new_upi = UpiId(
+        upi_handle=upi_handle,
+        label=f"Learned from user correction",
+        is_own=False,
+        category_id=category_id,
+    )
+    db.add(new_upi)
+    db.commit()
+    logger.info(f"Learned UPI mapping: {upi_handle} → category_id={category_id}")
+    return True
+
+
 # ── Merchant normalization patterns ──────────────────────────
 
 # Common bank prefixes/suffixes to strip
@@ -90,10 +263,10 @@ def normalize_merchant(description: str | None) -> str | None:
     Extract a clean merchant name from a raw bank transaction description.
 
     Examples:
-        "UPI-SWIGGY-PAYMENT-12345678@OK" → "SWIGGY PAYMENT"
-        "POS 412345XXXXXX6789 AMAZON SELLER" → "AMAZON SELLER"
-        "NEFT CR-ACME CORP-REF123456789" → "ACME CORP"
-        "BIL/ONL/000312/Airtel Prepaid" → "AIRTEL PREPAID"
+        "UPI-SWIGGY-PAYMENT-12345678@OK" → "Swiggy Payment"
+        "POS 412345XXXXXX6789 AMAZON SELLER" → "Amazon Seller"
+        "NEFT CR-ACME CORP-REF123456789" → "Acme Corp"
+        "BIL/ONL/000312/Airtel Prepaid" → "Airtel Prepaid"
     """
     if not description:
         return None
@@ -119,6 +292,7 @@ def normalize_merchant(description: str | None) -> str | None:
 def auto_categorize(
     db: Session,
     description: str | None,
+    keywords: list[CategoryKeyword] | None = None,
 ) -> Optional[int]:
     """
     Match a transaction description against category keywords.
@@ -134,15 +308,10 @@ def auto_categorize(
 
     desc_upper = description.upper()
 
-    # Load all keywords (they're small — O(hundreds) at most)
-    keywords = (
-        db.query(CategoryKeyword)
-        .order_by(CategoryKeyword.keyword.desc())  # longest first (rough heuristic)
-        .all()
-    )
-
-    # Sort by length descending for longest-match-first
-    keywords.sort(key=lambda k: len(k.keyword), reverse=True)
+    if keywords is None:
+        keywords = db.query(CategoryKeyword).all()
+        # Sort by length descending for longest-match-first
+        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
 
     for kw in keywords:
         if kw.keyword in desc_upper:
@@ -159,20 +328,47 @@ def categorize_and_normalize(
     Convenience function: returns (category_id, merchant_name, is_own_transfer).
 
     Priority order:
-      1. UPI ID match (most specific)
-      2. Keyword match (fallback)
+      1. UPI ID match (exact match against learned mapped handles or own handles)
+      2. MCC code (4-digit merchant category code from transaction description)
+      3. Keyword match (substring search of DB keywords in description)
     """
     is_own_transfer = False
+    keywords = None
+    category_id = None
 
-    # 1. Try UPI-based categorization first
-    upi_cat_id, is_own, _ = match_upi_id(db, description)
+    # 1. Try UPI-based categorization first (includes learned mappings)
+    upi_cat_id, is_own, upi_handle = match_upi_id(db, description)
     if is_own:
         is_own_transfer = True
-    category_id = upi_cat_id
+        
+        # Explicitly map known own transfers to "Self Transfer" category
+        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+        if self_transfer_cat:
+            category_id = self_transfer_cat.id
+    else:
+        category_id = upi_cat_id
 
-    # 2. Fall back to keyword matching if no UPI category
+    # 1b. Check if this UPI handle belongs to the user (even if not registered yet)
+    if not is_own_transfer and upi_handle:
+        if _is_own_upi_transfer(db, upi_handle):
+            is_own_transfer = True
+            auto_register_own_upi(db, upi_handle)
+            
+            # Map auto-registered own transfer to "Self Transfer"
+            self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+            if self_transfer_cat:
+                category_id = self_transfer_cat.id
+
+    # 2. Try MCC code matching
+    if category_id is None and description:
+        category_id = _match_mcc_code(db, description)
+
+    # 3. Fall back to keyword matching if still no category (which natively covers old regexes and aliases)
     if category_id is None:
-        category_id = auto_categorize(db, description)
+        if keywords is None:
+            keywords = db.query(CategoryKeyword).all()
+            keywords.sort(key=lambda k: len(k.keyword), reverse=True)
+        category_id = auto_categorize(db, description, keywords=keywords)
 
     merchant_name = normalize_merchant(description)
     return category_id, merchant_name, is_own_transfer

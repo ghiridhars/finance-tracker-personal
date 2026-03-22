@@ -15,6 +15,15 @@ class CategoryKeywordSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MccCategorySchema(BaseModel):
+    id: Optional[int] = None
+    mcc_code: str
+    description: Optional[str] = None
+    category_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CategorySchema(BaseModel):
     id: Optional[int] = None
     name: str
