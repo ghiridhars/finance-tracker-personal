@@ -358,3 +358,60 @@
 - [frontend/lib/providers/accounts_provider.dart](frontend/lib/providers/accounts_provider.dart) — Simplified `selectAccount` (no longer fetches statements)
 - [frontend/lib/widgets/accounts_widget.dart](frontend/lib/widgets/accounts_widget.dart) — Replaced `_StatementHistoryView` with embedded `UnifiedTransactionListWidget`; removed all statement list dead code
 
+---
+
+## Phase 10: Transfer Detection & UPI ID Management — ✅ COMPLETED
+
+**Goal:** Auto-detect inter-account transfers and CC bill payments to avoid double-counting in analytics. Manage UPI handle-to-account/category mappings for smarter auto-categorization and transfer flagging.
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 10.1 | Transfer detection | ✅ Done | Auto-detect matching DEBIT/CREDIT pairs across accounts within a time window. Groups linked transactions via `transfer_group_id` (UUID). Supports `INTERNAL_TRANSFER` and `CC_BILL_PAYMENT` types. Manual link/unlink endpoints. |
+| 10.2 | Transfer model fields | ✅ Done | Added `is_transfer` (bool), `transfer_group_id` (string, indexed), and `transfer_type` (enum) columns to `UnifiedTransaction`. New `TransferType` enum: `INTERNAL_TRANSFER`, `CC_BILL_PAYMENT`. |
+| 10.3 | UPI ID management | ✅ Done | `UpiId` model maps UPI handles to accounts and/or categories. Own UPI IDs (`is_own=True`) auto-flag transactions as transfers. Third-party UPI IDs auto-categorize by handle. CRUD endpoints + rescan to retroactively apply rules. |
+| 10.4 | Dashboard widget split | ✅ Done | Extracted 6 chart widgets + helpers from `dashboard_widget.dart` into `widgets/charts/` subdirectory for maintainability. |
+| 10.5 | API service decomposition | ✅ Done | Split monolithic `api_service.dart` into modular `services/api/` directory with per-domain API files (accounts, analytics, budget, export, transactions, transfers, upload, UPI). |
+
+**New API Endpoints (11 routes, ~81 total):**
+
+*Transfers (5):*
+- `POST /api/v2/transfers/detect` — Auto-detect transfer pairs
+- `POST /api/v2/transfers/link` — Manually link two transactions
+- `GET /api/v2/transfers/` — List all linked pairs
+- `PATCH /api/v2/transfers/{transfer_group_id}` — Update transfer type
+- `DELETE /api/v2/transfers/{transfer_group_id}` — Unlink a pair
+
+*UPI IDs (6):*
+- `GET /api/v2/upi-ids` — List UPI ID mappings
+- `POST /api/v2/upi-ids` — Create mapping
+- `GET /api/v2/upi-ids/{upi_id}` — Get single mapping
+- `PUT /api/v2/upi-ids/{upi_id}` — Update mapping
+- `DELETE /api/v2/upi-ids/{upi_id}` — Delete mapping
+- `POST /api/v2/upi-ids/rescan` — Re-scan transactions against UPI rules
+
+**Files Created:**
+- [backend/app/routers/transfers.py](backend/app/routers/transfers.py) — 5 transfer management endpoints
+- [backend/app/services/transfer_detection_service.py](backend/app/services/transfer_detection_service.py) — Auto-detection algorithm + manual link/unlink
+- [backend/app/routers/upi.py](backend/app/routers/upi.py) — 6 UPI ID management endpoints
+- [backend/app/services/upi_service.py](backend/app/services/upi_service.py) — UPI CRUD + rescan logic
+- [backend/app/models/upi.py](backend/app/models/upi.py) — `UpiId` SQLAlchemy model (`upi_ids` table)
+- [backend/app/schemas/upi.py](backend/app/schemas/upi.py) — UPI Pydantic DTOs (create, update, response)
+- [backend/app/parsers/patterns.py](backend/app/parsers/patterns.py) — Parser pattern utilities
+- [frontend/lib/models/upi_models.dart](frontend/lib/models/upi_models.dart) — UPI Dart models
+- [frontend/lib/providers/transfers_provider.dart](frontend/lib/providers/transfers_provider.dart) — Transfer state management
+- [frontend/lib/providers/upi_provider.dart](frontend/lib/providers/upi_provider.dart) — UPI state management
+- [frontend/lib/widgets/upi_management_widget.dart](frontend/lib/widgets/upi_management_widget.dart) — UPI management UI
+- [frontend/lib/widgets/charts/](frontend/lib/widgets/charts/) — Extracted chart widgets (chart_helpers, summary_cards, spending_trends_chart, category_pie_chart, income_expense_chart, month_over_month_card, top_merchants_card)
+- [frontend/lib/services/api/](frontend/lib/services/api/) — Modular API layer (api_client, account_api, analytics_api, budget_api, export_api, transaction_api, transfers_api, upload_api, upi_api)
+- [frontend/lib/models/converters.dart](frontend/lib/models/converters.dart) — Data model converters
+- [frontend/lib/providers/date_range_mixin.dart](frontend/lib/providers/date_range_mixin.dart) — Shared date range mixin for providers
+
+**Files Modified:**
+- [backend/app/models/enums.py](backend/app/models/enums.py) — Added `TransferType` enum (5 enums total)
+- [backend/app/models/transaction.py](backend/app/models/transaction.py) — Added `is_transfer`, `transfer_group_id`, `transfer_type` columns
+- [backend/app/models/__init__.py](backend/app/models/__init__.py) — Export `UpiId` model (13 tables total)
+- [backend/app/schemas/transaction.py](backend/app/schemas/transaction.py) — Added `TransferLinkRequest`, `TransferPairSchema`, `TransferDetectResult` schemas; transfer fields in `UnifiedTransactionSchema`
+- [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Register `transfers_router`, `upi_router` (16 routers total)
+- [backend/app/main.py](backend/app/main.py) — Include `transfers_router`, `upi_router` (~81 routes total)
+- [frontend/lib/widgets/dashboard_widget.dart](frontend/lib/widgets/dashboard_widget.dart) — Imports extracted chart components from `charts/` subdirectory
+

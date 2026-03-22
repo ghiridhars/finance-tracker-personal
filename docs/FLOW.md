@@ -330,6 +330,50 @@ Admin configures → shares Drive folder with service account
 
 ---
 
+## 15. Transfer Management Flow
+
+Detect and manage inter-account transfers and CC bill payments.
+
+```
+User triggers auto-detection → Algorithm finds matching DEBIT/CREDIT pairs
+  → Pairs linked via transfer_group_id → Shown in Transfers list
+  → User can manually link/unlink pairs → Update transfer type
+  → Transfers excluded from double-counting in analytics
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| Detect transfers | POST | `/api/v2/transfers/detect` | Auto-detect matching DEBIT/CREDIT pairs across accounts |
+| Link manually | POST | `/api/v2/transfers/link` | Body: `transaction_id_1`, `transaction_id_2`, `transfer_type` (INTERNAL_TRANSFER/CC_BILL_PAYMENT) |
+| List pairs | GET | `/api/v2/transfers/` | All linked transfer pairs with transactions |
+| Update type | PATCH | `/api/v2/transfers/{transfer_group_id}` | Params: `transfer_type` |
+| Unlink pair | DELETE | `/api/v2/transfers/{transfer_group_id}` | Removes transfer linkage |
+
+---
+
+## 16. UPI ID Management Flow
+
+Map UPI handles to accounts and categories for smarter categorization.
+
+```
+User adds UPI handles → Marks own UPIs (linked to accounts)
+  → Marks third-party UPIs (linked to categories)
+  → Own UPIs auto-flag transactions as transfers
+  → Third-party UPIs auto-categorize transactions
+  → Rescan applies rules retroactively to existing transactions
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| List UPI IDs | GET | `/api/v2/upi-ids` | Params: `is_own` (bool), `account_identifier` (string) |
+| Create UPI ID | POST | `/api/v2/upi-ids` | Body: `upi_handle` (must contain @), `label`, `account_type`, `account_identifier`, `category_id`, `is_own` |
+| Get UPI ID | GET | `/api/v2/upi-ids/{upi_id}` | Single UPI mapping |
+| Update UPI ID | PUT | `/api/v2/upi-ids/{upi_id}` | Body: `label`, `account_type`, `account_identifier`, `category_id`, `is_own` |
+| Delete UPI ID | DELETE | `/api/v2/upi-ids/{upi_id}` | Removes mapping |
+| Rescan transactions | POST | `/api/v2/upi-ids/rescan` | Re-apply UPI-based rules to all existing transactions |
+
+---
+
 ## API Summary
 
 | Domain | Endpoints | Version |
@@ -349,7 +393,9 @@ Admin configures → shares Drive folder with service account
 | Recurring | 4 | v2 |
 | Export/Data | 2 | v2 |
 | Google Drive Sync | 4 | v2 |
-| **Total** | **70** | |
+| Transfers | 5 | v2 |
+| UPI IDs | 6 | v2 |
+| **Total** | **81** | |
 
 > All v2 endpoints are prefixed with `/api/v2/`. Legacy v1 endpoints remain at `/api/` for backward compatibility.
 > Auth endpoints are at `/api/auth/`. The `/health` and `/api/auth/status` endpoints are public; all others require a valid JWT Bearer token.

@@ -11,6 +11,8 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - 12-column responsive grid layout with per-tile resize, reorder, and visibility controls
 - Full-page spending calendar heatmap with per-bank color-coded breakdown and editable transaction categories
 - **Account-centric transactions** — Click any account to view its filtered transactions inline with editable categories
+- **Transfer detection** — Auto-detect and manually link inter-account transfers and CC bill payments
+- **UPI ID management** — Map UPI handles to accounts/categories for auto-categorization and transfer flagging
 - Monthly budgets per category with progress tracking
 - Savings goals with contribution tracking
 - Bill reminders with auto-detection from credit card dues
@@ -97,11 +99,11 @@ finance-tracker-v2/
 │   │   ├── config.py         # Settings (env-based)
 │   │   ├── database.py       # SQLAlchemy engine + session
 │   │   ├── auth.py           # JWT authentication (register/login/token)
-│   │   ├── models/           # 12 SQLAlchemy ORM models
+│   │   ├── models/           # 13 SQLAlchemy ORM models
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
 │   │   ├── services/         # Business logic layer (incl. Google Drive sync)
-│   │   └── routers/          # 14 API route modules (~70 endpoints)
+│   │   └── routers/          # 16 API route modules (~81 endpoints)
 │   ├── alembic/              # Database migrations
 │   └── requirements.txt
 ├── frontend/
@@ -112,8 +114,8 @@ finance-tracker-v2/
 │   │   ├── models/           # Dart data models
 │   │   ├── providers/        # Riverpod state management
 │   │   ├── screens/          # App shell, login, settings, calendar
-│   │   ├── services/         # API client + auth service
-│   │   └── widgets/          # Dashboard, upload, accounts, etc.
+│   │   ├── services/         # API client + auth service + modular API layer
+│   │   └── widgets/          # Dashboard, upload, accounts, UPI, charts/
 │   └── pubspec.yaml
 ├── docker-compose.yml
 └── docs/

@@ -36,13 +36,13 @@ Complete technical specification: architecture, database schema, API details, an
 │           Python 3.11+ / FastAPI 0.115                  │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ Routers  │  │ Services │  │  Parsers   │            │
-│  │ (14 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
+│  │ (16 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
 │  └──────────┘  └──────────┘  └────────────┘            │
 │               ↕ SQLAlchemy ORM                          │
 ├─────────────────────────────────────────────────────────┤
 │                    Database                              │
 │          SQLite (WAL mode, foreign keys)                │
-│            12 tables, 4 enums                           │
+│            13 tables, 5 enums                           │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -111,21 +111,24 @@ backend/
 │   │   ├── transaction.py      # UnifiedTransaction (denormalized)
 │   │   ├── category.py         # Category, CategoryKeyword
 │   │   ├── tag.py              # Tag, TransactionTag
-│   │   └── budget.py           # Budget, SavingsGoal, BillReminder, RecurringTransaction
+│   │   ├── budget.py           # Budget, SavingsGoal, BillReminder, RecurringTransaction
+│   │   └── upi.py              # UpiId (UPI handle mappings)
 │   ├── schemas/
 │   │   ├── common.py           # ApiError
 │   │   ├── credit_card.py      # Credit card DTOs
 │   │   ├── savings_account.py  # Savings DTOs
 │   │   ├── category.py         # Category CRUD DTOs
 │   │   ├── tag.py              # Tag DTOs
-│   │   ├── transaction.py      # UnifiedTransaction query/update DTOs
-│   │   └── budget.py           # Budget, Goal, Reminder, Recurring DTOs
+│   │   ├── transaction.py      # UnifiedTransaction query/update DTOs + transfer schemas
+│   │   ├── budget.py           # Budget, Goal, Reminder, Recurring DTOs
+│   │   └── upi.py              # UPI ID DTOs (create, update, response)
 │   ├── parsers/
 │   │   ├── base_parser.py      # ABC + pdfplumber integration
 │   │   ├── generic_pdf_parser.py # Bank-agnostic PDF parser (table + text)
 │   │   ├── csv_parser.py       # Generic CSV with column auto-detection
 │   │   ├── llm_parser.py       # Gemini/Ollama LLM fallback
-│   │   └── parser_registry.py  # (BankType, StatementType) → parser dispatch
+│   │   ├── parser_registry.py  # (BankType, StatementType) → parser dispatch
+│   │   └── patterns.py         # Parser pattern utilities
 │   ├── services/
 │   │   ├── parser_service.py   # Unified parse orchestration
 │   │   ├── credit_card_service.py
@@ -139,6 +142,8 @@ backend/
 │   │   ├── goals_service.py            # Savings goal CRUD + contributions
 │   │   ├── bill_reminder_service.py    # Reminders + CC auto-detect
 │   │   ├── recurring_service.py        # Recurring pattern detection
+│   │   ├── transfer_detection_service.py # Transfer auto-detection + manual link/unlink
+│   │   ├── upi_service.py              # UPI CRUD + rescan logic
 │   │   └── gdrive_sync_service.py      # Google Drive file sync + parser dispatch
 │   └── routers/
 │       ├── health.py           # GET /health
@@ -153,6 +158,8 @@ backend/
 │       ├── goals.py            # Savings goals
 │       ├── reminders.py        # Bill reminders + recurring detection
 │       ├── export.py           # CSV/JSON export + clear data
+│       ├── transfers.py        # Transfer management (detect, link, unlink)
+│       ├── upi.py              # UPI ID management (CRUD + rescan)
 │       └── gdrive.py           # Google Drive sync (status, files, sync, reset)
 ├── alembic/                    # Migration configs
 ├── data/                       # SQLite database files
@@ -211,7 +218,9 @@ frontend/lib/
 │   ├── category_models.dart
 │   ├── analytics_models.dart
 │   ├── account_models.dart
-│   └── budget_models.dart
+│   ├── budget_models.dart
+│   ├── converters.dart
+│   └── upi_models.dart
 ├── providers/
 │   ├── app_settings_provider.dart      # Theme, currency, backend URL
 │   ├── statements_provider.dart        # Upload state
@@ -220,7 +229,10 @@ frontend/lib/
 │   ├── dashboard_provider.dart         # Analytics state
 │   ├── dashboard_layout_provider.dart  # Customizable grid layout state (tile config, edit mode)
 │   ├── accounts_provider.dart          # Accounts + statements
-│   └── budget_provider.dart            # Budgets, goals, reminders, recurring
+│   ├── budget_provider.dart            # Budgets, goals, reminders, recurring
+│   ├── transfers_provider.dart         # Transfer pair state
+│   ├── upi_provider.dart               # UPI ID state
+│   └── date_range_mixin.dart           # Shared date range mixin
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
 │   ├── calendar_screen.dart            # Full-page spending calendar with editable transaction popup
@@ -228,7 +240,17 @@ frontend/lib/
 │   └── settings_screen.dart            # Settings UI
 ├── services/
 │   ├── api_service.dart                # HTTP client (all API methods, auth token injection)
-│   └── auth_service.dart               # JWT auth state (login, register, logout, token persistence)
+│   ├── auth_service.dart               # JWT auth state (login, register, logout, token persistence)
+│   └── api/                            # Modular API layer
+│       ├── api_client.dart             # Base HTTP client
+│       ├── account_api.dart            # Account API methods
+│       ├── analytics_api.dart          # Analytics API methods
+│       ├── budget_api.dart             # Budget/goals/reminders API
+│       ├── export_api.dart             # Export/data API
+│       ├── transaction_api.dart        # Transaction API
+│       ├── transfers_api.dart          # Transfer API
+│       ├── upload_api.dart             # Upload API
+│       └── upi_api.dart               # UPI API
 └── widgets/
     ├── statement_upload_widget.dart     # Upload with drop zone
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
@@ -236,7 +258,16 @@ frontend/lib/
     ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts)
     ├── accounts_widget.dart            # Account cards → inline filtered transactions
     ├── budget_goals_widget.dart        # Budgets, goals, reminders
-    └── skeleton_widgets.dart           # Shimmer loading placeholders
+    ├── upi_management_widget.dart      # UPI handle management UI
+    ├── skeleton_widgets.dart           # Shimmer loading placeholders
+    └── charts/                         # Extracted chart components
+        ├── chart_helpers.dart           # Shared chart utilities
+        ├── summary_cards.dart          # Dashboard summary cards
+        ├── spending_trends_chart.dart   # Spending trends line chart
+        ├── category_pie_chart.dart      # Category breakdown pie chart
+        ├── income_expense_chart.dart    # Income vs expense bar chart
+        ├── month_over_month_card.dart   # MoM comparison
+        └── top_merchants_card.dart      # Top merchants list
 ```
 
 ### Navigation (GoRouter)
@@ -275,7 +306,7 @@ frontend/lib/
 ## Database Schema
 
 **Engine:** SQLite with WAL mode and foreign keys enabled via PRAGMA.
-**Tables:** 12 | **Enums:** 4
+**Tables:** 13 | **Enums:** 5
 
 ### Enums
 
@@ -286,6 +317,8 @@ frontend/lib/
 **StatementType:** `SAVINGS`, `CREDIT_CARD`, `CURRENT`, `CSV`
 
 **SourceType:** `SAVINGS`, `CREDIT_CARD`
+
+**TransferType:** `INTERNAL_TRANSFER`, `CC_BILL_PAYMENT`
 
 ### Tables
 
@@ -373,6 +406,14 @@ The core denormalized table. Every transaction from any source ends up here.
 Unique: `(source_type, source_transaction_id)`
 Belongs to: `categories`
 Many-to-many: `tags` via `transaction_tags`
+
+##### Transfer-Related Columns
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| is_transfer | Boolean | **No** | | Default: false |
+| transfer_group_id | String(36) | Yes | IDX | UUID linking transfer pairs |
+| transfer_type | Enum(TransferType) | Yes | | INTERNAL_TRANSFER/CC_BILL_PAYMENT |
 
 #### categories
 
@@ -474,6 +515,19 @@ Unique: `(year, month, category_id)`
 | is_subscription | Boolean | | | Default: false |
 | created_at | DateTime | | | Default: UTC now |
 
+#### upi_ids
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| upi_handle | String(100) | **No** | UQ, IDX | Unique UPI handle (e.g. user@bank) |
+| label | String(200) | Yes | | Friendly name |
+| account_type | String(20) | Yes | | Account type (for own UPIs) |
+| account_identifier | String(30) | Yes | | Linked account/card number |
+| category_id | Integer | Yes | FK | → categories.id (for auto-categorization) |
+| is_own | Boolean | **No** | | Default: false (true = user's own UPI) |
+| created_at | DateTime | **No** | | Default: UTC now |
+
 ### Entity Relationship Diagram
 
 ```
@@ -486,6 +540,7 @@ categories 1───* unified_transactions
 categories 1───* budgets
 categories 1───* bill_reminders
 categories 1───* recurring_transactions
+categories 1───* upi_ids
 
 unified_transactions *───* tags (via transaction_tags)
 ```
@@ -516,7 +571,9 @@ unified_transactions *───* tags (via transaction_tags)
 | Recurring | 4 | `/api/v2/recurring/` |
 | Export/Data | 2 | `/api/v2/export/`, `/api/v2/data/` |
 | Google Drive Sync | 4 | `/api/v2/gdrive/` |
-| **Total** | **70** | |
+| Transfers | 5 | `/api/v2/transfers/` |
+| UPI IDs | 6 | `/api/v2/upi-ids/` |
+| **Total** | **81** | |
 
 > See [FLOW.md](FLOW.md) for the complete endpoint reference with parameters and descriptions.
 
@@ -666,6 +723,15 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 | Account-centric transactions | Click account card → view filtered transactions inline. Backend `account_identifier` filter added | ✅ Done |
 | Simplified navigation | Removed standalone Transactions/Savings/Credit Card sidebar tabs. Added Calendar | ✅ Done |
 | Editable categories everywhere | Category chips on transaction tiles in Calendar popup and Account transactions. Tap to change | ✅ Done |
+
+### Phase 10: Transfer Detection & UPI ID Management (Completed)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| Transfer detection | Auto-detect DEBIT/CREDIT pairs across accounts. Manual link/unlink. TransferType enum (INTERNAL_TRANSFER, CC_BILL_PAYMENT) | ✅ Done |
+| UPI ID management | Map UPI handles to accounts/categories. Auto-categorize and flag transfers. CRUD + rescan endpoints | ✅ Done |
+| Dashboard widget split | Extracted chart widgets into `widgets/charts/` subdirectory | ✅ Done |
+| API service decomposition | Split `api_service.dart` into `services/api/` modular directory | ✅ Done |
 
 ### Potential Features
 

@@ -11,7 +11,7 @@ graph TB
     subgraph Client["Frontend — Flutter 3.x"]
         UI["Material Design 3 UI"]
         Router["GoRouter<br/>(6 nav destinations)"]
-        Providers["Riverpod Providers<br/>(8 notifiers)"]
+        Providers["Riverpod Providers<br/>(10 notifiers)"]
         AuthSvc["Auth Service<br/>(JWT token mgmt)"]
         ApiSvc["API Service<br/>(HTTP client)"]
 
@@ -23,10 +23,10 @@ graph TB
 
     subgraph Server["Backend — FastAPI 0.115"]
         Auth["Auth Module<br/>(JWT + bcrypt)"]
-        Routers["14 Router Modules<br/>(70+ endpoints)"]
-        Services["12 Service Classes<br/>(business logic)"]
+        Routers["16 Router Modules<br/>(81 endpoints)"]
+        Services["15 Service Classes<br/>(business logic)"]
         Parsers["Parser Registry<br/>(PDF/CSV/LLM)"]
-        Models["SQLAlchemy Models<br/>(12 tables)"]
+        Models["SQLAlchemy Models<br/>(13 tables)"]
 
         Auth --> Routers
         Routers --> Services
@@ -76,7 +76,9 @@ graph TB
         R11["reminders.py"]
         R12["export.py"]
         R13["gdrive.py"]
-        R14["transactions.py<br/>(legacy)"]
+        R14["transfers.py"]
+        R15["upi.py"]
+        R16["transactions.py<br/>(legacy)"]
     end
 
     subgraph Business["Service Layer"]
@@ -94,6 +96,8 @@ graph TB
         S11["GDriveSyncService"]
         S12["CreditCardService"]
         S13["SavingsService"]
+        S14["TransferDetectionService"]
+        S15["UpiService"]
     end
 
     subgraph Data["Model Layer"]
@@ -107,6 +111,7 @@ graph TB
         M7["RecurringTransaction"]
         M8["CreditCardStatement<br/>CreditCardTransaction"]
         M9["SavingsAccountStatement<br/>SavingsAccountTransaction"]
+        M10["UpiId"]
     end
 
     Presentation --> Business
@@ -285,6 +290,9 @@ erDiagram
         string bank
         int category_id FK
         string merchant_name
+        bool is_transfer
+        string transfer_group_id
+        enum transfer_type "INTERNAL_TRANSFER/CC_BILL_PAYMENT"
         datetime created_at
     }
 
@@ -351,6 +359,19 @@ erDiagram
         date next_expected_date
         bool is_subscription
     }
+
+    upi_ids {
+        int id PK
+        string upi_handle UK
+        string label
+        string account_type
+        string account_identifier
+        int category_id FK
+        bool is_own
+        datetime created_at
+    }
+
+    categories ||--o{ upi_ids : "optional category"
 ```
 
 ---
@@ -380,6 +401,7 @@ graph TB
         Calendar["CalendarScreen<br/>spending heatmap + editable transactions"]
         Accounts["AccountsWidget<br/>account cards + inline transaction list"]
         Budget["BudgetGoalsWidget<br/>budgets + goals + reminders"]
+        UpiMgmt["UpiManagementWidget<br/>UPI handle mappings"]
         Settings["SettingsScreen<br/>theme + currency + URL"]
     end
 
@@ -391,6 +413,8 @@ graph TB
         AccProv["AccountsNotifier<br/>(accounts + statements)"]
         BudProv["BudgetNotifier<br/>(budgets, goals, reminders)"]
         StmtProv["StatementsNotifier<br/>(upload state)"]
+        XferProv["TransfersNotifier<br/>(transfer pairs)"]
+        UpiProv["UpiNotifier<br/>(UPI mappings)"]
     end
 
     subgraph API["API Layer"]
@@ -413,6 +437,8 @@ graph TB
     Accounts --> AccProv
     Accounts --> TxnProv
     Budget --> BudProv
+    UpiMgmt --> UpiProv
+    UpiMgmt --> CatProv
     Settings --> AppSettings
 
     Providers --> ApiService
