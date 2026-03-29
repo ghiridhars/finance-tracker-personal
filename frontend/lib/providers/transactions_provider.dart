@@ -304,23 +304,47 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     bool clearIsTransfer = false,
     bool clearType = false,
     bool clearSearch = false,
+    DateRangePreset? preset,
   }) {
-    state = state.copyWith(
-      categoryFilter: categoryId,
-      bankFilter: bank,
-      accountIdentifierFilter: accountIdentifier,
-      sourceTypeFilter: sourceType,
-      isTransferFilter: isTransfer,
-      typeFilter: type,
-      searchQuery: search,
-      clearCategoryFilter: clearCategory,
-      clearBankFilter: clearBank,
-      clearAccountIdentifierFilter: clearAccountIdentifier,
-      clearSourceTypeFilter: clearSourceType,
-      clearIsTransferFilter: clearIsTransfer,
-      clearTypeFilter: clearType,
-      clearSearch: clearSearch,
-    );
+    if (preset != null && preset != DateRangePreset.custom) {
+      // Build state directly so fromDate/toDate can be set to null (all time).
+      final range = resolveDateRange(preset);
+      state = UnifiedTransactionsState(
+        transactions: state.transactions,
+        fromDate: range.from,
+        toDate: range.to,
+        preset: preset,
+        categoryFilter:
+            clearCategory ? null : (categoryId ?? state.categoryFilter),
+        bankFilter: clearBank ? null : (bank ?? state.bankFilter),
+        accountIdentifierFilter: clearAccountIdentifier
+            ? null
+            : (accountIdentifier ?? state.accountIdentifierFilter),
+        sourceTypeFilter:
+            clearSourceType ? null : (sourceType ?? state.sourceTypeFilter),
+        isTransferFilter:
+            clearIsTransfer ? null : (isTransfer ?? state.isTransferFilter),
+        typeFilter: clearType ? null : (type ?? state.typeFilter),
+        searchQuery: clearSearch ? null : (search ?? state.searchQuery),
+      );
+    } else {
+      state = state.copyWith(
+        categoryFilter: categoryId,
+        bankFilter: bank,
+        accountIdentifierFilter: accountIdentifier,
+        sourceTypeFilter: sourceType,
+        isTransferFilter: isTransfer,
+        typeFilter: type,
+        searchQuery: search,
+        clearCategoryFilter: clearCategory,
+        clearBankFilter: clearBank,
+        clearAccountIdentifierFilter: clearAccountIdentifier,
+        clearSourceTypeFilter: clearSourceType,
+        clearIsTransferFilter: clearIsTransfer,
+        clearTypeFilter: clearType,
+        clearSearch: clearSearch,
+      );
+    }
     loadTransactions();
   }
 
@@ -341,6 +365,17 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       searchQuery: state.searchQuery,
     );
     loadTransactions();
+  }
+
+  /// Reset provider to initial defaults without triggering a load.
+  void resetToDefaults() {
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month - 3, now.day);
+    state = UnifiedTransactionsState(
+      fromDate: from,
+      toDate: now,
+      preset: DateRangePreset.last3Months,
+    );
   }
 
   Future<void> recategorizeAll() async {

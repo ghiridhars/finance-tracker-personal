@@ -11,6 +11,7 @@ import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/upi_management_widget.dart';
+import 'database_manager_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -642,6 +643,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: const UpiManagementPanel(),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              // ── Advanced Section ───────────────────────────
+              _SectionHeader(title: 'Advanced', icon: Icons.build_outlined),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.storage),
+                  title: const Text('Database Manager'),
+                  subtitle: const Text(
+                    'Browse and edit database tables directly',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DatabaseManagerScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
 

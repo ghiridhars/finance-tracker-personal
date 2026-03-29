@@ -13,6 +13,7 @@ from app.routers.export import router as export_router
 from app.routers.gdrive import router as gdrive_router
 from app.routers.transfers import router as transfers_router
 from app.routers.upi import router as upi_router
+from app.routers.admin import router as admin_router
 
 __all__ = [
     "health_router",
@@ -30,4 +31,5 @@ __all__ = [
     "gdrive_router",
     "transfers_router",
     "upi_router",
+    "admin_router",
 ]

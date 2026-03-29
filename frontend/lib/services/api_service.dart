@@ -15,6 +15,7 @@ export 'api/budget_api.dart';
 export 'api/export_api.dart';
 export 'api/transfers_api.dart';
 export 'api/upi_api.dart';
+export 'api/admin_api.dart';
 
 import 'api/api_client.dart';
 import 'api/transaction_api.dart';

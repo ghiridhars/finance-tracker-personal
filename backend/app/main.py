@@ -34,6 +34,7 @@ from app.routers import (
     gdrive_router,
     transfers_router,
     upi_router,
+    admin_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ for protected_router in [
     gdrive_router,
     transfers_router,
     upi_router,
+    admin_router,
 ]:
     # Inject auth dependency into every route of each protected router
     protected_router.dependencies.append(Depends(get_current_user))

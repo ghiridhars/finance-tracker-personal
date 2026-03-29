@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 # Matches UPI handles like user@hdfcbank, swiggy@axisbank, 9876543210@paytm
 _UPI_HANDLE_RE = re.compile(r"[\w.-]+@[a-zA-Z][\w]*", re.IGNORECASE)
 
+# Heal PDF extraction artifacts: a short alpha fragment split by a spurious space
+# e.g., "@yescr ed/" → the "ed" after the space belongs to the handle
+_UPI_HEAL_RE = re.compile(r"\s([a-zA-Z]{1,6})(?=[\s/\-]|$)")
+
 
 def extract_upi_id(description: str | None) -> str | None:
     """
@@ -43,7 +47,16 @@ def extract_upi_id(description: str | None) -> str | None:
     if not description:
         return None
     match = _UPI_HANDLE_RE.search(description)
-    return match.group(0).lower() if match else None
+    if not match:
+        return None
+    handle = match.group(0)
+    # Try to heal a broken handle: if a short alpha fragment follows the
+    # match separated by a single space and ends at a delimiter, join it.
+    rest = description[match.end():]
+    heal = _UPI_HEAL_RE.match(rest)
+    if heal:
+        handle += heal.group(1)
+    return handle.lower()
 
 
 def match_upi_id(

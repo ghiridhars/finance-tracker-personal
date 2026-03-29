@@ -35,6 +35,18 @@ class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
   }
 
   @override
+  void dispose() {
+    // Fix #5: clean up filters when navigating away from Accounts tab
+    // so they don't leak into other tabs sharing the same provider.
+    final accountsState = ref.read(accountsProvider);
+    if (accountsState.selectedAccountId != null) {
+      ref.read(accountsProvider.notifier).clearSelection();
+      ref.read(unifiedTransactionsProvider.notifier).resetToDefaults();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final accountsState = ref.watch(accountsProvider);
 
@@ -79,10 +91,8 @@ class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
                     ref.read(accountsProvider.notifier).clearSelection();
-                    ref.read(unifiedTransactionsProvider.notifier).setFilters(
-                      clearAccountIdentifier: true,
-                      clearIsTransfer: true,
-                    );
+                    // Fix #4: reset all filters and date range on back nav
+                    ref.read(unifiedTransactionsProvider.notifier).resetToDefaults();
                   },
                 ),
                 const SizedBox(width: 8),
@@ -313,14 +323,17 @@ class _AccountCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () {
           ref.read(accountsProvider.notifier).selectAccount(account);
+          // Fix #2: use 'all' preset so date range doesn't silently limit results
+          // Fix #3: set sourceType to match the account type
           ref.read(unifiedTransactionsProvider.notifier).setFilters(
             accountIdentifier: account.identifier,
+            sourceType: account.type,
             clearCategory: true,
             clearBank: true,
-            clearSourceType: true,
             clearIsTransfer: true,
             clearType: true,
             clearSearch: true,
+            preset: DateRangePreset.all,
           );
         },
         child: Padding(
