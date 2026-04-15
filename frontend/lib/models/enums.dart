@@ -8,9 +8,12 @@ enum TransactionType {
   const TransactionType(this.value);
 
   static TransactionType fromString(String s) {
-    return TransactionType.values.firstWhere(
+    final match = TransactionType.values.where(
       (e) => e.value == s.toUpperCase(),
-      orElse: () => TransactionType.credit,
     );
+    if (match.isEmpty) {
+      throw ArgumentError('Unknown TransactionType: "$s"');
+    }
+    return match.first;
   }
 }

@@ -4,7 +4,6 @@ Savings Goals service — CRUD + progress tracking.
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -74,6 +73,30 @@ class SavingsGoalService:
     @staticmethod
     def get_by_id(db: Session, goal_id: int) -> SavingsGoal | None:
         return db.query(SavingsGoal).filter(SavingsGoal.id == goal_id).first()
+
+    @staticmethod
+    def get_by_id_with_progress(db: Session, goal_id: int) -> dict | None:
+        """Get a single goal with computed progress fields."""
+        goal = db.query(SavingsGoal).filter(SavingsGoal.id == goal_id).first()
+        if not goal:
+            return None
+        today = date.today()
+        pct = float(goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0.0
+        days_remaining = (goal.deadline - today).days if goal.deadline else None
+        return {
+            "id": goal.id,
+            "name": goal.name,
+            "target_amount": float(goal.target_amount),
+            "current_amount": float(goal.current_amount),
+            "deadline": goal.deadline.isoformat() if goal.deadline else None,
+            "icon": goal.icon,
+            "color": goal.color,
+            "notes": goal.notes,
+            "is_completed": goal.is_completed,
+            "created_at": goal.created_at.isoformat() if goal.created_at else None,
+            "percentage": round(min(pct, 100.0), 1),
+            "days_remaining": days_remaining,
+        }
 
     @staticmethod
     def list_goals(db: Session, include_completed: bool = True) -> list[dict]:

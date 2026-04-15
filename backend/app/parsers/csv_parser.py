@@ -231,15 +231,19 @@ def _parse_as_savings(
 
     statement.from_date = min_date
     statement.to_date = max_date
-    if first_balance is not None:
-        txn0 = statement.transactions[0]
-        if txn0.withdrawal_amount:
-            statement.opening_balance = first_balance + txn0.withdrawal_amount
-        elif txn0.deposit_amount:
-            statement.opening_balance = first_balance - txn0.deposit_amount
-        else:
-            statement.opening_balance = first_balance
-    statement.closing_balance = last_balance
+    if last_balance is not None:
+        # Compute opening balance from all transactions for robustness
+        total_deposits = sum(
+            (tx.deposit_amount or Decimal(0)) for tx in statement.transactions
+        )
+        total_withdrawals = sum(
+            (tx.withdrawal_amount or Decimal(0)) for tx in statement.transactions
+        )
+        statement.closing_balance = last_balance
+        statement.opening_balance = last_balance - total_deposits + total_withdrawals
+    elif first_balance is not None:
+        statement.opening_balance = first_balance
+        statement.closing_balance = last_balance
 
     logger.info(f"CSV/Excel savings parse: {len(statement.transactions)} transactions")
     return ParseResult.ok(statement)

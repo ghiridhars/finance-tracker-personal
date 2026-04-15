@@ -47,7 +47,6 @@ def gdrive_list_files():
 
         files = list_drive_files()
         return {
-            "folder_id": settings.gdrive_folder_id,
             "file_count": len(files),
             "files": files,
         }

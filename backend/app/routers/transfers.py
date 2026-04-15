@@ -87,7 +87,6 @@ def update_transfer_type(
 ):
     """Update the transfer type for a linked pair."""
     from app.models.enums import TransferType
-    from app.models.transaction import UnifiedTransaction
 
     try:
         new_type = TransferType(transfer_type)
@@ -97,17 +96,9 @@ def update_transfer_type(
             detail=f"Invalid transfer_type. Must be one of: {[t.value for t in TransferType]}",
         )
 
-    txns = (
-        db.query(UnifiedTransaction)
-        .filter(UnifiedTransaction.transfer_group_id == transfer_group_id)
-        .all()
-    )
+    txns = TransferDetectionService.update_transfer_type(db, transfer_group_id, new_type)
     if not txns:
         raise HTTPException(status_code=404, detail="Transfer pair not found")
-
-    for tx in txns:
-        tx.transfer_type = new_type
-    db.commit()
 
     return TransferPairSchema(
         transfer_group_id=transfer_group_id,

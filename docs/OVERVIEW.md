@@ -33,7 +33,7 @@ Complete technical specification: architecture, database schema, API details, an
 │               ↕ HTTP (REST JSON)                        │
 ├─────────────────────────────────────────────────────────┤
 │                     Backend                              │
-│           Python 3.11+ / FastAPI 0.115                  │
+│           Python 3.12+ / FastAPI 0.115                  │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ Routers  │  │ Services │  │  Parsers   │            │
 │  │ (16 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
@@ -61,7 +61,7 @@ Complete technical specification: architecture, database schema, API details, an
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
-| Language | Python | 3.11+ |
+| Language | Python | 3.12+ |
 | Framework | FastAPI | 0.115.0 |
 | ASGI Server | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.35 |
@@ -671,7 +671,7 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 
 | Aspect | v1 (Java) | v2 (Python/Flutter) |
 |--------|-----------|---------------------|
-| Backend | Java 17, Spring Boot 3.2 | Python 3.11+, FastAPI 0.115 |
+| Backend | Java 17, Spring Boot 3.2 | Python 3.12+, FastAPI 0.115 |
 | ORM | JPA/Hibernate | SQLAlchemy 2.0 |
 | Database | H2 (in-memory) | SQLite (persistent, WAL) |
 | PDF | Apache PDFBox | pdfplumber |

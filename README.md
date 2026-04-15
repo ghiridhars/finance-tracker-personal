@@ -25,7 +25,7 @@ A personal finance management app to upload bank statements, auto-categorize tra
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Python 3.11+, FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2.9 |
+| Backend | Python 3.12+, FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2.9 |
 | Frontend | Flutter 3.x, Material Design 3, Riverpod 3.2, GoRouter |
 | Database | SQLite (WAL mode, foreign keys) |
 | PDF Parsing | pdfplumber + Gemini/Ollama LLM fallback |

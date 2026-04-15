@@ -1,4 +1,6 @@
 /// Accounts & Statement Management provider (Phase 4).
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/account_models.dart';
 import '../services/api_service.dart';
@@ -106,7 +108,7 @@ class AccountsNotifier extends Notifier<AccountsState> {
         savingsTotal: state.savingsTotal - 1,
       );
       // Refresh accounts to update counts
-      loadAccounts();
+      unawaited(loadAccounts());
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -123,7 +125,7 @@ class AccountsNotifier extends Notifier<AccountsState> {
             state.ccStatements.where((s) => s.id != statementId).toList(),
         ccTotal: state.ccTotal - 1,
       );
-      loadAccounts();
+      unawaited(loadAccounts());
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());

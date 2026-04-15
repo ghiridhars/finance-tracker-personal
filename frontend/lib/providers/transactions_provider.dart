@@ -93,11 +93,11 @@ class SavingsTransactionsNotifier extends Notifier<TransactionsState>
   }
 
   void setDateRange(DateTime? from, DateTime? to, DateRangePreset preset) {
-    state = TransactionsState(
-      transactions: state.transactions,
+    state = state.copyWith(
       fromDate: from,
       toDate: to,
       preset: preset,
+      clearError: true,
     );
     loadTransactions();
   }
@@ -144,11 +144,11 @@ class CreditCardTransactionsNotifier extends Notifier<TransactionsState>
   }
 
   void setDateRange(DateTime? from, DateTime? to, DateRangePreset preset) {
-    state = TransactionsState(
-      transactions: state.transactions,
+    state = state.copyWith(
       fromDate: from,
       toDate: to,
       preset: preset,
+      clearError: true,
     );
     loadTransactions();
   }

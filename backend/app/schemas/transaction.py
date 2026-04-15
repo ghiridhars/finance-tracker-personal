@@ -6,7 +6,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import TransactionType, SourceType, TransferType
 from app.schemas.category import CategorySchema
@@ -55,10 +55,10 @@ class TransactionQueryParams(BaseModel):
     source_type: Optional[SourceType] = None
     type: Optional[TransactionType] = None
     search: Optional[str] = None
-    min_amount: Optional[Decimal] = None
-    max_amount: Optional[Decimal] = None
-    limit: int = 100
-    offset: int = 0
+    min_amount: Optional[Decimal] = Field(default=None, ge=0)
+    max_amount: Optional[Decimal] = Field(default=None, ge=0)
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
 
 
 # ── Transfer linking schemas ─────────────────────────────────

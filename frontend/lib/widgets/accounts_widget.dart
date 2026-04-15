@@ -25,6 +25,10 @@ class AccountsWidget extends ConsumerStatefulWidget {
 }
 
 class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
+  // Save notifier references for safe use in dispose()
+  late final _accountsNotifier = ref.read(accountsProvider.notifier);
+  late final _transactionsNotifier = ref.read(unifiedTransactionsProvider.notifier);
+
   @override
   void initState() {
     super.initState();
@@ -38,11 +42,9 @@ class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
   void dispose() {
     // Fix #5: clean up filters when navigating away from Accounts tab
     // so they don't leak into other tabs sharing the same provider.
-    final accountsState = ref.read(accountsProvider);
-    if (accountsState.selectedAccountId != null) {
-      ref.read(accountsProvider.notifier).clearSelection();
-      ref.read(unifiedTransactionsProvider.notifier).resetToDefaults();
-    }
+    // Use saved notifier references since ref is unsafe in dispose().
+    _accountsNotifier.clearSelection();
+    _transactionsNotifier.resetToDefaults();
     super.dispose();
   }
 

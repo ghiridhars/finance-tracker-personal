@@ -16,6 +16,7 @@ Priority order:
 """
 import logging
 import re
+import threading
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -101,19 +102,22 @@ _MCC_RE = re.compile(r"/(\d{4})\s*$")
 
 
 _MCC_CACHE: dict[str, int] | None = None
+_MCC_LOCK = threading.Lock()
 
 def clear_mcc_cache() -> None:
     """Clear the in-memory MCC cache, e.g., if codes are updated via API."""
     global _MCC_CACHE
-    _MCC_CACHE = None
+    with _MCC_LOCK:
+        _MCC_CACHE = None
 
 def _get_cached_mcc_category_id(db: Session, mcc: str) -> Optional[int]:
     global _MCC_CACHE
-    if _MCC_CACHE is None:
-        _MCC_CACHE = {}
-        for row in db.query(MccCategory).all():
-            _MCC_CACHE[row.mcc_code] = row.category_id
-    return _MCC_CACHE.get(mcc)
+    with _MCC_LOCK:
+        if _MCC_CACHE is None:
+            _MCC_CACHE = {}
+            for row in db.query(MccCategory).all():
+                _MCC_CACHE[row.mcc_code] = row.category_id
+        return _MCC_CACHE.get(mcc)
 
 
 def _match_mcc_code(
@@ -336,6 +340,7 @@ def auto_categorize(
 def categorize_and_normalize(
     db: Session,
     description: str | None,
+    keywords: list | None = None,
 ) -> tuple[Optional[int], Optional[str], bool]:
     """
     Convenience function: returns (category_id, merchant_name, is_own_transfer).
@@ -344,9 +349,10 @@ def categorize_and_normalize(
       1. UPI ID match (exact match against learned mapped handles or own handles)
       2. MCC code (4-digit merchant category code from transaction description)
       3. Keyword match (substring search of DB keywords in description)
+
+    Pass pre-fetched `keywords` to avoid repeated DB queries during bulk operations.
     """
     is_own_transfer = False
-    keywords = None
     category_id = None
 
     # 1. Try UPI-based categorization first (includes learned mappings)

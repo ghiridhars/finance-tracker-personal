@@ -40,6 +40,9 @@ env/
 # Pytest / Coverage
 .pytest_cache/
 htmlcov/
+
+# ─── LLM model files ───────────────────────────────
+backend/models/*.gguf
 .coverage
 .coverage.*
 coverage.xml

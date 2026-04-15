@@ -12,11 +12,13 @@ so auth works independently of the financial data layer.
 """
 import json
 import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -65,12 +67,17 @@ def _load_credentials() -> Optional[dict]:
 
 
 def _save_credentials(username: str, hashed_password: str) -> None:
-    """Persist credentials to disk."""
+    """Persist credentials to disk with restricted permissions."""
     _CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
     data = {"username": username, "hashed_password": hashed_password}
     _CREDENTIALS_FILE.write_text(
         json.dumps(data), encoding="utf-8"
     )
+    try:
+        import os
+        os.chmod(_CREDENTIALS_FILE, 0o600)
+    except OSError:
+        logger.warning("Could not restrict credentials file permissions")
 
 
 def _is_registered() -> bool:
@@ -133,6 +140,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     return username
 
 
+# ── Simple login rate limiter ────────────────────────────────
+_LOGIN_ATTEMPTS: dict[str, list[float]] = defaultdict(list)
+_MAX_ATTEMPTS = 5       # per window
+_WINDOW_SECONDS = 300   # 5 minutes
+
+
+def _check_rate_limit(client_ip: str) -> None:
+    """Raise 429 if too many login attempts from this IP."""
+    now = time.time()
+    attempts = _LOGIN_ATTEMPTS[client_ip]
+    # Prune old entries
+    _LOGIN_ATTEMPTS[client_ip] = [t for t in attempts if now - t < _WINDOW_SECONDS]
+    if len(_LOGIN_ATTEMPTS[client_ip]) >= _MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again later.",
+        )
+    _LOGIN_ATTEMPTS[client_ip].append(now)
+
+
 # ── Auth router ──────────────────────────────────────────────
 auth_router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -164,11 +191,14 @@ def register(body: RegisterRequest):
 
 
 @auth_router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), request: Request = None):
     """
     Authenticate and get a JWT token.
     Uses OAuth2 password flow (username + password form).
     """
+    # Rate limit by client IP
+    client_ip = request.client.host if request and request.client else "unknown"
+    _check_rate_limit(client_ip)
     creds = _load_credentials()
     if creds is None:
         raise HTTPException(

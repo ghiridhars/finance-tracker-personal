@@ -108,7 +108,7 @@ class _MomRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 56,
+            width: 72,
             child: item.changePct != null
                 ? ChangeBadge(pct: item.changePct!, small: true)
                 : const Text('New', textAlign: TextAlign.center,

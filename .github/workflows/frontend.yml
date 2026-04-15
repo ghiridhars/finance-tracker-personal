@@ -54,11 +54,9 @@ jobs:
 
       - name: Analyze code
         run: flutter analyze --no-fatal-infos
-        continue-on-error: true
 
       - name: Run tests
         run: flutter test
-        continue-on-error: true
 
       - name: Build web release
         run: flutter build web --release --base-href "/finance-tracker-personal/"

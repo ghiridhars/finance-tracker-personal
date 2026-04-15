@@ -49,8 +49,11 @@ class ParserService:
         statement_type: StatementType,
     ) -> dict:
         """
-        Unified parse entry point. Uses the generic PDF parser for all banks.
-        Falls back to LLM if generic parsing fails and LLM is enabled.
+        Unified parse entry point.
+
+        Generic PDF parser runs first (fast, reliable for tabular PDFs).
+        LLM fallback kicks in only when generic parsing finds 0 transactions
+        and an LLM provider is configured.
 
         Returns a dict with:
           - success: bool
@@ -71,7 +74,9 @@ class ParserService:
             except Exception:
                 pass
 
-            # Step 1: Generic PDF parser (table → single-line text → multi-line text)
+            llm_enabled = settings.llm_provider.lower() != "none"
+
+            # ── Step 1: Generic PDF parser (fast, reliable for tabular PDFs) ──
             result = parser.parse(tmp_path, statement_type)
 
             if result.success and result.result:
@@ -91,23 +96,31 @@ class ParserService:
             generic_error = result.error_message or "0 transactions found"
             logger.warning(f"Generic parser insufficient ({generic_error}), trying LLM fallback...")
 
-            # Step 2: LLM fallback (if enabled)
-            if settings.llm_provider.lower() != "none" and raw_text:
+            # ── Step 2: LLM fallback (for non-tabular or unusual formats) ─────
+            if llm_enabled and raw_text:
                 try:
                     from app.parsers.llm_parser import parse_with_llm_generic
 
                     llm_result = parse_with_llm_generic(raw_text, bank, statement_type)
                     if llm_result.success and llm_result.result:
                         txn_count = len(getattr(llm_result.result, "transactions", []))
-                        logger.info(f"LLM fallback succeeded: {txn_count} transactions")
-                        return {
-                            "success": True,
-                            "statement": llm_result.result,
-                            "rawText": raw_text,
-                            "parser": "llm",
-                        }
-                    else:
-                        logger.warning(f"LLM fallback failed: {llm_result.error_message}")
+                        if txn_count > 0:
+                            self._apply_account_identity(
+                                llm_result.result, bank, statement_type, raw_text,
+                            )
+                            logger.info(f"LLM fallback succeeded: {txn_count} transactions")
+                            return {
+                                "success": True,
+                                "statement": llm_result.result,
+                                "rawText": raw_text,
+                                "parser": "llm",
+                            }
+                    llm_error = (
+                        llm_result.error_message
+                        if not llm_result.success
+                        else "0 transactions found"
+                    )
+                    logger.warning(f"LLM fallback also failed: {llm_error}")
                 except Exception as e:
                     logger.warning(f"LLM fallback error: {e}")
 

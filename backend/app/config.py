@@ -2,8 +2,14 @@
 Application configuration using pydantic-settings.
 Replaces Spring Boot's application.yml.
 """
+import logging
 from pathlib import Path
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
+
+logger = logging.getLogger(__name__)
+
+_JWT_DEFAULT_SECRET = "CHANGE-ME-set-JWT_SECRET-env-var"
 
 
 class Settings(BaseSettings):
@@ -16,7 +22,7 @@ class Settings(BaseSettings):
     port: int = 8080
 
     # Database - SQLite (replaces H2)
-    database_url: str = "sqlite:///./data/financial-tracker.db"
+    database_url: str = "sqlite:///./data/finance_tracker.db"
 
     # File upload
     max_upload_size_mb: int = 10
@@ -38,15 +44,15 @@ class Settings(BaseSettings):
     data_dir: str = "./data"
 
     # JWT Authentication
-    jwt_secret: str = "CHANGE-ME-set-JWT_SECRET-env-var"  # Set via JWT_SECRET env var
+    jwt_secret: str = _JWT_DEFAULT_SECRET  # Set via JWT_SECRET env var
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 1440  # 24 hours
 
-    # LLM fallback parser
-    llm_provider: str = "none"  # "gemini" | "ollama" | "none"
+    # LLM parser (primary when enabled)
+    llm_provider: str = "ollama"  # "gemini" | "ollama" | "none"
     gemini_api_key: str = ""  # Set via GEMINI_API_KEY env var
     gemini_model: str = "gemini-2.0-flash"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "lfm2-extract"
     ollama_host: str = "http://localhost:11434"
 
     # Google Drive sync
@@ -58,6 +64,15 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+    @model_validator(mode="after")
+    def _warn_default_jwt_secret(self):
+        if self.jwt_secret == _JWT_DEFAULT_SECRET:
+            logger.warning(
+                "⚠️  JWT_SECRET is using the default value. "
+                "Set the JWT_SECRET environment variable before deploying."
+            )
+        return self
 
     @property
     def max_upload_size_bytes(self) -> int:

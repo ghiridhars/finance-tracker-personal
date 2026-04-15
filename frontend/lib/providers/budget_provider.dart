@@ -1,5 +1,7 @@
 /// Budget & Goals state management (Phase 5).
 /// Manages budgets, savings goals, bill reminders, and recurring transactions.
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/budget_models.dart';
 import '../models/category_models.dart';
@@ -278,7 +280,7 @@ class BudgetNotifier extends Notifier<BudgetState> {
   void toggleShowCompletedGoals() {
     state = state.copyWith(
         showCompletedGoals: !state.showCompletedGoals);
-    _reloadGoals();
+    unawaited(_reloadGoals());
   }
 
   Future<void> _reloadGoals() async {
@@ -350,7 +352,7 @@ class BudgetNotifier extends Notifier<BudgetState> {
   void toggleShowPaidReminders() {
     state = state.copyWith(
         showPaidReminders: !state.showPaidReminders);
-    _reloadReminders();
+    unawaited(_reloadReminders());
   }
 
   Future<void> _reloadReminders() async {

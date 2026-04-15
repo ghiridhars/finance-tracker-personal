@@ -199,6 +199,26 @@ class TransferDetectionService:
                 })
         return pairs
 
+    @staticmethod
+    def update_transfer_type(
+        db: Session,
+        transfer_group_id: str,
+        transfer_type: TransferType,
+    ) -> list[UnifiedTransaction]:
+        """Update the transfer type for all transactions in a group."""
+        txns = (
+            db.query(UnifiedTransaction)
+            .filter(UnifiedTransaction.transfer_group_id == transfer_group_id)
+            .all()
+        )
+        if not txns:
+            return []
+
+        for tx in txns:
+            tx.transfer_type = transfer_type
+        db.commit()
+        return txns
+
     # ── Private helpers ──────────────────────────────────────
 
     @staticmethod

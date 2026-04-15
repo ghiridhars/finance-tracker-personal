@@ -28,7 +28,12 @@ class SavingsAccountStatementService:
     """
 
     @staticmethod
-    def save_statement(db: Session, dto: SavingsAccountStatementSchema, bank: str | None = None) -> SavingsAccountStatement:
+    def save_statement(
+        db: Session,
+        dto: SavingsAccountStatementSchema,
+        bank: str | None = None,
+        review_status: str | None = None,
+    ) -> SavingsAccountStatement:
         """
         Save or update a savings account statement.
         Replaces: SavingsAccountStatementService.saveStatement(SavingsAccountStatementDto)
@@ -57,7 +62,7 @@ class SavingsAccountStatementService:
             db.commit()
             db.refresh(existing)
             # Create unified transactions
-            UnifiedTransactionService.create_from_savings(db, existing, bank=bank)
+            UnifiedTransactionService.create_from_savings(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED")
             return existing
 
         # New statement
@@ -69,7 +74,7 @@ class SavingsAccountStatementService:
         logger.info(f"Saved new statement id={statement.id} for account {dto.account_number}")
 
         # Create unified transactions
-        UnifiedTransactionService.create_from_savings(db, statement, bank=bank)
+        UnifiedTransactionService.create_from_savings(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED")
         return statement
 
     @staticmethod

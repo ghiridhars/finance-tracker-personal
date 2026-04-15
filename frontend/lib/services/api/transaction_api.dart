@@ -18,7 +18,8 @@ class TransactionApi {
 
     final uri = Uri.parse('${ApiClient.baseUrl}/api/transactions/savings')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri, headers: ApiClient.headers);
+    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
     }
@@ -37,7 +38,8 @@ class TransactionApi {
 
     final uri = Uri.parse('${ApiClient.baseUrl}/api/transactions/credit-card')
         .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri, headers: ApiClient.headers);
+    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
     }
@@ -78,7 +80,8 @@ class TransactionApi {
 
     final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/transactions')
         .replace(queryParameters: params);
-    final response = await http.get(uri, headers: ApiClient.headers);
+    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch transactions: ${response.body}');
     }
@@ -104,7 +107,8 @@ class TransactionApi {
       Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/$transactionId'),
       headers: ApiClient.jsonHeaders,
       body: jsonEncode(body),
-    );
+    ).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       final detail = ApiClient.extractErrorDetail(response.body);
       throw Exception('Failed to update transaction: $detail');
@@ -117,7 +121,8 @@ class TransactionApi {
     final response = await http.post(
       Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/recategorize'),
       headers: ApiClient.headers,
-    );
+    ).timeout(const Duration(seconds: 120));
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to recategorize: ${response.body}');
     }
@@ -130,7 +135,8 @@ class TransactionApi {
     final response = await http.delete(
       Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/$transactionId'),
       headers: ApiClient.headers,
-    );
+    ).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to delete transaction: ${response.body}');
     }

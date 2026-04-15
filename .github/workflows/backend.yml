@@ -42,12 +42,10 @@ jobs:
       - name: Lint with Ruff
         run: |
           ruff check . --output-format=github
-        continue-on-error: true
 
       - name: Run pytest
         run: |
           python -m pytest --tb=short -q
-        continue-on-error: true
 
       - name: Verify app starts
         run: |

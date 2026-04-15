@@ -25,7 +25,8 @@ EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL data fro
 
 Rules:
 1. Extract ALL transactions — every line with a date and amount is a transaction.
-2. Dates must be in "YYYY-MM-DD" format.
+2. Dates MUST be in "YYYY-MM-DD" format. Convert any date to this format.
+   Example: "05/02/2026" or "05-02-2026" → "2026-02-05". Always use YYYY-MM-DD.
 3. Amounts must be plain numbers (no currency symbols, no commas). Example: 16114.65
 4. Transaction type: "DEBIT" for purchases/charges, "CREDIT" for payments/refunds/cashbacks.
    - Lines marked with "+" or containing "PAYMENT", "CASHBACK", "REFUND" are CREDIT.
@@ -90,15 +91,32 @@ def _json_to_statement(data: dict) -> CreditCardStatementSchema:
     return statement
 
 
+# Date formats LLMs commonly return, ordered by preference
+_DATE_FORMATS = (
+    "%Y-%m-%d",   # ISO 8601 (requested)
+    "%d-%m-%Y",   # DD-MM-YYYY (Indian standard)
+    "%d/%m/%Y",   # DD/MM/YYYY
+    "%m-%d-%Y",   # MM-DD-YYYY (US)
+    "%m/%d/%Y",   # MM/DD/YYYY
+    "%Y/%m/%d",   # YYYY/MM/DD
+    "%d %b %Y",   # 15 Jan 2024
+    "%d %B %Y",   # 15 January 2024
+    "%b %d, %Y",  # Jan 15, 2024
+)
+
+
 def _parse_date(date_str: str) -> Optional[date]:
-    """Parse ISO date string from LLM output."""
+    """Parse date string from LLM output, trying multiple formats."""
     if not date_str:
         return None
-    try:
-        return datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
-    except ValueError:
-        logger.warning(f"LLM returned unparseable date: {date_str}")
-        return None
+    cleaned = date_str.strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+    logger.warning(f"LLM returned unparseable date: {date_str}")
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -108,14 +126,18 @@ def _parse_date(date_str: str) -> Optional[date]:
 SAVINGS_EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL data from this bank savings/current account statement into structured JSON.
 
 Rules:
-1. Extract ALL transactions — every line with a date and amount is a transaction.
-2. Dates must be in "YYYY-MM-DD" format.
-3. Amounts must be plain numbers (no currency symbols, no commas). Example: 16114.65
-4. Transaction type: "DEBIT" for withdrawals, "CREDIT" for deposits.
-5. Extract the reference number if present.
-6. Extract account metadata: account_number, account_holder_name, ifsc_code, branch_name,
+1. Extract EVERY transaction — do not skip any. Every row with a date is a transaction.
+2. Dates MUST be in "YYYY-MM-DD" format. Convert any date to this format.
+   Example: "05-02-2026" → "2026-02-05". Indian dates are DD-MM-YYYY.
+3. Amounts must be plain numbers WITHOUT commas or currency symbols.
+   Indian format "1,12,206.68" → 112206.68. Remove ALL commas.
+4. Transaction type: "DEBIT" if the row has a withdrawal/debit amount, "CREDIT" if it has a deposit/credit amount.
+5. Use the Debit column for withdrawal_amount. Use the Credit column for deposit_amount.
+   Only ONE of these should be set per transaction, the other should be null.
+6. Skip the "Opening Balance" row — it is not a transaction.
+7. Extract account metadata: account_number, account_holder_name, ifsc_code, branch_name,
    from_date (statement start), to_date (statement end), opening_balance, closing_balance.
-7. For each transaction, extract: withdrawal_amount (if debit), deposit_amount (if credit), closing_balance (running balance after transaction).
+8. Keep descriptions short — just the core text, not the full UPI reference.
 
 Return ONLY valid JSON matching this schema:
 {
@@ -147,7 +169,8 @@ This may be from ANY bank (HDFC, ICICI, SBI, Axis, Kotak, Bank of Baroda, Federa
 
 Rules:
 1. Extract ALL transactions — every line with a date and amount is a transaction.
-2. Dates must be in "YYYY-MM-DD" format.
+2. Dates MUST be in "YYYY-MM-DD" format. Convert any date to this format.
+   Example: "05/02/2026" or "05-02-2026" → "2026-02-05". Always use YYYY-MM-DD.
 3. Amounts must be plain numbers (no currency symbols, no commas). Example: 16114.65
 4. Transaction type: "DEBIT" for purchases/charges, "CREDIT" for payments/refunds/cashbacks.
 5. Extract the reference number if present.
@@ -250,7 +273,10 @@ def _call_llm_gemini(system_prompt: str, text: str) -> dict:
             temperature=0.0,
         ),
     )
-    return json.loads(response.text)
+    try:
+        return json.loads(response.text)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"Gemini returned invalid JSON: {e}")
 
 
 def _call_llm_ollama(system_prompt: str, text: str) -> dict:
@@ -267,7 +293,10 @@ def _call_llm_ollama(system_prompt: str, text: str) -> dict:
         format="json",
         options={"temperature": 0.0},
     )
-    return json.loads(response.message.content)
+    try:
+        return json.loads(response.message.content)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"Ollama returned invalid JSON: {e}")
 
 
 def _json_to_savings_statement(data: dict) -> SavingsAccountStatementSchema:

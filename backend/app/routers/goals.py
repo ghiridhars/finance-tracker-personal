@@ -30,13 +30,10 @@ def list_goals(
 
 @router.get("/{goal_id}")
 def get_goal(goal_id: int, db: Session = Depends(get_db)):
-    goal = SavingsGoalService.get_by_id(db, goal_id)
-    if not goal:
+    result = SavingsGoalService.get_by_id_with_progress(db, goal_id)
+    if not result:
         raise HTTPException(status_code=404, detail="Goal not found")
-    # Return as dict with progress
-    goals = SavingsGoalService.list_goals(db)
-    match = next((g for g in goals if g["id"] == goal_id), None)
-    return match or goal
+    return result
 
 
 @router.post("")
@@ -51,7 +48,7 @@ def create_goal(data: SavingsGoalCreate, db: Session = Depends(get_db)):
         color=data.color,
         notes=data.notes,
     )
-    return SavingsGoalService.list_goals(db)[-1]  # Return with computed fields
+    return SavingsGoalService.get_by_id_with_progress(db, goal.id)
 
 
 @router.patch("/{goal_id}")
@@ -60,8 +57,7 @@ def update_goal(goal_id: int, data: SavingsGoalUpdate, db: Session = Depends(get
     goal = SavingsGoalService.update(db, goal_id, **kwargs)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    goals = SavingsGoalService.list_goals(db)
-    return next((g for g in goals if g["id"] == goal_id), None)
+    return SavingsGoalService.get_by_id_with_progress(db, goal_id)
 
 
 @router.post("/{goal_id}/contribute")
@@ -71,8 +67,7 @@ def contribute(goal_id: int, amount: float = Query(..., gt=0), db: Session = Dep
     goal = SavingsGoalService.contribute(db, goal_id, Decimal(str(amount)))
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    goals = SavingsGoalService.list_goals(db)
-    return next((g for g in goals if g["id"] == goal_id), None)
+    return SavingsGoalService.get_by_id_with_progress(db, goal_id)
 
 
 @router.delete("/{goal_id}")

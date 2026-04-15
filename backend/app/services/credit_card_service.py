@@ -29,7 +29,12 @@ class CreditCardStatementService:
     """
 
     @staticmethod
-    def save_statement(db: Session, dto: CreditCardStatementSchema, bank: str | None = None) -> CreditCardStatement:
+    def save_statement(
+        db: Session,
+        dto: CreditCardStatementSchema,
+        bank: str | None = None,
+        review_status: str | None = None,
+    ) -> CreditCardStatement:
         """
         Save or update a credit card statement.
         Replaces: CreditCardStatementService.saveStatement(CreditCardStatementDto)
@@ -57,7 +62,7 @@ class CreditCardStatementService:
             db.commit()
             db.refresh(existing)
             # Create unified transactions
-            UnifiedTransactionService.create_from_credit_card(db, existing, bank=bank)
+            UnifiedTransactionService.create_from_credit_card(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED")
             return existing
 
         # New statement
@@ -69,7 +74,7 @@ class CreditCardStatementService:
         logger.info(f"Saved new statement id={statement.id} for card {dto.card_number}")
 
         # Create unified transactions
-        UnifiedTransactionService.create_from_credit_card(db, statement, bank=bank)
+        UnifiedTransactionService.create_from_credit_card(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED")
         return statement
 
     @staticmethod

@@ -50,3 +50,11 @@ class TransferType(str, enum.Enum):
     """Type of inter-account transfer."""
     INTERNAL_TRANSFER = "INTERNAL_TRANSFER"
     CC_BILL_PAYMENT = "CC_BILL_PAYMENT"
+
+
+class ReviewStatus(str, enum.Enum):
+    """Parse confidence / review lifecycle for transactions."""
+    AUTO_PARSED = "AUTO_PARSED"      # Generic parser succeeded
+    LLM_PARSED = "LLM_PARSED"       # LLM fallback was used
+    NEEDS_REVIEW = "NEEDS_REVIEW"    # Low confidence or parse issues
+    REVIEWED = "REVIEWED"            # Manually verified by user

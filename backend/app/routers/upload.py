@@ -40,15 +40,22 @@ def list_supported_banks():
 
     return {
         "registered_parsers": registered,
-        "llm_fallback_enabled": llm_enabled,
+        "llm_enabled": llm_enabled,
         "llm_provider": settings.llm_provider if llm_enabled else None,
+        "llm_model": (
+            settings.ollama_model
+            if settings.llm_provider.lower() == "ollama"
+            else settings.gemini_model
+            if settings.llm_provider.lower() == "gemini"
+            else None
+        ),
         "supported_banks": [b.value for b in BankType],
         "supported_statement_types": [s.value for s in StatementType],
-        "note": "Banks with registered parsers use fast regex parsing. "
-                "All other banks use LLM-based parsing as fallback."
+        "note": "Generic PDF parser runs first for speed and accuracy. "
+                "LLM fallback handles non-tabular formats."
                 if llm_enabled
-                else "Only banks with registered parsers are supported. "
-                     "Enable LLM_PROVIDER for universal bank support.",
+                else "LLM is disabled. Using generic PDF parser only. "
+                     "Set LLM_PROVIDER=ollama for fallback on unusual formats.",
     }
 
 
@@ -68,8 +75,8 @@ async def upload_statement_v2(
     Unified statement upload endpoint.
 
     Accepts any bank + statement type combination.
-    Uses the generic PDF parser (table extraction + text fallback)
-    with optional LLM fallback if enabled.
+    Generic PDF parser runs first for speed. LLM fallback (if enabled)
+    handles non-tabular or unusual statement formats.
 
     Query params:
       - bank: HDFC, ICICI, SBI, AXIS, KOTAK, YES_BANK, BOB, FEDERAL_BANK, OTHER
@@ -100,6 +107,22 @@ async def upload_statement_v2(
 
     try:
         content = await file.read()
+
+        # Server-side file size check
+        from app.config import settings as app_settings
+        if len(content) > app_settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Max: {app_settings.max_upload_size_mb}MB",
+            )
+
+        # Magic bytes validation: PDF files start with %PDF
+        if not content[:5].startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=415,
+                detail="File content is not a valid PDF",
+            )
+
         result = await parser_service.parse_statement(
             content, file.filename or "upload.pdf", bank_type, statement_type
         )
@@ -118,7 +141,13 @@ async def upload_statement_v2(
 
         # Save to DB if requested
         if save:
-            statement = _save_statement(db, statement, statement_type, bank=bank_type.value)
+            # Determine review_status from parser used
+            parser_used = result.get("parser", "unknown")
+            if "llm" in parser_used.lower():
+                review_status = "LLM_PARSED"
+            else:
+                review_status = "AUTO_PARSED"
+            statement = _save_statement(db, statement, statement_type, bank=bank_type.value, review_status=review_status)
 
         return {
             "success": True,
@@ -137,12 +166,12 @@ async def upload_statement_v2(
         raise HTTPException(status_code=500, detail=f"Error processing statement: {e}")
 
 
-def _save_statement(db: Session, statement, statement_type: StatementType, bank: str | None = None):
+def _save_statement(db: Session, statement, statement_type: StatementType, bank: str | None = None, review_status: str | None = None):
     """Save parsed statement to the appropriate table."""
     if statement_type == StatementType.CREDIT_CARD:
-        return CreditCardStatementService.save_statement(db, statement, bank=bank)
+        return CreditCardStatementService.save_statement(db, statement, bank=bank, review_status=review_status)
     elif statement_type == StatementType.SAVINGS:
-        return SavingsAccountStatementService.save_statement(db, statement, bank=bank)
+        return SavingsAccountStatementService.save_statement(db, statement, bank=bank, review_status=review_status)
     else:
         raise ValueError(f"Cannot save statement type: {statement_type.value}")
 

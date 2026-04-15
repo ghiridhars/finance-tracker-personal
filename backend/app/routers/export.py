@@ -81,10 +81,17 @@ def export_transactions(
         )
 
 
+def _sanitize_csv_field(value: str) -> str:
+    """Escape formula-injection characters for CSV export."""
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{value}"
+    return value
+
+
 def _export_csv(transactions, from_date, to_date):
     """Generate CSV file from transactions."""
     output = io.StringIO()
-    writer = csv.writer(output)
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
 
     # Header row
     writer.writerow([
@@ -103,14 +110,14 @@ def _export_csv(transactions, from_date, to_date):
     for tx in transactions:
         writer.writerow([
             str(tx.date) if tx.date else "",
-            tx.description or "",
-            tx.merchant_name or "",
+            _sanitize_csv_field(tx.description or ""),
+            _sanitize_csv_field(tx.merchant_name or ""),
             str(tx.amount) if tx.amount else "0",
             tx.type.value if tx.type else "",
             tx.category.name if tx.category else "",
             tx.bank or "",
             tx.source_type.value if tx.source_type else "",
-            tx.reference_number or "",
+            _sanitize_csv_field(tx.reference_number or ""),
         ])
 
     output.seek(0)

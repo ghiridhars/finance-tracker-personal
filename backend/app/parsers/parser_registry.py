@@ -69,11 +69,13 @@ def has_parser(bank: BankType, statement_type: StatementType) -> bool:
 
 
 def _register_builtin_parsers() -> None:
-    """Register all built-in parsers. Called once at module load."""
-    # Bank-specific parsers can be registered here when needed.
-    # The GenericPdfParser handles most banks via its three strategies:
-    #   1. Table extraction  2. Single-line text  3. Multi-line text
-    pass
+    """
+    Register built-in parsers.
+
+    Currently none: GenericPdfParser handles all banks via its three
+    strategies (table, single-line, multi-line). Bank-specific parsers
+    can be registered here when needed to override generic behavior.
+    """
 
 
 # Auto-register built-in parsers on import

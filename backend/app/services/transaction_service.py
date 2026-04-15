@@ -12,11 +12,13 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.transaction import UnifiedTransaction
 from app.models.tag import Tag, TransactionTag
-from app.models.enums import TransactionType, SourceType
+from app.models.enums import TransactionType, SourceType, ReviewStatus
+from app.models.category import CategoryKeyword
 from app.models.credit_card import CreditCardStatement, CreditCardTransaction
 from app.models.savings_account import SavingsAccountStatement, SavingsAccountTransaction
 from app.services.categorization_service import categorize_and_normalize
@@ -34,25 +36,17 @@ class UnifiedTransactionService:
         db: Session,
         statement: CreditCardStatement,
         bank: str | None = None,
+        review_status: str = ReviewStatus.AUTO_PARSED.value,
     ) -> list[UnifiedTransaction]:
         """
         Create unified transaction rows for each credit card transaction.
         Upserts: skips rows that already exist (source_type + source_transaction_id).
         """
         created: list[UnifiedTransaction] = []
+        keywords = db.query(CategoryKeyword).all()
+        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
         for tx in statement.transactions:
-            existing = (
-                db.query(UnifiedTransaction)
-                .filter(
-                    UnifiedTransaction.source_type == SourceType.CREDIT_CARD,
-                    UnifiedTransaction.source_transaction_id == tx.id,
-                )
-                .first()
-            )
-            if existing:
-                continue
-
-            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description)
+            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
 
             unified = UnifiedTransaction(
                 date=tx.date,
@@ -67,9 +61,17 @@ class UnifiedTransactionService:
                 merchant_name=merchant_name,
                 reference_number=tx.reference_number,
                 is_transfer=is_own_transfer,
+                review_status=review_status,
             )
-            db.add(unified)
-            created.append(unified)
+            try:
+                db.add(unified)
+                db.flush()
+                created.append(unified)
+            except IntegrityError:
+                db.rollback()
+                logger.debug(
+                    f"Skipped duplicate CC transaction source_id={tx.id}"
+                )
 
         if created:
             db.commit()
@@ -88,24 +90,15 @@ class UnifiedTransactionService:
         db: Session,
         statement: SavingsAccountStatement,
         bank: str | None = None,
+        review_status: str = ReviewStatus.AUTO_PARSED.value,
     ) -> list[UnifiedTransaction]:
         """
         Create unified transaction rows for each savings transaction.
         """
         created: list[UnifiedTransaction] = []
+        keywords = db.query(CategoryKeyword).all()
+        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
         for tx in statement.transactions:
-            existing = (
-                db.query(UnifiedTransaction)
-                .filter(
-                    UnifiedTransaction.source_type == SourceType.SAVINGS,
-                    UnifiedTransaction.source_transaction_id == tx.id,
-                )
-                .first()
-            )
-            if existing:
-                continue
-
-            # Normalize amount: always positive, type indicates direction
             if tx.withdrawal_amount and tx.withdrawal_amount > 0:
                 amount = abs(tx.withdrawal_amount)
                 tx_type = TransactionType.DEBIT
@@ -116,7 +109,7 @@ class UnifiedTransactionService:
                 amount = Decimal("0")
                 tx_type = tx.type
 
-            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description)
+            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
 
             unified = UnifiedTransaction(
                 date=tx.date,
@@ -131,9 +124,17 @@ class UnifiedTransactionService:
                 merchant_name=merchant_name,
                 reference_number=tx.reference_number,
                 is_transfer=is_own_transfer,
+                review_status=review_status,
             )
-            db.add(unified)
-            created.append(unified)
+            try:
+                db.add(unified)
+                db.flush()
+                created.append(unified)
+            except IntegrityError:
+                db.rollback()
+                logger.debug(
+                    f"Skipped duplicate savings transaction source_id={tx.id}"
+                )
 
         if created:
             db.commit()
@@ -328,11 +329,14 @@ class UnifiedTransactionService:
         Returns count of transactions updated.
         """
         from app.services.categorization_service import categorize_and_normalize
+        from app.models.category import CategoryKeyword
 
         transactions = db.query(UnifiedTransaction).all()
+        keywords = db.query(CategoryKeyword).all()
+        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
         updated = 0
         for tx in transactions:
-            new_cat_id, new_merchant, is_own_transfer = categorize_and_normalize(db, tx.description)
+            new_cat_id, new_merchant, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
             changed = False
             if new_cat_id and tx.category_id != new_cat_id:
                 tx.category_id = new_cat_id

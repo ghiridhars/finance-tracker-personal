@@ -25,8 +25,8 @@ router = APIRouter(prefix="/api/v2/budgets", tags=["Budgets"])
 
 @router.get("")
 def list_budgets(
-    year: int = Query(default=None),
-    month: int = Query(default=None),
+    year: int = Query(default=None, ge=2000, le=2100),
+    month: int = Query(default=None, ge=1, le=12),
     db: Session = Depends(get_db),
 ):
     """List budgets for a given month (defaults to current month)."""
@@ -39,8 +39,8 @@ def list_budgets(
 
 @router.get("/progress")
 def budget_progress(
-    year: int = Query(default=None),
-    month: int = Query(default=None),
+    year: int = Query(default=None, ge=2000, le=2100),
+    month: int = Query(default=None, ge=1, le=12),
     db: Session = Depends(get_db),
 ):
     """Get budget vs actual spending for each category."""
@@ -52,8 +52,8 @@ def budget_progress(
 
 @router.get("/summary")
 def budget_summary(
-    year: int = Query(default=None),
-    month: int = Query(default=None),
+    year: int = Query(default=None, ge=2000, le=2100),
+    month: int = Query(default=None, ge=1, le=12),
     db: Session = Depends(get_db),
 ):
     """Overall budget summary: total budgeted, total spent, per-category breakdown."""
@@ -83,10 +83,10 @@ def create_budget(data: BudgetCreate, db: Session = Depends(get_db)):
 
 @router.post("/copy")
 def copy_budgets(
-    from_year: int = Query(...),
-    from_month: int = Query(...),
-    to_year: int = Query(...),
-    to_month: int = Query(...),
+    from_year: int = Query(..., ge=2000, le=2100),
+    from_month: int = Query(..., ge=1, le=12),
+    to_year: int = Query(..., ge=2000, le=2100),
+    to_month: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
 ):
     """Copy all budgets from one month to another."""

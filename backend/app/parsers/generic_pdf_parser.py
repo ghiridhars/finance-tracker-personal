@@ -24,6 +24,7 @@ from typing import Optional
 import fitz  # pymupdf — fast text extraction
 import pdfplumber  # table extraction
 
+from app.config import settings
 from app.models.enums import StatementType, TransactionType
 from app.parsers.base_parser import ParseException, ParseResult
 from app.parsers.patterns import (
@@ -83,13 +84,13 @@ class GenericPdfParser:
             # Strategy 2 & 3: text-based parsing (pymupdf — faster text)
             raw_text = self.extract_raw_text(file_path)
 
-            # Temporary: dump text for debugging parse failures
-            try:
-                _dbg = Path(file_path).parent / "last_parsed_text.txt"
-                _dbg.write_text(raw_text, encoding="utf-8")
-                logger.info(f"Dumped extracted text to {_dbg}")
-            except Exception:
-                pass
+            if settings.debug:
+                try:
+                    _dbg = Path(file_path).parent / "last_parsed_text.txt"
+                    _dbg.write_text(raw_text, encoding="utf-8")
+                    logger.debug(f"Dumped extracted text to {_dbg}")
+                except Exception:
+                    pass
 
             result = self._try_text_strategy(raw_text, statement_type)
             if result and result.success:
