@@ -3,7 +3,7 @@
 ///
 /// Routes:
 ///   /                    → Dashboard
-///   /upload              → Statement Upload
+///   /import              → Import Data (upload + directory)
 ///   /accounts            → Accounts & Statements
 ///   /budget              → Budget & Goals
 ///   /settings            → Settings
@@ -12,21 +12,20 @@ import 'package:go_router/go_router.dart';
 import 'screens/app_shell.dart';
 import 'screens/calendar_screen.dart';
 import 'widgets/dashboard_widget.dart';
-import 'widgets/statement_upload_widget.dart';
+import 'screens/import_screen.dart';
 import 'widgets/accounts_widget.dart';
 import 'widgets/budget_goals_widget.dart';
 import 'screens/settings_screen.dart';
-import 'screens/local_sync_screen.dart';
 
 /// Route path constants for type-safe navigation.
 class AppRoutes {
   static const dashboard = '/';
   static const calendar = '/calendar';
   static const upload = '/upload';
+  static const import_ = '/import';
   static const accounts = '/accounts';
   static const budget = '/budget';
   static const settings = '/settings';
-  static const localSync = '/local-sync';
 }
 
 /// Navigation destination metadata used by both the shell and router.
@@ -59,10 +58,10 @@ const List<NavDestination> navDestinations = [
     path: AppRoutes.calendar,
   ),
   NavDestination(
-    label: 'Upload',
-    icon: Icons.upload_file_outlined,
-    selectedIcon: Icons.upload_file,
-    path: AppRoutes.upload,
+    label: 'Import',
+    icon: Icons.publish_outlined,
+    selectedIcon: Icons.publish,
+    path: AppRoutes.import_,
   ),
   NavDestination(
     label: 'Accounts',
@@ -75,12 +74,6 @@ const List<NavDestination> navDestinations = [
     icon: Icons.savings_outlined,
     selectedIcon: Icons.savings,
     path: AppRoutes.budget,
-  ),
-  NavDestination(
-    label: 'Local Import',
-    icon: Icons.folder_open_outlined,
-    selectedIcon: Icons.folder_open,
-    path: AppRoutes.localSync,
   ),
   NavDestination(
     label: 'Settings',
@@ -110,10 +103,15 @@ final GoRouter router = GoRouter(
           ),
         ),
         GoRoute(
-          path: AppRoutes.upload,
+          path: AppRoutes.import_,
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: StatementUploadWidget(),
+            child: ImportScreen(),
           ),
+        ),
+        // Legacy redirect: /upload → /import
+        GoRoute(
+          path: AppRoutes.upload,
+          redirect: (_, __) => AppRoutes.import_,
         ),
         GoRoute(
           path: AppRoutes.accounts,
@@ -125,12 +123,6 @@ final GoRouter router = GoRouter(
           path: AppRoutes.budget,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: BudgetGoalsWidget(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.localSync,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: LocalSyncScreen(),
           ),
         ),
         GoRoute(

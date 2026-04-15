@@ -1,10 +1,11 @@
-/// Widget test for Local Sync Screen — verifies UI structure and interactions.
+/// Widget test for Import Screen — verifies directory-import UI structure and interactions.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:finance_tracker_frontend/providers/local_sync_provider.dart';
-import 'package:finance_tracker_frontend/screens/local_sync_screen.dart';
+import 'package:finance_tracker_frontend/providers/statements_provider.dart';
+import 'package:finance_tracker_frontend/screens/import_screen.dart';
 
 /// A test notifier that exposes state without making API calls.
 class MockLocalSyncNotifier extends Notifier<LocalSyncState>
@@ -61,6 +62,29 @@ class MockLocalSyncNotifier extends Notifier<LocalSyncState>
   Future<void> resetFiles({List<String>? filepaths}) async {}
 }
 
+/// A test notifier for upload state that does nothing.
+class MockStatementsNotifier extends Notifier<UploadState>
+    implements StatementsNotifier {
+  @override
+  UploadState build() => const UploadState(backendReachable: true);
+
+  @override
+  Future<void> checkBackend() async {}
+
+  @override
+  void clearResult() {}
+
+  @override
+  Future<void> uploadV2({
+    required List<int> fileBytes,
+    required String fileName,
+    required String bank,
+    required String statementType,
+    bool save = true,
+    bool isCsv = false,
+  }) async {}
+}
+
 Widget _wrap(Widget child, {required List<dynamic> overrides}) {
   return ProviderScope(
     overrides: overrides.cast(),
@@ -73,6 +97,29 @@ Widget _wrap(Widget child, {required List<dynamic> overrides}) {
       ),
     ),
   );
+}
+
+/// Helper to build ImportScreen with both providers mocked and directory tab selected.
+Future<void> _pumpImport(
+  WidgetTester tester, {
+  required MockLocalSyncNotifier syncNotifier,
+  bool switchToDirectory = true,
+}) async {
+  await tester.pumpWidget(
+    _wrap(
+      const ImportScreen(),
+      overrides: [
+        localSyncProvider.overrideWith(() => syncNotifier),
+        statementsProvider.overrideWith(() => MockStatementsNotifier()),
+      ],
+    ),
+  );
+  await tester.pump();
+
+  if (switchToDirectory) {
+    await tester.tap(find.text('Directory Import'));
+    await tester.pump();
+  }
 }
 
 LocalSyncFile _makeFile({
@@ -106,21 +153,11 @@ void _setWideView(WidgetTester tester) {
 }
 
 void main() {
-  group('LocalSyncScreen', () {
+  group('ImportScreen — Directory Mode', () {
     testWidgets('shows path configuration section', (tester) async {
       _setWideView(tester);
+      await _pumpImport(tester, syncNotifier: MockLocalSyncNotifier());
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => MockLocalSyncNotifier()),
-          ],
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Local Directory Import'), findsOneWidget);
       expect(find.text('Directory Path'), findsOneWidget);
     });
 
@@ -130,15 +167,7 @@ void main() {
         const LocalSyncState(configuredPath: '/tmp/statements', pathExists: true),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('Scan for Files'), findsOneWidget);
       expect(find.text('Path configured'), findsOneWidget);
@@ -159,15 +188,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('2 files found'), findsOneWidget);
       expect(find.text('hdfc_cc_jan.pdf'), findsOneWidget);
@@ -191,15 +212,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('Import Selected (1)'), findsOneWidget);
     });
@@ -221,15 +234,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('Importing...'), findsWidgets);
       expect(find.textContaining('Processing 2 of 5'), findsOneWidget);
@@ -249,15 +254,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('Import Complete'), findsOneWidget);
       expect(find.text('10 processed'), findsOneWidget);
@@ -271,15 +268,7 @@ void main() {
         const LocalSyncState(error: 'Something went wrong'),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('Something went wrong'), findsOneWidget);
     });
@@ -298,18 +287,29 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(
-        _wrap(
-          const LocalSyncScreen(),
-          overrides: [
-            localSyncProvider.overrideWith(() => notifier),
-          ],
-        ),
-      );
-      await tester.pump();
+      await _pumpImport(tester, syncNotifier: notifier);
 
       expect(find.text('old.pdf'), findsOneWidget);
       expect(find.text('1 already processed'), findsOneWidget);
+    });
+
+    testWidgets('mode toggle switches between upload and directory', (tester) async {
+      _setWideView(tester);
+      await _pumpImport(
+        tester,
+        syncNotifier: MockLocalSyncNotifier(),
+        switchToDirectory: false,
+      );
+
+      // Upload mode is default — should show upload-specific UI
+      expect(find.text('Upload & Parse'), findsOneWidget);
+
+      // Switch to directory mode
+      await tester.tap(find.text('Directory Import'));
+      await tester.pump();
+
+      // Now should show directory-specific UI
+      expect(find.text('Directory Path'), findsOneWidget);
     });
   });
 }
