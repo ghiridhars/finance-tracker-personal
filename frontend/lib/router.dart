@@ -16,6 +16,7 @@ import 'widgets/statement_upload_widget.dart';
 import 'widgets/accounts_widget.dart';
 import 'widgets/budget_goals_widget.dart';
 import 'screens/settings_screen.dart';
+import 'screens/local_sync_screen.dart';
 
 /// Route path constants for type-safe navigation.
 class AppRoutes {
@@ -25,6 +26,7 @@ class AppRoutes {
   static const accounts = '/accounts';
   static const budget = '/budget';
   static const settings = '/settings';
+  static const localSync = '/local-sync';
 }
 
 /// Navigation destination metadata used by both the shell and router.
@@ -75,6 +77,12 @@ const List<NavDestination> navDestinations = [
     path: AppRoutes.budget,
   ),
   NavDestination(
+    label: 'Local Import',
+    icon: Icons.folder_open_outlined,
+    selectedIcon: Icons.folder_open,
+    path: AppRoutes.localSync,
+  ),
+  NavDestination(
     label: 'Settings',
     icon: Icons.settings_outlined,
     selectedIcon: Icons.settings,
@@ -117,6 +125,12 @@ final GoRouter router = GoRouter(
           path: AppRoutes.budget,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: BudgetGoalsWidget(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.localSync,
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: LocalSyncScreen(),
           ),
         ),
         GoRoute(

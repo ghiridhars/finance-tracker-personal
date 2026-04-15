@@ -16,6 +16,7 @@ export 'api/export_api.dart';
 export 'api/transfers_api.dart';
 export 'api/upi_api.dart';
 export 'api/admin_api.dart';
+export 'api/local_sync_api.dart';
 
 import 'api/api_client.dart';
 import 'api/transaction_api.dart';
@@ -26,6 +27,7 @@ import 'api/budget_api.dart';
 import 'api/export_api.dart';
 import 'api/transfers_api.dart';
 import 'api/upi_api.dart';
+import 'api/local_sync_api.dart';
 
 import '../models/savings_models.dart';
 import '../models/credit_card_models.dart';
@@ -283,4 +285,20 @@ class ApiService {
   static Future<void> deleteUpiId(int upiId) => UpiApi.deleteUpiId(upiId);
   static Future<UpiRescanResult> rescanUpiTransactions() =>
       UpiApi.rescanTransactions();
+
+  // ── Local Directory Sync ──────────────────────────────────
+
+  static Future<Map<String, dynamic>> getLocalSyncStatus() =>
+      LocalSyncApi.getStatus();
+  static Future<Map<String, dynamic>> configureLocalSyncPath(String path) =>
+      LocalSyncApi.configurePath(path);
+  static Future<Map<String, dynamic>> getLocalSyncFiles({String? path}) =>
+      LocalSyncApi.listFiles(path: path);
+  static Future<Map<String, dynamic>> startLocalScan({
+    required List<Map<String, String>> files, bool force = false,
+  }) => LocalSyncApi.startScan(files: files, force: force);
+  static Future<Map<String, dynamic>> getLocalScanStatus(String jobId) =>
+      LocalSyncApi.getScanStatus(jobId);
+  static Future<Map<String, dynamic>> resetLocalSyncState({List<String>? filepaths}) =>
+      LocalSyncApi.resetState(filepaths: filepaths);
 }

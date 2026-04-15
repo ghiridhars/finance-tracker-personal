@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     gdrive_folder_id: str = ""  # Google Drive folder ID to watch
     gdrive_poll_interval_minutes: int = 60  # Auto-sync interval (0 = disabled)
 
+    # Local directory sync
+    local_sync_path: str = ""  # Local folder path containing statement files
+    local_sync_max_files: int = 500  # Max files to return per scan
+    local_sync_allowed_roots: str = ""  # Comma-separated allowed root dirs (empty = home + data_dir)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

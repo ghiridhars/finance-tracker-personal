@@ -35,6 +35,7 @@ from app.routers import (
     transfers_router,
     upi_router,
     admin_router,
+    local_sync_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -182,6 +183,7 @@ for protected_router in [
     transfers_router,
     upi_router,
     admin_router,
+    local_sync_router,
 ]:
     # Inject auth dependency into every route of each protected router
     protected_router.dependencies.append(Depends(get_current_user))

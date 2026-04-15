@@ -25,26 +25,28 @@ class AccountsWidget extends ConsumerStatefulWidget {
 }
 
 class _AccountsWidgetState extends ConsumerState<AccountsWidget> {
-  // Save notifier references for safe use in dispose()
-  late final _accountsNotifier = ref.read(accountsProvider.notifier);
-  late final _transactionsNotifier = ref.read(unifiedTransactionsProvider.notifier);
+  // Eagerly cached in initState so dispose() never touches ref.
+  late final AccountsNotifier _accountsNotifier;
+  late final UnifiedTransactionsNotifier _transactionsNotifier;
 
   @override
   void initState() {
     super.initState();
+    _accountsNotifier = ref.read(accountsProvider.notifier);
+    _transactionsNotifier = ref.read(unifiedTransactionsProvider.notifier);
     // Load accounts on first build
     Future.microtask(() {
-      ref.read(accountsProvider.notifier).loadAccounts();
+      _accountsNotifier.loadAccounts();
     });
   }
 
   @override
   void dispose() {
-    // Fix #5: clean up filters when navigating away from Accounts tab
-    // so they don't leak into other tabs sharing the same provider.
-    // Use saved notifier references since ref is unsafe in dispose().
-    _accountsNotifier.clearSelection();
-    _transactionsNotifier.resetToDefaults();
+    // Defer provider mutations past the widget tree finalization phase.
+    Future(() {
+      _accountsNotifier.clearSelection();
+      _transactionsNotifier.resetToDefaults();
+    });
     super.dispose();
   }
 

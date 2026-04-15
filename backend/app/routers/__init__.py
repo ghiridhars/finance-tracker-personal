@@ -14,6 +14,7 @@ from app.routers.gdrive import router as gdrive_router
 from app.routers.transfers import router as transfers_router
 from app.routers.upi import router as upi_router
 from app.routers.admin import router as admin_router
+from app.routers.local_sync import router as local_sync_router
 
 __all__ = [
     "health_router",
@@ -32,4 +33,5 @@ __all__ = [
     "transfers_router",
     "upi_router",
     "admin_router",
+    "local_sync_router",
 ]

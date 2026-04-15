@@ -64,36 +64,11 @@ def _infer_file_type(filename: str) -> tuple[str, str]:
     """
     Infer bank and statement type from filename conventions.
 
-    Expected naming patterns (case-insensitive):
-      - {BANK}_credit_card*.pdf  → (BANK, CREDIT_CARD)
-      - {BANK}_savings*.pdf      → (BANK, SAVINGS)
-      - {BANK}_cc*.pdf           → (BANK, CREDIT_CARD)
-      - {BANK}*.csv              → (BANK, SAVINGS) [default for CSV]
-
-    Falls back to (OTHER, SAVINGS) if pattern doesn't match.
+    Delegates to the shared utility in app.utils.file_utils.
+    Kept as a local wrapper for backward compatibility within this module.
     """
-    from app.models.enums import BankType
-
-    name = filename.lower().replace(" ", "_")
-    stem = Path(name).stem
-
-    # Try to extract bank from the beginning of the filename
-    detected_bank = "OTHER"
-    for bank in BankType:
-        if stem.startswith(bank.value.lower()):
-            detected_bank = bank.value
-            break
-
-    # Detect statement type
-    if any(kw in stem for kw in ("credit_card", "creditcard", "_cc_", "_cc.")):
-        detected_type = "CREDIT_CARD"
-    elif any(kw in stem for kw in ("savings", "saving", "current")):
-        detected_type = "SAVINGS"
-    else:
-        # Default: credit card for PDF, savings for CSV
-        detected_type = "CREDIT_CARD" if name.endswith(".pdf") else "SAVINGS"
-
-    return detected_bank, detected_type
+    from app.utils.file_utils import infer_file_type
+    return infer_file_type(filename)
 
 
 def get_sync_status() -> dict:
