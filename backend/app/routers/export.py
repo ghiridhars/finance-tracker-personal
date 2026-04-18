@@ -151,10 +151,10 @@ def clear_all_data(db: Session = Depends(get_db)):
     Delete ALL user data: transactions, statements, accounts, budgets,
     goals, reminders, and recurring patterns. Categories are preserved.
     """
-    from app.models.savings_account import SavingsAccountTransaction, SavingsAccountStatement
-    from app.models.credit_card import CreditCardTransaction, CreditCardStatement
     from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransaction
     from app.models.transaction import UnifiedTransaction
+    from app.models.statement_audit import StatementAudit
+    from app.models.bank_account import BankAccount
 
     tables_to_clear = [
         RecurringTransaction,
@@ -162,10 +162,8 @@ def clear_all_data(db: Session = Depends(get_db)):
         SavingsGoal,
         Budget,
         UnifiedTransaction,
-        CreditCardTransaction,
-        SavingsAccountTransaction,
-        CreditCardStatement,
-        SavingsAccountStatement,
+        StatementAudit,
+        BankAccount,
     ]
 
     total_deleted = 0

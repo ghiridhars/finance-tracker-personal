@@ -19,7 +19,6 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.transaction import UnifiedTransaction
-from app.models.credit_card import CreditCardStatement
 from app.models.enums import TransactionType, SourceType, TransferType
 
 logger = logging.getLogger(__name__)

@@ -241,8 +241,8 @@ async def scan_and_import(
     from app.models.enums import BankType, StatementType
     from app.services.parser_service import ParserService
     from app.parsers.csv_parser import parse_csv
-    from app.services.credit_card_service import CreditCardStatementService
-    from app.services.savings_service import SavingsAccountStatementService
+    from app.services.account_resolution_service import AccountResolutionService
+    from app.services.statement_audit_service import StatementAuditService
 
     if not job_id:
         job_id = str(uuid.uuid4())[:8]
@@ -362,15 +362,36 @@ async def scan_and_import(
                 else:
                     review_status = "AUTO_PARSED"
 
-                # Save to database
+                # Resolve or create bank account
                 if statement_type == StatementType.CREDIT_CARD:
-                    CreditCardStatementService.save_statement(
-                        db, statement, bank=bank_type.value, review_status=review_status
-                    )
+                    acct_number = getattr(statement, "card_number", None)
+                    holder = getattr(statement, "card_holder_name", None)
                 else:
-                    SavingsAccountStatementService.save_statement(
-                        db, statement, bank=bank_type.value, review_status=review_status
-                    )
+                    acct_number = getattr(statement, "account_number", None)
+                    holder = getattr(statement, "account_holder_name", None)
+
+                bank_account = AccountResolutionService.resolve_or_create(
+                    db,
+                    bank_name=bank_type.value,
+                    account_type=statement_type.value,
+                    account_number=acct_number,
+                    holder_name=holder,
+                )
+
+                # Save via unified audit service
+                strategy = result.get("strategy") if isinstance(result, dict) else "csv"
+                StatementAuditService.save_statement(
+                    db,
+                    statement,
+                    statement_type=statement_type,
+                    bank_account_id=bank_account.id,
+                    bank_name=bank_type.value,
+                    file_name=filename,
+                    file_content=content,
+                    parser_strategy=strategy,
+                    review_status=review_status,
+                    source="local_sync",
+                )
 
                 # Mark as processed
                 processed[key] = {
@@ -392,6 +413,18 @@ async def scan_and_import(
                     "parser": parser_used,
                 })
             else:
+                # Record failed audit
+                StatementAuditService.record(
+                    db,
+                    file_name=filename,
+                    file_content=content,
+                    bank_name=bank_type.value,
+                    statement_type=statement_type.value,
+                    status="FAILED",
+                    error_message=error or "Parse returned no data",
+                    source="local_sync",
+                )
+                db.commit()
                 results["failed"] += 1
                 results["details"].append({
                     "file": filename,
@@ -401,6 +434,7 @@ async def scan_and_import(
                 })
 
         except Exception as e:
+            db.rollback()
             logger.error(f"Failed to process local file {filename}: {e}", exc_info=True)
             results["failed"] += 1
             results["details"].append({

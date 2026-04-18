@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     Boolean, String, Date, DateTime, Numeric, Integer, Text,
-    ForeignKey, Enum as SAEnum, UniqueConstraint,
+    ForeignKey, Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,12 +31,6 @@ class UnifiedTransaction(Base):
         source_type / source_transaction_id — FK back to the original table.
     """
     __tablename__ = "unified_transactions"
-    __table_args__ = (
-        UniqueConstraint(
-            "source_type", "source_transaction_id",
-            name="uq_unified_source",
-        ),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     date: Mapped[Optional[date_type]] = mapped_column(Date, nullable=True)
@@ -46,11 +40,16 @@ class UnifiedTransaction(Base):
 
     # Source tracing
     source_type: Mapped[str] = mapped_column(SAEnum(SourceType), nullable=False)
-    source_transaction_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    statement_audit_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("statement_audit.id"), nullable=True
+    )
 
     # Bank & account
     bank: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     account_identifier: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    bank_account_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("bank_accounts.id"), nullable=True
+    )
 
     # Categorization
     category_id: Mapped[Optional[int]] = mapped_column(

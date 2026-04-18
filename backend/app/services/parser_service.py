@@ -91,6 +91,7 @@ class ParserService:
                         "statement": result.result,
                         "rawText": raw_text,
                         "parser": "generic",
+                        "strategy": result.strategy,
                     }
 
             generic_error = result.error_message or "0 transactions found"
@@ -114,6 +115,7 @@ class ParserService:
                                 "statement": llm_result.result,
                                 "rawText": raw_text,
                                 "parser": "llm",
+                                "strategy": "llm",
                             }
                     llm_error = (
                         llm_result.error_message

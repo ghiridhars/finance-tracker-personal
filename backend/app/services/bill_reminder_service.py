@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.budget import BillReminder
-from app.models.credit_card import CreditCardStatement
+from app.models.statement_audit import StatementAudit
 
 logger = logging.getLogger(__name__)
 
@@ -141,23 +141,27 @@ class BillReminderService:
         """
         from sqlalchemy import func
 
-        # Get latest statement per card
+        # Get latest CC statement audit per card_number
         subq = (
             db.query(
-                CreditCardStatement.card_number,
-                func.max(CreditCardStatement.statement_date).label("max_date"),
+                StatementAudit.card_number,
+                func.max(StatementAudit.period_start).label("max_date"),
             )
-            .filter(CreditCardStatement.card_number.isnot(None))
-            .group_by(CreditCardStatement.card_number)
+            .filter(
+                StatementAudit.statement_type == "CREDIT_CARD",
+                StatementAudit.status == "SUCCESS",
+                StatementAudit.card_number.isnot(None),
+            )
+            .group_by(StatementAudit.card_number)
             .subquery()
         )
 
         latest_stmts = (
-            db.query(CreditCardStatement)
+            db.query(StatementAudit)
             .join(
                 subq,
-                (CreditCardStatement.card_number == subq.c.card_number)
-                & (CreditCardStatement.statement_date == subq.c.max_date),
+                (StatementAudit.card_number == subq.c.card_number)
+                & (StatementAudit.period_start == subq.c.max_date),
             )
             .all()
         )
@@ -181,18 +185,18 @@ class BillReminderService:
             if existing:
                 # Update due date and amount
                 existing.next_due_date = stmt.due_date
-                existing.amount = stmt.minimum_amount_due or stmt.total_dues
+                existing.amount = stmt.minimum_amount_due or stmt.closing_balance
                 continue
 
             reminder = BillReminder(
                 name=f"CC Payment ****{card_last4}",
-                amount=stmt.minimum_amount_due or stmt.total_dues,
+                amount=stmt.minimum_amount_due or stmt.closing_balance,
                 is_recurring=True,
                 frequency="MONTHLY",
                 day_of_month=stmt.due_date.day if stmt.due_date else None,
                 next_due_date=stmt.due_date,
                 is_auto_detected=True,
-                notes=f"Auto-detected from credit card statement. Total dues: {stmt.total_dues}",
+                notes=f"Auto-detected from credit card statement. Total dues: {stmt.closing_balance}",
             )
             db.add(reminder)
             created.append(reminder)

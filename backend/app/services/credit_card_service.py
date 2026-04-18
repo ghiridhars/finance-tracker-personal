@@ -34,6 +34,7 @@ class CreditCardStatementService:
         dto: CreditCardStatementSchema,
         bank: str | None = None,
         review_status: str | None = None,
+        bank_account_id: int | None = None,
     ) -> CreditCardStatement:
         """
         Save or update a credit card statement.
@@ -59,22 +60,26 @@ class CreditCardStatementService:
         if existing:
             logger.info(f"Updating existing statement for card {dto.card_number}, date {dto.statement_date}")
             _map_dto_to_statement(dto, existing)
+            if bank_account_id is not None:
+                existing.bank_account_id = bank_account_id
             db.commit()
             db.refresh(existing)
             # Create unified transactions
-            UnifiedTransactionService.create_from_credit_card(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED")
+            UnifiedTransactionService.create_from_credit_card(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED", bank_account_id=bank_account_id)
             return existing
 
         # New statement
         statement = CreditCardStatement()
         _map_dto_to_statement(dto, statement)
+        if bank_account_id is not None:
+            statement.bank_account_id = bank_account_id
         db.add(statement)
         db.commit()
         db.refresh(statement)
         logger.info(f"Saved new statement id={statement.id} for card {dto.card_number}")
 
         # Create unified transactions
-        UnifiedTransactionService.create_from_credit_card(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED")
+        UnifiedTransactionService.create_from_credit_card(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED", bank_account_id=bank_account_id)
         return statement
 
     @staticmethod

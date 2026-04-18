@@ -2,144 +2,103 @@
 Accounts & Statement Management service.
 
 Provides:
-  - Account discovery (distinct accounts/cards from uploaded statements)
-  - Statement listing, detail, deletion
-  - Cascading delete of unified transactions when source statements are removed
+  - Account listing from bank_accounts table
+  - Statement listing from statement_audit table
+  - Statement & transaction deletion with cascade
 """
 import logging
-from datetime import date
-from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, distinct, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.credit_card import CreditCardStatement, CreditCardTransaction
-from app.models.savings_account import SavingsAccountStatement, SavingsAccountTransaction
+from app.models.bank_account import BankAccount
+from app.models.statement_audit import StatementAudit
 from app.models.transaction import UnifiedTransaction
-from app.models.enums import SourceType
 
 logger = logging.getLogger(__name__)
 
 
 class AccountsService:
-    """Discover linked accounts/cards from uploaded statement data."""
+    """Query linked accounts from the bank_accounts table."""
 
     @staticmethod
     def get_accounts(db: Session) -> list[dict]:
         """
-        Return all known accounts/cards with summary info.
-        Each entry: {type, identifier, bank, holder_name, statement_count,
-                     transaction_count, last_statement_date, balance}
+        Return all known accounts with summary info from bank_accounts,
+        statement_audit, and unified_transactions.
         """
         accounts: list[dict] = []
 
-        # ── Savings accounts ─────────────────────────────
-        savings_rows = (
-            db.query(
-                SavingsAccountStatement.account_number,
-                SavingsAccountStatement.account_holder_name,
-                func.count(SavingsAccountStatement.id).label("stmt_count"),
-                func.max(SavingsAccountStatement.to_date).label("last_date"),
-            )
-            .group_by(
-                SavingsAccountStatement.account_number,
-                SavingsAccountStatement.account_holder_name,
-            )
-            .all()
-        )
+        bank_accounts = db.query(BankAccount).filter(BankAccount.is_active == True).all()
 
-        for row in savings_rows:
-            # Latest closing balance
-            latest = (
-                db.query(SavingsAccountStatement)
-                .filter(SavingsAccountStatement.account_number == row.account_number)
-                .order_by(SavingsAccountStatement.to_date.desc())
-                .first()
-            )
-            tx_count = (
-                db.query(func.count(SavingsAccountTransaction.id))
-                .join(SavingsAccountStatement)
-                .filter(SavingsAccountStatement.account_number == row.account_number)
-                .scalar()
-            )
-
-            # Try to get bank from unified transactions
-            bank = (
-                db.query(UnifiedTransaction.bank)
+        for ba in bank_accounts:
+            # Statement count + latest period end
+            stmt_agg = (
+                db.query(
+                    func.count(StatementAudit.id).label("stmt_count"),
+                    func.max(StatementAudit.period_end).label("last_date"),
+                )
                 .filter(
-                    UnifiedTransaction.source_type == SourceType.SAVINGS,
-                    UnifiedTransaction.account_identifier == row.account_number,
-                    UnifiedTransaction.bank.isnot(None),
+                    StatementAudit.bank_account_id == ba.id,
+                    StatementAudit.status == "SUCCESS",
                 )
                 .first()
             )
 
-            accounts.append({
-                "type": "SAVINGS",
-                "identifier": row.account_number,
-                "holder_name": row.account_holder_name,
-                "bank": bank[0] if bank else None,
-                "statement_count": row.stmt_count,
-                "transaction_count": tx_count or 0,
-                "last_statement_date": row.last_date.isoformat() if row.last_date else None,
-                "balance": float(latest.closing_balance) if latest and latest.closing_balance else None,
-            })
-
-        # ── Credit cards ─────────────────────────────────
-        cc_rows = (
-            db.query(
-                CreditCardStatement.card_number,
-                CreditCardStatement.card_holder_name,
-                func.count(CreditCardStatement.id).label("stmt_count"),
-                func.max(CreditCardStatement.statement_date).label("last_date"),
-            )
-            .group_by(
-                CreditCardStatement.card_number,
-                CreditCardStatement.card_holder_name,
-            )
-            .all()
-        )
-
-        for row in cc_rows:
-            latest = (
-                db.query(CreditCardStatement)
-                .filter(CreditCardStatement.card_number == row.card_number)
-                .order_by(CreditCardStatement.statement_date.desc())
-                .first()
-            )
+            # Transaction count
             tx_count = (
-                db.query(func.count(CreditCardTransaction.id))
-                .join(CreditCardStatement)
-                .filter(CreditCardStatement.card_number == row.card_number)
+                db.query(func.count(UnifiedTransaction.id))
+                .filter(UnifiedTransaction.bank_account_id == ba.id)
                 .scalar()
-            )
+            ) or 0
 
-            bank = (
-                db.query(UnifiedTransaction.bank)
+            # Latest closing balance from the most recent audit
+            latest_audit = (
+                db.query(StatementAudit)
                 .filter(
-                    UnifiedTransaction.source_type == SourceType.CREDIT_CARD,
-                    UnifiedTransaction.account_identifier == row.card_number,
-                    UnifiedTransaction.bank.isnot(None),
+                    StatementAudit.bank_account_id == ba.id,
+                    StatementAudit.status == "SUCCESS",
                 )
+                .order_by(StatementAudit.period_end.desc())
                 .first()
             )
 
-            accounts.append({
-                "type": "CREDIT_CARD",
-                "identifier": row.card_number,
-                "holder_name": row.card_holder_name,
-                "bank": bank[0] if bank else None,
-                "statement_count": row.stmt_count,
-                "transaction_count": tx_count or 0,
-                "last_statement_date": row.last_date.isoformat() if row.last_date else None,
-                "balance": float(latest.total_dues) if latest and latest.total_dues else None,
-                "credit_limit": float(latest.credit_limit) if latest and latest.credit_limit else None,
-                "available_credit": float(latest.available_credit) if latest and latest.available_credit else None,
-            })
+            entry = {
+                "id": ba.id,
+                "type": ba.account_type,
+                "identifier": ba.account_number,
+                "name": ba.name,
+                "holder_name": ba.holder_name,
+                "bank": ba.bank_name,
+                "statement_count": stmt_agg.stmt_count if stmt_agg else 0,
+                "transaction_count": tx_count,
+                "last_statement_date": (
+                    stmt_agg.last_date.isoformat()
+                    if stmt_agg and stmt_agg.last_date
+                    else None
+                ),
+                "balance": (
+                    float(latest_audit.closing_balance)
+                    if latest_audit and latest_audit.closing_balance
+                    else None
+                ),
+            }
+
+            # CC-specific fields
+            if ba.account_type == "CREDIT_CARD" and latest_audit:
+                entry["credit_limit"] = (
+                    float(latest_audit.credit_limit)
+                    if latest_audit.credit_limit else None
+                )
+                entry["available_credit"] = (
+                    float(latest_audit.available_credit)
+                    if latest_audit.available_credit else None
+                )
+
+            accounts.append(entry)
 
         return accounts
-
 
     @staticmethod
     def rename_account(
@@ -149,116 +108,78 @@ class AccountsService:
         new_name: str,
     ) -> bool:
         """
-        Update the holder name across all statements for a given account.
-        Returns True if at least one statement was updated.
+        Update the holder name on a bank account.
+        Returns True if the account was found and updated.
         """
-        if account_type == "SAVINGS":
-            count = (
-                db.query(SavingsAccountStatement)
-                .filter(SavingsAccountStatement.account_number == identifier)
-                .update({SavingsAccountStatement.account_holder_name: new_name})
+        ba = (
+            db.query(BankAccount)
+            .filter(
+                BankAccount.account_type == account_type,
+                BankAccount.account_number == identifier,
             )
-        elif account_type == "CREDIT_CARD":
-            count = (
-                db.query(CreditCardStatement)
-                .filter(CreditCardStatement.card_number == identifier)
-                .update({CreditCardStatement.card_holder_name: new_name})
-            )
-        else:
+            .first()
+        )
+        if not ba:
             return False
 
-        if count > 0:
-            db.commit()
-            logger.info(
-                f"Renamed {account_type} account {identifier} to '{new_name}' "
-                f"({count} statements updated)"
-            )
-        return count > 0
+        ba.holder_name = new_name
+        ba.name = new_name  # also update the display name
+        db.commit()
+        logger.info(f"Renamed {account_type} account {identifier} to '{new_name}'")
+        return True
 
 
 class StatementManagementService:
-    """CRUD operations for statements."""
+    """CRUD operations for statements (via statement_audit)."""
 
     # ── List statements ──────────────────────────────────
 
     @staticmethod
-    def list_savings_statements(
+    def list_statements(
         db: Session,
         *,
-        account_number: str | None = None,
+        statement_type: str | None = None,
+        bank_account_id: int | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list[SavingsAccountStatement], int]:
-        q = db.query(SavingsAccountStatement)
-        if account_number:
-            q = q.filter(SavingsAccountStatement.account_number == account_number)
+    ) -> tuple[list[StatementAudit], int]:
+        """List successful statement audits, with optional filters."""
+        q = db.query(StatementAudit).filter(StatementAudit.status == "SUCCESS")
+        if statement_type:
+            q = q.filter(StatementAudit.statement_type == statement_type)
+        if bank_account_id:
+            q = q.filter(StatementAudit.bank_account_id == bank_account_id)
         total = q.count()
-        items = q.order_by(SavingsAccountStatement.to_date.desc()).offset(offset).limit(limit).all()
-        return items, total
-
-    @staticmethod
-    def list_cc_statements(
-        db: Session,
-        *,
-        card_number: str | None = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> tuple[list[CreditCardStatement], int]:
-        q = db.query(CreditCardStatement)
-        if card_number:
-            q = q.filter(CreditCardStatement.card_number == card_number)
-        total = q.count()
-        items = q.order_by(CreditCardStatement.statement_date.desc()).offset(offset).limit(limit).all()
+        items = q.order_by(StatementAudit.period_end.desc()).offset(offset).limit(limit).all()
         return items, total
 
     # ── Delete statement ─────────────────────────────────
 
     @staticmethod
-    def delete_savings_statement(db: Session, statement_id: int) -> bool:
+    def delete_statement(db: Session, audit_id: int) -> bool:
         """
-        Delete a savings statement and cascade-remove its unified transactions.
+        Delete a statement audit and cascade-remove its unified transactions.
         Returns True if deleted, False if not found.
         """
-        stmt = db.query(SavingsAccountStatement).filter(
-            SavingsAccountStatement.id == statement_id
+        audit = db.query(StatementAudit).filter(
+            StatementAudit.id == audit_id
         ).first()
-        if not stmt:
+        if not audit:
             return False
 
-        # Remove related unified transactions
-        tx_ids = [tx.id for tx in stmt.transactions]
-        if tx_ids:
-            db.query(UnifiedTransaction).filter(
-                UnifiedTransaction.source_type == SourceType.SAVINGS,
-                UnifiedTransaction.source_transaction_id.in_(tx_ids),
-            ).delete(synchronize_session="fetch")
+        # Remove linked unified transactions
+        deleted_count = (
+            db.query(UnifiedTransaction)
+            .filter(UnifiedTransaction.statement_audit_id == audit_id)
+            .delete(synchronize_session="fetch")
+        )
 
-        db.delete(stmt)
+        db.delete(audit)
         db.commit()
-        logger.info(f"Deleted savings statement id={statement_id} ({len(tx_ids)} unified txns removed)")
-        return True
-
-    @staticmethod
-    def delete_cc_statement(db: Session, statement_id: int) -> bool:
-        """
-        Delete a credit card statement and cascade-remove its unified transactions.
-        """
-        stmt = db.query(CreditCardStatement).filter(
-            CreditCardStatement.id == statement_id
-        ).first()
-        if not stmt:
-            return False
-
-        tx_ids = [tx.id for tx in stmt.transactions]
-        if tx_ids:
-            db.query(UnifiedTransaction).filter(
-                UnifiedTransaction.source_type == SourceType.CREDIT_CARD,
-                UnifiedTransaction.source_transaction_id.in_(tx_ids),
-            ).delete(synchronize_session="fetch")
-
-        db.delete(stmt)
-        db.commit()
-        logger.info(f"Deleted CC statement id={statement_id} ({len(tx_ids)} unified txns removed)")
+        logger.info(
+            f"Deleted statement audit id={audit_id} "
+            f"({deleted_count} unified txns removed)"
+        )
         return True
 
     # ── Delete individual unified transaction ────────────

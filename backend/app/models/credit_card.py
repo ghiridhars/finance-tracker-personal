@@ -33,6 +33,9 @@ class CreditCardStatement(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    bank_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bank_accounts.id"), nullable=True
+    )
     statement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     card_number: Mapped[str | None] = mapped_column(String(20), nullable=True)

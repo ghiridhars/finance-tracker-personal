@@ -79,6 +79,7 @@ class GenericPdfParser:
                 result = self._try_table_strategy(pdf, statement_type)
                 if result and result.success:
                     logger.info("Table extraction strategy succeeded")
+                    result.strategy = "table"
                     return result
 
             # Strategy 2 & 3: text-based parsing (pymupdf — faster text)
@@ -95,6 +96,7 @@ class GenericPdfParser:
             result = self._try_text_strategy(raw_text, statement_type)
             if result and result.success:
                 logger.info("Single-line text strategy succeeded")
+                result.strategy = "single_line"
                 return result
 
             # Strategy 3a/3b: credit-card-specific multi-line strategies
@@ -104,18 +106,21 @@ class GenericPdfParser:
                 result = self._try_cc_multiline_strategy(raw_text)
                 if result and result.success:
                     logger.info("Credit card multi-line strategy succeeded")
+                    result.strategy = "cc_multiline"
                     return result
 
                 # date / desc / amount [Cr]
                 result = self._try_cc_simple_multiline_strategy(raw_text)
                 if result and result.success:
                     logger.info("Credit card simple multi-line strategy succeeded")
+                    result.strategy = "cc_simple_multiline"
                     return result
 
             # Strategy 4: generic multi-line text parsing
             result = self._try_multiline_strategy(raw_text, statement_type)
             if result and result.success:
                 logger.info("Multi-line text strategy succeeded")
+                result.strategy = "multiline"
                 return result
 
             return ParseResult.failure(

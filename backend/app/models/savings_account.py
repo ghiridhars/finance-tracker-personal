@@ -33,6 +33,9 @@ class SavingsAccountStatement(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    bank_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bank_accounts.id"), nullable=True
+    )
     account_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     account_holder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ifsc_code: Mapped[str | None] = mapped_column(String(11), nullable=True)

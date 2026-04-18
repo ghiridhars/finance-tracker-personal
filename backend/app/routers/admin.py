@@ -32,16 +32,14 @@ router = APIRouter(prefix="/api/v2/admin", tags=["admin"])
 # ── Allowlist ────────────────────────────────────────────────
 # Only these tables are exposed via the admin API.
 ALLOWED_TABLES: set[str] = {
+    "bank_accounts",
     "categories",
     "category_keywords",
     "mcc_categories",
     "tags",
     "transaction_tags",
     "unified_transactions",
-    "credit_card_statements",
-    "credit_card_transactions",
-    "savings_account_statements",
-    "savings_account_transactions",
+    "statement_audit",
     "budgets",
     "savings_goals",
     "bill_reminders",

@@ -16,8 +16,8 @@ from app.database import get_db
 from app.models.enums import BankType, StatementType
 from app.parsers.parser_registry import get_registered_banks
 from app.services.parser_service import ParserService
-from app.services.credit_card_service import CreditCardStatementService
-from app.services.savings_service import SavingsAccountStatementService
+from app.services.account_resolution_service import AccountResolutionService
+from app.services.statement_audit_service import StatementAuditService
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,18 @@ async def upload_statement_v2(
         if not result.get("success"):
             error_detail = result.get("error", "Failed to parse statement")
             logger.warning(f"Statement parse failed [{bank_type.value}/{statement_type.value}]: {error_detail}")
+            # Record failed audit
+            StatementAuditService.record(
+                db,
+                file_name=file.filename or "upload.pdf",
+                file_content=content,
+                bank_name=bank_type.value,
+                statement_type=statement_type.value,
+                status="FAILED",
+                error_message=error_detail,
+                source="upload",
+            )
+            db.commit()
             raise HTTPException(
                 status_code=400,
                 detail=error_detail,
@@ -147,7 +159,30 @@ async def upload_statement_v2(
                 review_status = "LLM_PARSED"
             else:
                 review_status = "AUTO_PARSED"
-            statement = _save_statement(db, statement, statement_type, bank=bank_type.value, review_status=review_status)
+
+            # Resolve or create bank account
+            account_number = _get_account_number(statement, statement_type)
+            holder_name = _get_holder_name(statement, statement_type)
+            bank_account = AccountResolutionService.resolve_or_create(
+                db,
+                bank_name=bank_type.value,
+                account_type=statement_type.value,
+                account_number=account_number,
+                holder_name=holder_name,
+            )
+
+            audit = StatementAuditService.save_statement(
+                db,
+                statement,
+                statement_type=statement_type,
+                bank_account_id=bank_account.id,
+                bank_name=bank_type.value,
+                file_name=file.filename or "upload.pdf",
+                file_content=content,
+                parser_strategy=result.get("strategy"),
+                review_status=review_status,
+                source="upload",
+            )
 
         return {
             "success": True,
@@ -155,6 +190,7 @@ async def upload_statement_v2(
             "statement_type": statement_type.value,
             "parser_used": result.get("parser", "unknown"),
             "statement": _serialize_statement(statement),
+            "audit_id": audit.id if save else None,
         }
 
     except HTTPException:
@@ -166,35 +202,24 @@ async def upload_statement_v2(
         raise HTTPException(status_code=500, detail=f"Error processing statement: {e}")
 
 
-def _save_statement(db: Session, statement, statement_type: StatementType, bank: str | None = None, review_status: str | None = None):
-    """Save parsed statement to the appropriate table."""
+def _get_account_number(statement, statement_type: StatementType) -> str | None:
+    """Extract the account/card number from a parsed statement schema."""
     if statement_type == StatementType.CREDIT_CARD:
-        return CreditCardStatementService.save_statement(db, statement, bank=bank, review_status=review_status)
-    elif statement_type == StatementType.SAVINGS:
-        return SavingsAccountStatementService.save_statement(db, statement, bank=bank, review_status=review_status)
-    else:
-        raise ValueError(f"Cannot save statement type: {statement_type.value}")
+        return getattr(statement, "card_number", None)
+    return getattr(statement, "account_number", None)
+
+
+def _get_holder_name(statement, statement_type: StatementType) -> str | None:
+    """Extract the holder name from a parsed statement schema."""
+    if statement_type == StatementType.CREDIT_CARD:
+        return getattr(statement, "card_holder_name", None)
+    return getattr(statement, "account_holder_name", None)
 
 
 def _serialize_statement(statement) -> dict:
-    """Convert statement (Pydantic schema or SQLAlchemy model) to a dict."""
+    """Convert a Pydantic DTO to a dict for the response."""
     if hasattr(statement, "model_dump"):
-        # Pydantic model
         return statement.model_dump(mode="json")
-    elif hasattr(statement, "__dict__"):
-        # SQLAlchemy model — use schema validation
-        from app.schemas.credit_card import CreditCardStatementSchema
-        from app.schemas.savings_account import SavingsAccountStatementSchema
-
-        try:
-            return CreditCardStatementSchema.model_validate(statement).model_dump(mode="json")
-        except Exception:
-            pass
-        try:
-            return SavingsAccountStatementSchema.model_validate(statement).model_dump(mode="json")
-        except Exception:
-            pass
-
     # Fallback
     return {"raw": str(statement)}
 
@@ -268,9 +293,31 @@ async def upload_csv_statement(
         if statement is None:
             raise HTTPException(status_code=400, detail="CSV parser returned no data")
 
+        audit = None
         # Save to DB if requested
         if save:
-            statement = _save_statement(db, statement, statement_type, bank=bank_type.value)
+            account_number = _get_account_number(statement, statement_type)
+            holder_name = _get_holder_name(statement, statement_type)
+            bank_account = AccountResolutionService.resolve_or_create(
+                db,
+                bank_name=bank_type.value,
+                account_type=statement_type.value,
+                account_number=account_number,
+                holder_name=holder_name,
+            )
+
+            audit = StatementAuditService.save_statement(
+                db,
+                statement,
+                statement_type=statement_type,
+                bank_account_id=bank_account.id,
+                bank_name=bank_type.value,
+                file_name=filename,
+                file_content=content,
+                parser_strategy="csv",
+                review_status="AUTO_PARSED",
+                source="upload",
+            )
 
         return {
             "success": True,
@@ -278,6 +325,7 @@ async def upload_csv_statement(
             "statement_type": statement_type.value,
             "parser_used": "csv",
             "statement": _serialize_statement(statement),
+            "audit_id": audit.id if audit else None,
         }
 
     except HTTPException:

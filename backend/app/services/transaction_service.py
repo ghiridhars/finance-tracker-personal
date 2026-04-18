@@ -2,7 +2,7 @@
 Unified Transaction service.
 
 Handles:
-  - Creating unified transactions from credit card / savings source transactions.
+  - Creating unified transactions from parsed statement DTOs.
   - Querying unified transactions with filters.
   - Updating category, tags, notes on unified transactions.
 """
@@ -12,15 +12,12 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.transaction import UnifiedTransaction
 from app.models.tag import Tag, TransactionTag
-from app.models.enums import TransactionType, SourceType, ReviewStatus
+from app.models.enums import TransactionType, SourceType, StatementType, ReviewStatus
 from app.models.category import CategoryKeyword
-from app.models.credit_card import CreditCardStatement, CreditCardTransaction
-from app.models.savings_account import SavingsAccountStatement, SavingsAccountTransaction
 from app.services.categorization_service import categorize_and_normalize
 
 logger = logging.getLogger(__name__)
@@ -32,119 +29,80 @@ class UnifiedTransactionService:
     # ── Creation (called when statements are saved) ──────────
 
     @staticmethod
-    def create_from_credit_card(
+    def create_from_parsed(
         db: Session,
-        statement: CreditCardStatement,
-        bank: str | None = None,
+        dto,
+        *,
+        statement_type: StatementType,
+        source_type: SourceType,
+        statement_audit_id: int,
+        bank_name: str | None = None,
+        bank_account_id: int | None = None,
+        account_identifier: str | None = None,
         review_status: str = ReviewStatus.AUTO_PARSED.value,
     ) -> list[UnifiedTransaction]:
         """
-        Create unified transaction rows for each credit card transaction.
-        Upserts: skips rows that already exist (source_type + source_transaction_id).
+        Create unified transaction rows from a parsed statement DTO.
+
+        Works for both credit-card and savings DTOs.  Transactions previously
+        linked to this statement_audit_id should have been deleted before
+        calling this method (handled by StatementAuditService.save_statement).
         """
+        is_cc = statement_type == StatementType.CREDIT_CARD
+        txns = getattr(dto, "transactions", [])
         created: list[UnifiedTransaction] = []
+
         keywords = db.query(CategoryKeyword).all()
         keywords.sort(key=lambda k: len(k.keyword), reverse=True)
-        for tx in statement.transactions:
-            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
 
-            unified = UnifiedTransaction(
-                date=tx.date,
-                description=tx.description,
-                amount=tx.amount,
-                type=tx.type,
-                source_type=SourceType.CREDIT_CARD,
-                source_transaction_id=tx.id,
-                bank=bank,
-                account_identifier=statement.card_number,
-                category_id=category_id,
-                merchant_name=merchant_name,
-                reference_number=tx.reference_number,
-                is_transfer=is_own_transfer,
-                review_status=review_status,
-            )
-            try:
-                db.add(unified)
-                db.flush()
-                created.append(unified)
-            except IntegrityError:
-                db.rollback()
-                logger.debug(
-                    f"Skipped duplicate CC transaction source_id={tx.id}"
-                )
+        for tx in txns:
+            description = getattr(tx, "description", None)
 
-        if created:
-            db.commit()
-            for u in created:
-                db.refresh(u)
-            logger.info(
-                f"Created {len(created)} unified transactions from CC statement "
-                f"(card={statement.card_number})"
-            )
-            # Auto-detect transfer pairs for newly created transactions
-            _run_transfer_detection(db, created)
-        return created
-
-    @staticmethod
-    def create_from_savings(
-        db: Session,
-        statement: SavingsAccountStatement,
-        bank: str | None = None,
-        review_status: str = ReviewStatus.AUTO_PARSED.value,
-    ) -> list[UnifiedTransaction]:
-        """
-        Create unified transaction rows for each savings transaction.
-        """
-        created: list[UnifiedTransaction] = []
-        keywords = db.query(CategoryKeyword).all()
-        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
-        for tx in statement.transactions:
-            if tx.withdrawal_amount and tx.withdrawal_amount > 0:
-                amount = abs(tx.withdrawal_amount)
-                tx_type = TransactionType.DEBIT
-            elif tx.deposit_amount and tx.deposit_amount > 0:
-                amount = abs(tx.deposit_amount)
-                tx_type = TransactionType.CREDIT
+            if is_cc:
+                amount = getattr(tx, "amount", Decimal("0"))
+                tx_type = getattr(tx, "type", None)
             else:
-                amount = Decimal("0")
-                tx_type = tx.type
+                withdrawal = getattr(tx, "withdrawal_amount", None)
+                deposit = getattr(tx, "deposit_amount", None)
+                if withdrawal and withdrawal > 0:
+                    amount = abs(withdrawal)
+                    tx_type = TransactionType.DEBIT
+                elif deposit and deposit > 0:
+                    amount = abs(deposit)
+                    tx_type = TransactionType.CREDIT
+                else:
+                    amount = Decimal("0")
+                    tx_type = getattr(tx, "type", None)
 
-            category_id, merchant_name, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
+            category_id, merchant_name, is_own_transfer = categorize_and_normalize(
+                db, description, keywords=keywords
+            )
 
             unified = UnifiedTransaction(
-                date=tx.date,
-                description=tx.description,
+                date=getattr(tx, "date", None),
+                description=description,
                 amount=amount,
                 type=tx_type,
-                source_type=SourceType.SAVINGS,
-                source_transaction_id=tx.id,
-                bank=bank,
-                account_identifier=statement.account_number,
+                source_type=source_type,
+                statement_audit_id=statement_audit_id,
+                bank=bank_name,
+                account_identifier=account_identifier,
+                bank_account_id=bank_account_id,
                 category_id=category_id,
                 merchant_name=merchant_name,
-                reference_number=tx.reference_number,
+                reference_number=getattr(tx, "reference_number", None),
                 is_transfer=is_own_transfer,
                 review_status=review_status,
             )
-            try:
-                db.add(unified)
-                db.flush()
-                created.append(unified)
-            except IntegrityError:
-                db.rollback()
-                logger.debug(
-                    f"Skipped duplicate savings transaction source_id={tx.id}"
-                )
+            db.add(unified)
+            created.append(unified)
 
         if created:
-            db.commit()
-            for u in created:
-                db.refresh(u)
+            db.flush()
             logger.info(
-                f"Created {len(created)} unified transactions from savings statement "
-                f"(account={statement.account_number})"
+                f"Created {len(created)} unified transactions from "
+                f"{statement_type.value} statement (audit_id={statement_audit_id})"
             )
-            # Auto-detect transfer pairs for newly created transactions
             _run_transfer_detection(db, created)
         return created
 

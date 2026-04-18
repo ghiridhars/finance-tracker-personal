@@ -37,10 +37,11 @@ class ParseResult:
     success: bool
     result: Any | None = None
     error_message: str | None = None
+    strategy: str | None = None  # which parsing strategy succeeded
 
     @staticmethod
-    def ok(result: Any) -> "ParseResult":
-        return ParseResult(success=True, result=result)
+    def ok(result: Any, strategy: str | None = None) -> "ParseResult":
+        return ParseResult(success=True, result=result, strategy=strategy)
 
     @staticmethod
     def failure(error_message: str) -> "ParseResult":

@@ -33,6 +33,7 @@ class SavingsAccountStatementService:
         dto: SavingsAccountStatementSchema,
         bank: str | None = None,
         review_status: str | None = None,
+        bank_account_id: int | None = None,
     ) -> SavingsAccountStatement:
         """
         Save or update a savings account statement.
@@ -59,22 +60,26 @@ class SavingsAccountStatementService:
         if existing:
             logger.info(f"Updating existing statement for account {dto.account_number}")
             _map_dto_to_statement(dto, existing)
+            if bank_account_id is not None:
+                existing.bank_account_id = bank_account_id
             db.commit()
             db.refresh(existing)
             # Create unified transactions
-            UnifiedTransactionService.create_from_savings(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED")
+            UnifiedTransactionService.create_from_savings(db, existing, bank=bank, review_status=review_status or "AUTO_PARSED", bank_account_id=bank_account_id)
             return existing
 
         # New statement
         statement = SavingsAccountStatement()
         _map_dto_to_statement(dto, statement)
+        if bank_account_id is not None:
+            statement.bank_account_id = bank_account_id
         db.add(statement)
         db.commit()
         db.refresh(statement)
         logger.info(f"Saved new statement id={statement.id} for account {dto.account_number}")
 
         # Create unified transactions
-        UnifiedTransactionService.create_from_savings(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED")
+        UnifiedTransactionService.create_from_savings(db, statement, bank=bank, review_status=review_status or "AUTO_PARSED", bank_account_id=bank_account_id)
         return statement
 
     @staticmethod

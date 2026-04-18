@@ -1,70 +1,80 @@
 """
-Transaction query endpoint.
-Replaces: TransactionController.java
-
-FIX: Queries BOTH savings and credit card transactions (Java version only queried savings).
+Legacy transaction query endpoint.
+Redirects to unified_transactions for backward compatibility.
 """
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.savings_service import SavingsAccountStatementService
-from app.services.credit_card_service import CreditCardStatementService
-from app.schemas.savings_account import SavingsAccountTransactionSchema
-from app.schemas.credit_card import CreditCardTransactionSchema
+from app.models.transaction import UnifiedTransaction
+from app.models.enums import SourceType
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
+router = APIRouter(prefix="/api/transactions", tags=["Transactions (legacy)"])
 
 
-@router.get("/savings", response_model=list[SavingsAccountTransactionSchema])
+@router.get("/savings")
 def get_savings_transactions(
     from_date: date | None = Query(None, alias="from"),
     to_date: date | None = Query(None, alias="to"),
     db: Session = Depends(get_db),
 ):
-    """
-    Get savings account transactions by date range.
-    Replaces: TransactionController.getTransactions(LocalDate, LocalDate)
+    """Legacy savings transactions endpoint — queries unified_transactions."""
+    q = db.query(UnifiedTransaction).filter(
+        UnifiedTransaction.source_type == SourceType.SAVINGS
+    )
+    if from_date:
+        q = q.filter(UnifiedTransaction.date >= from_date)
+    if to_date:
+        q = q.filter(UnifiedTransaction.date <= to_date)
+    return [_tx_to_dict(t) for t in q.order_by(UnifiedTransaction.date.desc()).all()]
 
-    Defaults: from = 30 days ago, to = today (same as Java version).
-    """
 
-    transactions = SavingsAccountStatementService.get_transactions(db, from_date, to_date)
-    return [SavingsAccountTransactionSchema.model_validate(t) for t in transactions]
-
-
-@router.get("/credit-card", response_model=list[CreditCardTransactionSchema])
+@router.get("/credit-card")
 def get_credit_card_transactions(
     from_date: date | None = Query(None, alias="from"),
     to_date: date | None = Query(None, alias="to"),
     db: Session = Depends(get_db),
 ):
-    """
-    Get credit card transactions by date range.
-    FIX: This endpoint was missing in the Java version (only savings were queryable).
-    """
+    """Legacy credit card transactions endpoint — queries unified_transactions."""
+    q = db.query(UnifiedTransaction).filter(
+        UnifiedTransaction.source_type == SourceType.CREDIT_CARD
+    )
+    if from_date:
+        q = q.filter(UnifiedTransaction.date >= from_date)
+    if to_date:
+        q = q.filter(UnifiedTransaction.date <= to_date)
+    return [_tx_to_dict(t) for t in q.order_by(UnifiedTransaction.date.desc()).all()]
 
-    transactions = CreditCardStatementService.get_transactions_by_date_range(db, from_date, to_date)
-    return [CreditCardTransactionSchema.model_validate(t) for t in transactions]
 
-
-@router.get("", response_model=list[SavingsAccountTransactionSchema])
+@router.get("")
 def get_transactions_default(
     from_date: date | None = Query(None, alias="from"),
     to_date: date | None = Query(None, alias="to"),
     db: Session = Depends(get_db),
 ):
-    """
-    Default transaction endpoint (savings) for backward compatibility
-    with the original Java API.
+    """Legacy default endpoint — returns all unified transactions."""
+    q = db.query(UnifiedTransaction)
+    if from_date:
+        q = q.filter(UnifiedTransaction.date >= from_date)
+    if to_date:
+        q = q.filter(UnifiedTransaction.date <= to_date)
+    return [_tx_to_dict(t) for t in q.order_by(UnifiedTransaction.date.desc()).all()]
 
-    Replaces: GET /api/transactions in TransactionController.java
-    """
 
-    transactions = SavingsAccountStatementService.get_transactions(db, from_date, to_date)
-    return [SavingsAccountTransactionSchema.model_validate(t) for t in transactions]
+def _tx_to_dict(tx: UnifiedTransaction) -> dict:
+    return {
+        "id": tx.id,
+        "date": tx.date.isoformat() if tx.date else None,
+        "description": tx.description,
+        "amount": float(tx.amount) if tx.amount else None,
+        "type": tx.type,
+        "bank": tx.bank,
+        "account_identifier": tx.account_identifier,
+        "reference_number": tx.reference_number,
+        "source_type": tx.source_type,
+    }

@@ -158,8 +158,8 @@ async def sync_from_drive(
     from app.models.enums import BankType, StatementType
     from app.services.parser_service import ParserService
     from app.parsers.csv_parser import parse_csv
-    from app.services.credit_card_service import CreditCardStatementService
-    from app.services.savings_service import SavingsAccountStatementService
+    from app.services.account_resolution_service import AccountResolutionService
+    from app.services.statement_audit_service import StatementAuditService
 
     if not settings.gdrive_folder_id:
         raise ValueError("GDRIVE_FOLDER_ID not configured")
@@ -244,15 +244,42 @@ async def sync_from_drive(
                 error = result.get("error") if not success else None
 
             if success and statement:
-                # Save to database
-                if statement_type == StatementType.CREDIT_CARD:
-                    CreditCardStatementService.save_statement(
-                        db, statement, bank=bank_type.value
-                    )
+                # Determine review_status
+                if "llm" in parser_used.lower():
+                    review_status = "LLM_PARSED"
                 else:
-                    SavingsAccountStatementService.save_statement(
-                        db, statement, bank=bank_type.value
-                    )
+                    review_status = "AUTO_PARSED"
+
+                # Resolve or create bank account
+                if statement_type == StatementType.CREDIT_CARD:
+                    acct_number = getattr(statement, "card_number", None)
+                    holder = getattr(statement, "card_holder_name", None)
+                else:
+                    acct_number = getattr(statement, "account_number", None)
+                    holder = getattr(statement, "account_holder_name", None)
+
+                bank_account = AccountResolutionService.resolve_or_create(
+                    db,
+                    bank_name=bank_type.value,
+                    account_type=statement_type.value,
+                    account_number=acct_number,
+                    holder_name=holder,
+                )
+
+                # Save via unified audit service
+                strategy = result.get("strategy") if isinstance(result, dict) else "csv"
+                StatementAuditService.save_statement(
+                    db,
+                    statement,
+                    statement_type=statement_type,
+                    bank_account_id=bank_account.id,
+                    bank_name=bank_type.value,
+                    file_name=filename,
+                    file_content=content,
+                    parser_strategy=strategy,
+                    review_status=review_status,
+                    source="gdrive",
+                )
 
                 # Mark as processed
                 processed[file_id] = {
