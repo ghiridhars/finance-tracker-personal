@@ -97,18 +97,26 @@ class GenericPdfParser:
                 logger.info("Single-line text strategy succeeded")
                 return result
 
-            # Strategy 3: multi-line text parsing
-            result = self._try_multiline_strategy(raw_text, statement_type)
-            if result and result.success:
-                logger.info("Multi-line text strategy succeeded")
-                return result
-
-            # Strategy 4: credit card multi-line (date|time + desc + amount)
+            # Strategy 3a/3b: credit-card-specific multi-line strategies
+            # (run before generic multi-line to avoid false positives)
             if statement_type == StatementType.CREDIT_CARD:
+                # date|time + desc + amount
                 result = self._try_cc_multiline_strategy(raw_text)
                 if result and result.success:
                     logger.info("Credit card multi-line strategy succeeded")
                     return result
+
+                # date / desc / amount [Cr]
+                result = self._try_cc_simple_multiline_strategy(raw_text)
+                if result and result.success:
+                    logger.info("Credit card simple multi-line strategy succeeded")
+                    return result
+
+            # Strategy 4: generic multi-line text parsing
+            result = self._try_multiline_strategy(raw_text, statement_type)
+            if result and result.success:
+                logger.info("Multi-line text strategy succeeded")
+                return result
 
             return ParseResult.failure(
                 "Could not extract transactions from PDF using "
@@ -458,8 +466,9 @@ class GenericPdfParser:
     # ── Strategy 4: Credit card multi-line parsing ──────────
 
     # Date with pipe+time: "18/01/2026| 14:34" or "18/01/2026 | 14:34"
+    # Also matches "18/01/2026 14:34:56" (space-separated time, no pipe)
     _CC_DATE_TIME_RE = re.compile(
-        r"^(\d{2}[/-]\d{2}[/-]\d{2,4})\s*\|\s*\d{2}:\d{2}"
+        r"^(\d{2}[/-]\d{2}[/-]\d{2,4})\s*(?:\||\s)\s*\d{2}:\d{2}"
     )
     # Amount line: optional "+" then currency symbol/letter then amount
     # e.g., " C 245.00", "+  C 26,317.00", "+ \u20b9 245.00"
@@ -482,7 +491,7 @@ class GenericPdfParser:
 
         # Quick check: do we have date|time lines?
         date_time_count = sum(1 for l in lines if self._CC_DATE_TIME_RE.match(l))
-        if date_time_count < 3:
+        if date_time_count < 2:
             return None
 
         transactions: list[dict] = []
@@ -548,6 +557,125 @@ class GenericPdfParser:
             # Clean up "EMI" prefix that appears on a separate line before desc
             if description.startswith("EMI "):
                 description = description[4:].strip()
+
+            txn_type = TransactionType.CREDIT if is_credit else TransactionType.DEBIT
+
+            transactions.append({
+                "date": txn_date,
+                "description": description or None,
+                "reference": ref,
+                "debit": amount if not is_credit else None,
+                "credit": amount if is_credit else None,
+                "balance": None,
+                "type": txn_type,
+            })
+
+        if not transactions:
+            return None
+
+        return self._build_credit_card_result(transactions)
+
+    # ── Strategy 5: Simple credit card multi-line parsing ───
+
+    # Standalone date line (with optional time component)
+    _CC_SIMPLE_DATE_RE = re.compile(r"^(\d{2}[/-]\d{2}[/-]\d{2,4})(?:\s+\d{2}:\d{2}(?::\d{2})?)?$")
+    # Amount with optional Cr suffix: "948.00", "8,779.00 Cr"
+    _CC_SIMPLE_AMOUNT_RE = re.compile(
+        r"^([\d,]+\.\d{2})\s*(?:(Cr|CR|cr))?\s*$"
+    )
+
+    def _try_cc_simple_multiline_strategy(self, text: str) -> ParseResult | None:
+        """
+        Parse credit card PDFs with simple multi-line format:
+            DD/MM/YYYY          ← date line
+            DESCRIPTION         ← 1+ description lines
+            AMOUNT [Cr]         ← amount, with optional Cr suffix for credits
+
+        Common in HDFC Bank credit card statements.
+        """
+        lines = [l.strip() for l in text.split("\n")]
+
+        # Quick check: need enough standalone date lines
+        date_line_count = sum(1 for l in lines if self._CC_SIMPLE_DATE_RE.match(l))
+        if date_line_count < 3:
+            return None
+
+        transactions: list[dict] = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Look for a standalone date line
+            dm = self._CC_SIMPLE_DATE_RE.match(line)
+            if not dm:
+                i += 1
+                continue
+
+            # Skip if this date is followed by known non-transaction context
+            # (e.g., "Opening Balance", "Closing Balance" on the next line)
+            txn_date = parse_date(dm.group(1))
+            if txn_date is None:
+                i += 1
+                continue
+            i += 1
+
+            # Collect description lines until we hit an amount line or next date
+            desc_lines: list[str] = []
+            is_credit = False
+            amount: Decimal | None = None
+            ref: str | None = None
+
+            while i < len(lines):
+                l = lines[i]
+
+                # Skip blank lines within a transaction block
+                if not l:
+                    i += 1
+                    continue
+
+                # Check if this is an amount line
+                am = self._CC_SIMPLE_AMOUNT_RE.match(l)
+                if am:
+                    amount = parse_amount(am.group(1))
+                    is_credit = am.group(2) is not None
+                    i += 1
+                    break
+
+                # Check if we hit the next date line (no amount found — stop)
+                if self._CC_SIMPLE_DATE_RE.match(l):
+                    break
+
+                # Check if we hit a section boundary
+                if _NOISE.search(l):
+                    i += 1
+                    continue
+
+                # Skip known non-transaction sections
+                lower = l.lower()
+                if any(kw in lower for kw in (
+                    "reward points", "opening balance", "closing balance",
+                    "cash points", "important information", "total dues",
+                    "payment due", "credit limit",
+                )):
+                    # This date was a header date, not a transaction
+                    amount = None
+                    break
+
+                # Extract reference number if present
+                ref_m = re.search(r"\(Ref#\s*([^)]+)\)", l)
+                if ref_m:
+                    ref = ref_m.group(1).strip()
+
+                desc_lines.append(l)
+                i += 1
+
+            if amount is None or amount <= 0:
+                continue
+
+            description = " ".join(desc_lines).strip()
+            if not description:
+                continue
 
             txn_type = TransactionType.CREDIT if is_credit else TransactionType.DEBIT
 

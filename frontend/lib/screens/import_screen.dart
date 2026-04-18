@@ -35,6 +35,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   // ── Directory mode state ──
   final _pathController = TextEditingController();
+  final _fileListScrollController = ScrollController();
 
   /// Shared bank options.
   static const _bankOptions = [
@@ -84,6 +85,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   @override
   void dispose() {
     _pathController.dispose();
+    _fileListScrollController.dispose();
     super.dispose();
   }
 
@@ -663,7 +665,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 500),
               child: Scrollbar(
+                controller: _fileListScrollController,
                 child: ListView.separated(
+                  controller: _fileListScrollController,
                   shrinkWrap: true,
                   itemCount: files.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),

@@ -21,6 +21,7 @@ class _DatabaseManagerScreenState
     extends ConsumerState<DatabaseManagerScreen> {
   final _searchController = TextEditingController();
   final _searchDebounce = ValueNotifier<String?>(null);
+  final _tableScrollController = ScrollController();
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _DatabaseManagerScreenState
   void dispose() {
     _searchController.dispose();
     _searchDebounce.dispose();
+    _tableScrollController.dispose();
     super.dispose();
   }
 
@@ -219,9 +221,11 @@ class _DatabaseManagerScreenState
     }
 
     return Scrollbar(
+      controller: _tableScrollController,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SingleChildScrollView(
+          controller: _tableScrollController,
           child: DataTable(
             sortColumnIndex: adminState.sortColumn != null
                 ? schema.columns
