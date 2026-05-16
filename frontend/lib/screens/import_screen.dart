@@ -33,6 +33,11 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   bool _saveAfterParse = true;
   bool _isDragHovering = false;
 
+  /// Per-bank password cache for the session (not persisted).
+  final Map<String, String> _bankPasswords = {};
+  final _passwordController = TextEditingController();
+  bool _passwordVisible = false;
+
   // ── Directory mode state ──
   final _pathController = TextEditingController();
   final _fileListScrollController = ScrollController();
@@ -85,6 +90,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   @override
   void dispose() {
     _pathController.dispose();
+    _passwordController.dispose();
     _fileListScrollController.dispose();
     super.dispose();
   }
@@ -191,7 +197,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       ))
                   .toList(),
               onChanged: (val) {
-                if (val != null) setState(() => _bank = val);
+                if (val != null) {
+                  setState(() {
+                    _bank = val;
+                    // Pre-fill cached password for this bank
+                    _passwordController.text = _bankPasswords[val] ?? '';
+                  });
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -225,6 +237,34 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               onChanged: (val) => setState(() => _saveAfterParse = val),
             ),
             const SizedBox(height: 16),
+
+            // Password field — only shown for PDF files
+            if (_selectedFile != null &&
+                _selectedFile!.name.toLowerCase().endsWith('.pdf')) ...[
+              TextField(
+                controller: _passwordController,
+                obscureText: !_passwordVisible,
+                onChanged: (val) => _bankPasswords[_bank] = val,
+                decoration: InputDecoration(
+                  labelText: 'PDF Password (optional)',
+                  hintText: 'Leave blank if not password-protected',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _passwordVisible
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () =>
+                        setState(() => _passwordVisible = !_passwordVisible),
+                    tooltip:
+                        _passwordVisible ? 'Hide password' : 'Show password',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Drop zone
             _buildDropZone(uploadState, colorScheme),
@@ -398,7 +438,17 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _selectedFile = result.files.first);
+      final picked = result.files.first;
+      final isPdf = picked.name.toLowerCase().endsWith('.pdf');
+      setState(() {
+        _selectedFile = picked;
+        // Pre-fill cached password for this bank when switching to a PDF
+        if (isPdf) {
+          _passwordController.text = _bankPasswords[_bank] ?? '';
+        } else {
+          _passwordController.clear();
+        }
+      });
       ref.read(statementsProvider.notifier).clearResult();
     }
   }
@@ -420,6 +470,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
     final fileName = _selectedFile!.name.toLowerCase();
     final isCsv = fileName.endsWith('.csv') || fileName.endsWith('.txt');
+    final password = _passwordController.text.trim();
 
     await ref.read(statementsProvider.notifier).uploadV2(
           fileBytes: _selectedFile!.bytes!,
@@ -428,6 +479,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           statementType: _statementType,
           save: _saveAfterParse,
           isCsv: isCsv,
+          password: password.isNotEmpty ? password : null,
         );
 
     final uploadState = ref.read(statementsProvider);
@@ -678,6 +730,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Bank Passwords — shown when any selected PDF needs a password
+            _buildBankPasswordsSection(syncState, colorScheme),
+
             // Import button
             FilledButton.icon(
               onPressed: syncState.isScanning || syncState.selectedCount == 0
@@ -694,6 +749,64 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                   ? 'Importing...'
                   : 'Import Selected (${syncState.selectedCount})'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Shows one password field per unique bank that has ≥1 selected PDF file.
+  /// Shares the session-level [_bankPasswords] cache with the upload mode.
+  Widget _buildBankPasswordsSection(
+      LocalSyncState syncState, ColorScheme colorScheme) {
+    // Collect banks that have at least one selected PDF file
+    final banksWithPdf = syncState.files
+        .where((f) =>
+            f.selected && f.filename.toLowerCase().endsWith('.pdf'))
+        .map((f) => f.selectedBank)
+        .toSet()
+        .toList()
+      ..sort();
+
+    if (banksWithPdf.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lock_outline, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Bank Passwords (optional)',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Enter passwords for any password-protected PDF statements.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            ...banksWithPdf.map((bank) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _BankPasswordField(
+                    bank: bank,
+                    initialValue: _bankPasswords[bank] ?? '',
+                    enabled: !syncState.isScanning,
+                    onChanged: (val) {
+                      // Keep both caches in sync
+                      _bankPasswords[bank] = val;
+                      ref
+                          .read(localSyncProvider.notifier)
+                          .updateBankPassword(bank, val);
+                    },
+                  ),
+                )),
           ],
         ),
       ),
@@ -992,5 +1105,62 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     } catch (_) {
       return iso;
     }
+  }
+}
+
+/// A stateful password field for a single bank, with visibility toggle.
+class _BankPasswordField extends StatefulWidget {
+  final String bank;
+  final String initialValue;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _BankPasswordField({
+    required this.bank,
+    required this.initialValue,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  State<_BankPasswordField> createState() => _BankPasswordFieldState();
+}
+
+class _BankPasswordFieldState extends State<_BankPasswordField> {
+  late final TextEditingController _ctrl;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      obscureText: !_visible,
+      enabled: widget.enabled,
+      onChanged: widget.onChanged,
+      decoration: InputDecoration(
+        labelText: '${widget.bank} — Password',
+        hintText: 'Leave blank if not password-protected',
+        border: const OutlineInputBorder(),
+        isDense: true,
+        prefixIcon: const Icon(Icons.lock_outline),
+        suffixIcon: IconButton(
+          icon: Icon(_visible ? Icons.visibility_off : Icons.visibility),
+          onPressed: () => setState(() => _visible = !_visible),
+          tooltip: _visible ? 'Hide password' : 'Show password',
+        ),
+      ),
+    );
   }
 }

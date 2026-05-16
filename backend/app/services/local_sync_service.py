@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.config import settings
-from app.utils.file_utils import infer_file_type, is_csv_file, is_supported_file
+from app.utils.file_utils import infer_file_type, is_csv_file, is_supported_file, review_status_from_parser
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +225,7 @@ async def scan_and_import(
     files: list[dict],
     job_id: str | None = None,
     force: bool = False,
+    bank_passwords: dict[str, str] | None = None,
 ) -> dict:
     """
     Parse and import a list of local files.
@@ -234,6 +235,7 @@ async def scan_and_import(
         files: List of dicts with {filepath, bank, type} — user-confirmed
         job_id: Job ID for progress tracking (auto-generated if None)
         force: Re-process already-processed files
+        bank_passwords: Optional mapping of bank name -> PDF password
 
     Returns:
         Summary dict with counts and per-file details.
@@ -347,8 +349,10 @@ async def scan_and_import(
                 statement = result.result if success else None
                 error = result.error_message if not success else None
             else:
+                pdf_password = (bank_passwords or {}).get(bank_str) or None
                 result = await parser_service.parse_statement(
-                    content, filename, bank_type, statement_type
+                    content, filename, bank_type, statement_type,
+                    password=pdf_password,
                 )
                 parser_used = result.get("parser", "unknown")
                 success = result.get("success", False)
@@ -357,10 +361,7 @@ async def scan_and_import(
 
             if success and statement:
                 # Determine review_status from parser used
-                if "llm" in parser_used.lower():
-                    review_status = "LLM_PARSED"
-                else:
-                    review_status = "AUTO_PARSED"
+                review_status = review_status_from_parser(parser_used)
 
                 # Resolve or create bank account
                 if statement_type == StatementType.CREDIT_CARD:

@@ -1,0 +1,15 @@
+# Dart / Flutter build artefacts
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.g.dart
+*.freezed.dart
+
+# Test cache
+test_output.json
+
+# Git
+.git/
+.gitignore

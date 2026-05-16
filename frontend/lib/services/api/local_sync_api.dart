@@ -58,6 +58,7 @@ class LocalSyncApi {
   static Future<Map<String, dynamic>> startScan({
     required List<Map<String, String>> files,
     bool force = false,
+    Map<String, String>? bankPasswords,
   }) async {
     final response = await http
         .post(
@@ -66,6 +67,8 @@ class LocalSyncApi {
           body: jsonEncode({
             'files': files,
             'force': force,
+            if (bankPasswords != null && bankPasswords.isNotEmpty)
+              'bank_passwords': bankPasswords,
           }),
         )
         .timeout(ApiClient.timeout);

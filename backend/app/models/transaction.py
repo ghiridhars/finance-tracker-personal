@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     Boolean, String, Date, DateTime, Numeric, Integer, Text,
-    ForeignKey, Enum as SAEnum,
+    ForeignKey, Enum as SAEnum, Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -87,3 +87,10 @@ class UnifiedTransaction(Base):
             f"<UnifiedTransaction(id={self.id}, date={self.date}, "
             f"amount={self.amount}, type={self.type}, source={self.source_type})>"
         )
+
+    __table_args__ = (
+        Index("ix_unified_transactions_date", "date"),
+        Index("ix_unified_transactions_type", "type"),
+        Index("ix_unified_transactions_bank", "bank"),
+        Index("ix_unified_transactions_account_identifier", "account_identifier"),
+    )

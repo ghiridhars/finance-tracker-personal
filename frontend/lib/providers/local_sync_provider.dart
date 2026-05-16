@@ -115,6 +115,7 @@ class LocalSyncState {
   final int currentIndex;
 
   final String? error;
+  final Map<String, String> bankPasswords;
 
   const LocalSyncState({
     this.configuredPath,
@@ -133,6 +134,7 @@ class LocalSyncState {
     this.currentFile,
     this.currentIndex = 0,
     this.error,
+    this.bankPasswords = const {},
   });
 
   int get selectedCount => files.where((f) => f.selected).length;
@@ -155,6 +157,7 @@ class LocalSyncState {
     String? currentFile,
     int? currentIndex,
     String? error,
+    Map<String, String>? bankPasswords,
     bool clearError = false,
     bool clearJobId = false,
     bool clearScanStatus = false,
@@ -176,6 +179,7 @@ class LocalSyncState {
       currentFile: currentFile ?? this.currentFile,
       currentIndex: currentIndex ?? this.currentIndex,
       error: clearError ? null : (error ?? this.error),
+      bankPasswords: bankPasswords ?? this.bankPasswords,
     );
   }
 }
@@ -255,6 +259,17 @@ class LocalSyncNotifier extends Notifier<LocalSyncState> {
     state = state.copyWith(files: updated);
   }
 
+  /// Update the PDF password for a bank (session-only, not persisted).
+  void updateBankPassword(String bank, String password) {
+    final updated = Map<String, String>.from(state.bankPasswords);
+    if (password.isEmpty) {
+      updated.remove(bank);
+    } else {
+      updated[bank] = password;
+    }
+    state = state.copyWith(bankPasswords: updated);
+  }
+
   /// Update statement type for a file at the given index.
   void updateFileType(int index, String type) {
     if (index < 0 || index >= state.files.length) return;
@@ -316,6 +331,9 @@ class LocalSyncNotifier extends Notifier<LocalSyncState> {
       final data = await LocalSyncApi.startScan(
         files: filesPayload,
         force: force,
+        bankPasswords: state.bankPasswords.isNotEmpty
+            ? state.bankPasswords
+            : null,
       );
 
       final jobId = data['job_id'] as String;

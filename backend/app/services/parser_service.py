@@ -47,6 +47,7 @@ class ParserService:
         filename: str,
         bank: BankType,
         statement_type: StatementType,
+        password: str | None = None,
     ) -> dict:
         """
         Unified parse entry point.
@@ -70,14 +71,14 @@ class ParserService:
             raw_text = ""
 
             try:
-                raw_text = parser.extract_raw_text(tmp_path)
+                raw_text = parser.extract_raw_text(tmp_path, password=password)
             except Exception:
                 pass
 
             llm_enabled = settings.llm_provider.lower() != "none"
 
             # ── Step 1: Generic PDF parser (fast, reliable for tabular PDFs) ──
-            result = parser.parse(tmp_path, statement_type)
+            result = parser.parse(tmp_path, statement_type, password=password)
 
             if result.success and result.result:
                 txn_count = len(getattr(result.result, "transactions", []))

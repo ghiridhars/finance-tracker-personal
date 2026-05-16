@@ -11,6 +11,7 @@ Setup:
   4. Share your statements folder with the service account email
   5. Set GDRIVE_CREDENTIALS_FILE and GDRIVE_FOLDER_ID in .env
 """
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -18,6 +19,10 @@ from pathlib import Path
 from typing import Optional
 
 from app.config import settings
+from app.utils.file_utils import review_status_from_parser
+
+# Lock for state file writes (prevents race conditions on concurrent sync triggers)
+_state_lock = asyncio.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -245,10 +250,7 @@ async def sync_from_drive(
 
             if success and statement:
                 # Determine review_status
-                if "llm" in parser_used.lower():
-                    review_status = "LLM_PARSED"
-                else:
-                    review_status = "AUTO_PARSED"
+                review_status = review_status_from_parser(parser_used)
 
                 # Resolve or create bank account
                 if statement_type == StatementType.CREDIT_CARD:
@@ -318,7 +320,8 @@ async def sync_from_drive(
     # Update sync state
     state["processed_files"] = processed
     state["last_sync"] = datetime.now(timezone.utc).isoformat()
-    _save_sync_state(state)
+    async with _state_lock:
+        _save_sync_state(state)
 
     results["last_sync"] = state["last_sync"]
     return results

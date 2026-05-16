@@ -1,0 +1,1717 @@
+2026-04-18 17:05:53  INFO      app.main  Starting Finance Tracker v2 (Python + FastAPI)
+2026-04-18 17:05:53  INFO      app.main  Database initialized: sqlite:///./data/finance_tracker.db
+2026-04-18 17:05:53  INFO      app.services.category_service  Categories table already has 21 rows — skipping seed.
+2026-04-18 17:05:53  WARNING   app.services.category_service  MCC codes CSV not found at /home/ghiridhars/Codebase/finance-tracker-personal/backend/data/mcc_codes.csv
+2026-04-18 17:05:53  INFO      app.main  Finance Tracker started at http://localhost:8080
+INFO:     127.0.0.1:38334 - "GET /api/v2/gdrive/status HTTP/1.1" 200 OK
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 0 rows from recurring_transactions
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 0 rows from bill_reminders
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 0 rows from savings_goals
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 0 rows from budgets
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 1018 rows from unified_transactions
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 857 rows from credit_card_transactions
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 140 rows from savings_account_transactions
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 19 rows from credit_card_statements
+2026-04-18 17:06:03  INFO      app.routers.export  Cleared 65 rows from savings_account_statements
+2026-04-18 17:06:03  INFO      app.routers.export  Clear all data: 2099 total rows deleted
+INFO:     127.0.0.1:38342 - "POST /api/v2/data/clear-all HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41340 - "GET /api/v2/transfers HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:41274 - "GET /api/v2/reminders HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41208 - "GET /api/v2/analytics/income-vs-expense?from=2025-04-18&to=2026-04-18 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41178 - "GET /api/v2/analytics/spending-by-category?from=2025-04-18&to=2026-04-18 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41260 - "GET /api/v2/budgets/progress?year=2026&month=4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41268 - "GET /api/v2/goals HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41240 - "GET /api/v2/accounts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41194 - "GET /api/v2/analytics/spending-trends?from=2025-04-18&to=2026-04-18&granularity=monthly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41250 - "GET /api/v2/budgets/summary?year=2026&month=4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41326 - "GET /api/v2/upi-ids HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41288 - "GET /api/v2/recurring?active_only=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41228 - "GET /api/v2/analytics/top-merchants?from=2025-04-18&to=2026-04-18&limit=15 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41340 - "GET /api/v2/transfers/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41224 - "GET /api/v2/analytics/month-over-month HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41348 - "GET /api/v2/transactions?from=2026-01-18&to=2026-04-18&limit=100&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41168 - "GET /api/v2/analytics/summary?from=2025-04-18&to=2026-04-18 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41318 - "GET /api/v2/categories HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41302 - "GET /api/v2/categories HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41360 - "GET /api/v2/analytics/spending-trends?from=2026-04-01&to=2026-04-30&granularity=daily HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43500 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43514 - "GET /api/v2/local-sync/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56062 - "GET /api/v2/local-sync/files HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56078 - "POST /api/v2/local-sync/reset HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56082 - "GET /api/v2/local-sync/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56094 - "GET /api/v2/local-sync/files HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35382 - "POST /api/v2/local-sync/configure HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57922 - "POST /api/v2/local-sync/scan HTTP/1.1" 200 OK
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 19 data rows
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:00  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:00  INFO      app.services.savings_service  Saved new statement id=1 for account OPEN
+2026-04-18 17:07:00  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:00  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:00  INFO      app.services.savings_service  Saved new statement id=2 for account OPEN
+2026-04-18 17:07:00  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 19 data rows
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:00  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:00  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:00  INFO      app.services.savings_service  Saved new statement id=3 for account OPEN
+2026-04-18 17:07:00  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 20 data rows
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:01  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:01  INFO      app.services.savings_service  Saved new statement id=4 for account OPEN
+2026-04-18 17:07:01  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 20 data rows
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:01  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:01  INFO      app.services.savings_service  Saved new statement id=5 for account OPEN
+2026-04-18 17:07:01  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 17 data rows
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:01  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:01  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:01  INFO      app.services.savings_service  Saved new statement id=6 for account OPEN
+2026-04-18 17:07:01  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 17 data rows
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:02  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:02  INFO      app.services.savings_service  Saved new statement id=7 for account OPEN
+2026-04-18 17:07:02  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:02  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:02  INFO      app.services.savings_service  Saved new statement id=8 for account OPEN
+2026-04-18 17:07:02  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:02  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:02  INFO      app.services.savings_service  Saved new statement id=9 for account OPEN
+2026-04-18 17:07:02  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:02  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:02  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:02  INFO      app.services.savings_service  Saved new statement id=10 for account OPEN
+2026-04-18 17:07:02  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 17 data rows
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:03  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:03  INFO      app.services.savings_service  Saved new statement id=11 for account OPEN
+2026-04-18 17:07:03  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 19 data rows
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:03  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:03  INFO      app.services.savings_service  Saved new statement id=12 for account OPEN
+2026-04-18 17:07:03  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 18 data rows
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:03  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:03  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:03  INFO      app.services.savings_service  Saved new statement id=13 for account OPEN
+2026-04-18 17:07:03  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 18 data rows
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:04  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:04  INFO      app.services.savings_service  Saved new statement id=14 for account OPEN
+2026-04-18 17:07:04  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+INFO:     127.0.0.1:57924 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 14 data rows
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:04  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:04  INFO      app.services.savings_service  Updating existing statement for account OPEN
+2026-04-18 17:07:04  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:04  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:04  INFO      app.services.savings_service  Saved new statement id=15 for account OPEN
+2026-04-18 17:07:04  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:04  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:04  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:04  INFO      app.services.savings_service  Saved new statement id=16 for account OPEN
+2026-04-18 17:07:04  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:05  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:05  INFO      app.services.savings_service  Saved new statement id=17 for account OPEN
+2026-04-18 17:07:05  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:05  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:05  INFO      app.services.savings_service  Saved new statement id=18 for account OPEN
+2026-04-18 17:07:05  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:05  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:05  INFO      app.services.savings_service  Saved new statement id=19 for account OPEN
+2026-04-18 17:07:05  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+INFO:     127.0.0.1:57930 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:05  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:05  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:05  INFO      app.services.savings_service  Updating existing statement for account OPEN
+2026-04-18 17:07:05  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:06  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:06  INFO      app.services.savings_service  Saved new statement id=20 for account OPEN
+2026-04-18 17:07:06  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:06  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:06  INFO      app.services.savings_service  Saved new statement id=21 for account OPEN
+2026-04-18 17:07:06  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 16 data rows
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:06  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:06  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:06  INFO      app.services.savings_service  Saved new statement id=22 for account OPEN
+2026-04-18 17:07:06  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:07  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:07  INFO      app.services.savings_service  Saved new statement id=23 for account OPEN
+2026-04-18 17:07:07  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 15 data rows
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:07  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:07  INFO      app.services.savings_service  Saved new statement id=24 for account OPEN
+2026-04-18 17:07:07  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 12 data rows
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:07  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:07  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:07  INFO      app.services.savings_service  Updating existing statement for account OPEN
+2026-04-18 17:07:07  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=OPEN)
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:08  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:08  INFO      app.services.savings_service  Saved new statement id=25 for account NOMINEE
+2026-04-18 17:07:08  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:08  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:08  INFO      app.services.savings_service  Saved new statement id=26 for account NOMINEE
+2026-04-18 17:07:08  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:38318 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 10 data rows
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:08  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:08  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:08  INFO      app.services.savings_service  Saved new statement id=27 for account NOMINEE
+2026-04-18 17:07:08  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:09  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:09  INFO      app.services.savings_service  Saved new statement id=28 for account NOMINEE
+2026-04-18 17:07:09  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 11 data rows
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 4 transactions
+2026-04-18 17:07:09  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:09  INFO      app.services.parser_service  Generic parser succeeded: 4 transactions
+2026-04-18 17:07:09  INFO      app.services.savings_service  Saved new statement id=29 for account NOMINEE
+2026-04-18 17:07:09  INFO      app.services.transaction_service  Created 4 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 10 data rows
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:10  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:10  INFO      app.services.savings_service  Saved new statement id=30 for account NOMINEE
+2026-04-18 17:07:10  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 11 data rows
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 4 transactions
+2026-04-18 17:07:10  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:10  INFO      app.services.parser_service  Generic parser succeeded: 4 transactions
+2026-04-18 17:07:10  INFO      app.services.savings_service  Saved new statement id=31 for account NOMINEE
+2026-04-18 17:07:10  INFO      app.services.transaction_service  Created 4 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:38330 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:11  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:11  INFO      app.services.savings_service  Saved new statement id=32 for account NOMINEE
+2026-04-18 17:07:11  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 10 data rows
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:11  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:11  INFO      app.services.savings_service  Saved new statement id=33 for account NOMINEE
+2026-04-18 17:07:11  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:11  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:11  INFO      app.services.savings_service  Saved new statement id=34 for account NOMINEE
+2026-04-18 17:07:11  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:11  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:11  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:11  INFO      app.services.savings_service  Saved new statement id=35 for account NOMINEE
+2026-04-18 17:07:11  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 10 data rows
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 3 transactions
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:12  INFO      app.services.parser_service  Generic parser succeeded: 3 transactions
+2026-04-18 17:07:12  INFO      app.services.savings_service  Saved new statement id=36 for account NOMINEE
+2026-04-18 17:07:12  INFO      app.services.transaction_service  Created 3 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:38332 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:12  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:12  INFO      app.services.savings_service  Saved new statement id=37 for account NOMINEE
+2026-04-18 17:07:12  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:12  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:12  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:12  INFO      app.services.savings_service  Saved new statement id=38 for account NOMINEE
+2026-04-18 17:07:12  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:13  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:13  INFO      app.services.savings_service  Saved new statement id=39 for account NOMINEE
+2026-04-18 17:07:13  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:13  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:13  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:13  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:13  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:13  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:13  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:13  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:13  INFO      app.services.savings_service  Saved new statement id=40 for account NOMINEE
+2026-04-18 17:07:13  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:38334 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:13  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:13  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:13  INFO      app.services.savings_service  Saved new statement id=41 for account NOMINEE
+2026-04-18 17:07:13  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:14  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:14  INFO      app.services.savings_service  Saved new statement id=42 for account NOMINEE
+2026-04-18 17:07:14  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 7 data rows
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:14  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:14  INFO      app.services.savings_service  Saved new statement id=43 for account NOMINEE
+2026-04-18 17:07:14  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:14  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:14  INFO      app.services.savings_service  Saved new statement id=44 for account NOMINEE
+2026-04-18 17:07:14  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:14  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:14  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:14  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:14  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:14  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:14  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:14  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 6 data rows
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:15  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:15  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:15  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:15  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:15  INFO      app.services.savings_service  Saved new statement id=45 for account NOMINEE
+2026-04-18 17:07:15  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:15  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:15  INFO      app.services.savings_service  Saved new statement id=46 for account NOMINEE
+2026-04-18 17:07:15  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:38336 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:15  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:15  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:15  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:15  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:15  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:15  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:15  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:16  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:16  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:16  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:16  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:16  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:16  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:16  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:16  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:16  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:16  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:16  INFO      app.services.savings_service  Saved new statement id=47 for account NOMINEE
+2026-04-18 17:07:16  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:16  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:16  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:16  INFO      app.services.savings_service  Saved new statement id=48 for account NOMINEE
+2026-04-18 17:07:16  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Saved new statement id=49 for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:50332 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:17  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:17  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:17  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:17  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 8 data rows
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:18  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:18  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:18  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:18  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:18  INFO      app.services.savings_service  Saved new statement id=50 for account NOMINEE
+2026-04-18 17:07:18  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:18  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:18  INFO      app.services.savings_service  Saved new statement id=51 for account NOMINEE
+2026-04-18 17:07:18  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:18  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:18  INFO      app.services.savings_service  Saved new statement id=52 for account NOMINEE
+2026-04-18 17:07:18  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:18  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:18  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:19  INFO      app.services.savings_service  Saved new statement id=53 for account NOMINEE
+2026-04-18 17:07:19  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 10 data rows
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:19  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:19  INFO      app.services.savings_service  Saved new statement id=54 for account NOMINEE
+2026-04-18 17:07:19  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:19  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:19  INFO      app.services.savings_service  Saved new statement id=55 for account NOMINEE
+2026-04-18 17:07:19  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:19  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:19  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:19  INFO      app.services.savings_service  Saved new statement id=56 for account NOMINEE
+2026-04-18 17:07:19  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:50346 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:20  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:20  INFO      app.services.savings_service  Saved new statement id=57 for account NOMINEE
+2026-04-18 17:07:20  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:20  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:20  INFO      app.services.savings_service  Saved new statement id=58 for account NOMINEE
+2026-04-18 17:07:20  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:20  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:20  INFO      app.services.savings_service  Saved new statement id=59 for account NOMINEE
+2026-04-18 17:07:20  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 1 transactions
+2026-04-18 17:07:20  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:20  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:20  INFO      app.services.savings_service  Updating existing statement for account NOMINEE
+2026-04-18 17:07:20  INFO      app.services.transaction_service  Created 1 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:21  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:21  INFO      app.services.savings_service  Saved new statement id=60 for account NOMINEE
+2026-04-18 17:07:21  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:21  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:21  INFO      app.services.savings_service  Saved new statement id=61 for account NOMINEE
+2026-04-18 17:07:21  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:21  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:21  INFO      app.services.savings_service  Saved new statement id=62 for account NOMINEE
+2026-04-18 17:07:21  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+INFO:     127.0.0.1:50354 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:21  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:21  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:21  INFO      app.services.savings_service  Saved new statement id=63 for account NOMINEE
+2026-04-18 17:07:21  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:22  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:22  INFO      app.services.savings_service  Saved new statement id=64 for account NOMINEE
+2026-04-18 17:07:22  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': 3, 'credit': 4, 'amount': None, 'balance': 5, 'reference': None, 'value_date': None}, 9 data rows
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Generic PDF savings parse: 2 transactions
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:22  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:22  INFO      app.services.savings_service  Saved new statement id=65 for account NOMINEE
+2026-04-18 17:07:22  INFO      app.services.transaction_service  Created 2 unified transactions from savings statement (account=NOMINEE)
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 25 transactions
+2026-04-18 17:07:22  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:22  INFO      app.services.parser_service  Generic parser succeeded: 25 transactions
+2026-04-18 17:07:22  INFO      app.services.credit_card_service  Saved new statement id=1 for card 653029XXXXXX4279
+2026-04-18 17:07:22  INFO      app.services.transaction_service  Created 25 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:23  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:23  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:23  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:23  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:23  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:24  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 18 transactions
+2026-04-18 17:07:24  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:24  INFO      app.services.parser_service  Generic parser succeeded: 18 transactions
+2026-04-18 17:07:24  INFO      app.services.credit_card_service  Saved new statement id=2 for card 653029XXXXXX4279
+2026-04-18 17:07:24  INFO      app.services.transaction_service  Created 18 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:24  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:24  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:24  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:24  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:24  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:24  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 15 transactions
+2026-04-18 17:07:24  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:24  INFO      app.services.parser_service  Generic parser succeeded: 15 transactions
+2026-04-18 17:07:24  INFO      app.services.credit_card_service  Saved new statement id=3 for card 653029XXXXXX4279
+2026-04-18 17:07:24  INFO      app.services.transaction_service  Created 15 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:25  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:25  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:25  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:25  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:25  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:50368 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:26  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 14 transactions
+2026-04-18 17:07:26  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:26  INFO      app.services.parser_service  Generic parser succeeded: 14 transactions
+2026-04-18 17:07:26  INFO      app.services.credit_card_service  Saved new statement id=4 for card 653029XXXXXX4279
+2026-04-18 17:07:26  INFO      app.services.transaction_service  Created 14 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:27  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:27  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:27  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:27  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:27  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:27  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 14 transactions
+2026-04-18 17:07:27  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:27  INFO      app.services.parser_service  Generic parser succeeded: 14 transactions
+2026-04-18 17:07:27  INFO      app.services.credit_card_service  Saved new statement id=5 for card 653029XXXXXX4279
+2026-04-18 17:07:27  INFO      app.services.transaction_service  Created 14 unified transactions from CC statement (card=653029XXXXXX4279)
+INFO:     127.0.0.1:50370 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:28  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:28  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:28  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:28  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:28  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:29  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:29  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:29  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:29  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:29  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:30  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:30  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:30  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:30  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:30  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:31  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:31  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:31  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:31  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:31  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:39520 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:31  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 28 transactions
+2026-04-18 17:07:31  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:31  INFO      app.services.parser_service  Generic parser succeeded: 28 transactions
+2026-04-18 17:07:31  INFO      app.services.credit_card_service  Saved new statement id=6 for card 653029XXXXXX4279
+2026-04-18 17:07:31  INFO      app.services.transaction_service  Created 28 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:32  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:32  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:32  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:32  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:32  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:32  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:32  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:32  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:32  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:32  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:39532 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:33  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 31 transactions
+2026-04-18 17:07:33  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:33  INFO      app.services.parser_service  Generic parser succeeded: 31 transactions
+2026-04-18 17:07:33  INFO      app.services.credit_card_service  Saved new statement id=7 for card 653029XXXXXX4279
+2026-04-18 17:07:33  INFO      app.services.transaction_service  Created 31 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:33  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 33 transactions
+2026-04-18 17:07:33  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:33  INFO      app.services.parser_service  Generic parser succeeded: 33 transactions
+2026-04-18 17:07:33  INFO      app.services.credit_card_service  Saved new statement id=8 for card 653029XXXXXX4279
+2026-04-18 17:07:33  INFO      app.services.transaction_service  Created 33 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:33  INFO      app.services.transfer_detection_service  Detected 1 transfer pairs for 33 new transactions
+2026-04-18 17:07:33  INFO      app.services.transaction_service  Auto-linked 1 transfer pair(s) after upload
+INFO:     127.0.0.1:39538 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:34  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 29 transactions
+2026-04-18 17:07:34  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:34  INFO      app.services.parser_service  Generic parser succeeded: 29 transactions
+2026-04-18 17:07:34  INFO      app.services.credit_card_service  Saved new statement id=9 for card 653029XXXXXX4279
+2026-04-18 17:07:34  INFO      app.services.transaction_service  Created 29 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:38  INFO      app.parsers.generic_pdf_parser  Table strategy: col_map={'date': 0, 'description': 1, 'debit': None, 'credit': None, 'amount': 2, 'balance': None, 'reference': None, 'value_date': None}, 620 data rows
+2026-04-18 17:07:38  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 620 transactions
+2026-04-18 17:07:38  INFO      app.parsers.generic_pdf_parser  Table extraction strategy succeeded
+2026-04-18 17:07:38  INFO      app.services.parser_service  Generic parser succeeded: 620 transactions
+2026-04-18 17:07:38  INFO      app.services.credit_card_service  Saved new statement id=10 for card 653029XXXXXX4279
+2026-04-18 17:07:39  INFO      app.services.transaction_service  Created 620 unified transactions from CC statement (card=653029XXXXXX4279)
+2026-04-18 17:07:40  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 16 transactions
+2026-04-18 17:07:40  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:40  INFO      app.services.parser_service  Generic parser succeeded: 16 transactions
+2026-04-18 17:07:40  INFO      app.services.credit_card_service  Saved new statement id=11 for card 463202XXXXXX4418
+2026-04-18 17:07:40  INFO      app.services.transaction_service  Created 16 unified transactions from CC statement (card=463202XXXXXX4418)
+INFO:     127.0.0.1:39540 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:40  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:40  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:40  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:40  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:40  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:41  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 2 transactions
+2026-04-18 17:07:41  INFO      app.parsers.generic_pdf_parser  Multi-line text strategy succeeded
+2026-04-18 17:07:41  INFO      app.services.parser_service  Generic parser succeeded: 2 transactions
+2026-04-18 17:07:41  INFO      app.services.credit_card_service  Saved new statement id=12 for card 4632 02XX XXXX 4418
+2026-04-18 17:07:41  INFO      app.services.transaction_service  Created 2 unified transactions from CC statement (card=4632 02XX XXXX 4418)
+2026-04-18 17:07:42  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:42  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:42  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:42  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:42  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:42  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 13 transactions
+2026-04-18 17:07:42  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:42  INFO      app.services.parser_service  Generic parser succeeded: 13 transactions
+2026-04-18 17:07:42  INFO      app.services.credit_card_service  Saved new statement id=13 for card 463202XXXXXX4418
+2026-04-18 17:07:42  INFO      app.services.transaction_service  Created 13 unified transactions from CC statement (card=463202XXXXXX4418)
+INFO:     127.0.0.1:39548 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:43  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:43  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:43  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:43  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:43  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:42094 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:44  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:44  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:44  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:44  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:44  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:42102 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:44  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:44  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:44  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:44  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:44  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:42106 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:45  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 22 transactions
+2026-04-18 17:07:45  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:45  INFO      app.services.parser_service  Generic parser succeeded: 22 transactions
+2026-04-18 17:07:45  INFO      app.services.credit_card_service  Saved new statement id=14 for card 463202XXXXXX4418
+2026-04-18 17:07:45  INFO      app.services.transaction_service  Created 22 unified transactions from CC statement (card=463202XXXXXX4418)
+2026-04-18 17:07:45  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:45  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:45  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:45  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:45  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:42110 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:46  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:46  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:46  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:46  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:46  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:47  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:47  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:47  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:47  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:47  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:47  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 5 transactions
+2026-04-18 17:07:47  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:47  INFO      app.services.parser_service  Generic parser succeeded: 5 transactions
+2026-04-18 17:07:47  INFO      app.services.credit_card_service  Saved new statement id=15 for card 463202XXXXXX4418
+2026-04-18 17:07:47  INFO      app.services.transaction_service  Created 5 unified transactions from CC statement (card=463202XXXXXX4418)
+INFO:     127.0.0.1:42116 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:48  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:48  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:48  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:48  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:48  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:48  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:48  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:48  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:48  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:48  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:49  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:49  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:49  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:49  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:49  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:49  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 15 transactions
+2026-04-18 17:07:49  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:07:49  INFO      app.services.parser_service  Generic parser succeeded: 15 transactions
+2026-04-18 17:07:49  INFO      app.services.credit_card_service  Saved new statement id=16 for card 463202XXXXXX4418
+2026-04-18 17:07:50  INFO      app.services.transaction_service  Created 15 unified transactions from CC statement (card=463202XXXXXX4418)
+INFO:     127.0.0.1:35548 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:50  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:50  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:50  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:50  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:50  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:51  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:51  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:51  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:51  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:51  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:51  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:51  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:51  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:51  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:51  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:35554 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:52  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:52  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:52  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:52  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:52  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:52  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:52  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:52  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:52  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:52  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:53  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:53  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:53  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:53  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:53  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:53  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:53  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:53  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:53  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:53  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:35556 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:54  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:54  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:54  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:54  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:54  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:55  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 1 transactions
+2026-04-18 17:07:55  INFO      app.parsers.generic_pdf_parser  Multi-line text strategy succeeded
+2026-04-18 17:07:55  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:07:55  INFO      app.services.credit_card_service  Saved new statement id=17 for card 4632 02XX XXXX 4418
+2026-04-18 17:07:55  INFO      app.services.transaction_service  Created 1 unified transactions from CC statement (card=4632 02XX XXXX 4418)
+2026-04-18 17:07:55  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:55  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:55  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:55  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:55  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:56  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:56  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:56  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:56  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:56  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:56  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:56  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:56  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:56  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:56  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:57  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:57  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:57  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:57  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:57  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:35562 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:57  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:57  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:57  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:57  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:57  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:58  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:58  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:58  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:58  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:58  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:35572 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:07:59  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:59  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:59  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:59  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:59  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:59  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:07:59  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:07:59  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:07:59  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:07:59  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:00  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:00  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:00  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:00  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:00  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:00  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:00  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:00  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:00  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:00  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:52756 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:08:00  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:00  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:00  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:00  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:00  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:01  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:01  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:01  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:01  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:01  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:02  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 1 transactions
+2026-04-18 17:08:02  INFO      app.parsers.generic_pdf_parser  Multi-line text strategy succeeded
+2026-04-18 17:08:02  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:08:02  INFO      app.services.credit_card_service  Saved new statement id=18 for card 4632 02XX XXXX 4418
+2026-04-18 17:08:02  INFO      app.services.transaction_service  Created 1 unified transactions from CC statement (card=4632 02XX XXXX 4418)
+INFO:     127.0.0.1:52768 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:08:02  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:02  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:02  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:02  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:02  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:03  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:03  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:03  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:03  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:03  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:03  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 6 transactions
+2026-04-18 17:08:03  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:08:03  INFO      app.services.parser_service  Generic parser succeeded: 6 transactions
+2026-04-18 17:08:03  INFO      app.services.credit_card_service  Saved new statement id=19 for card 463202XXXXXX4418
+2026-04-18 17:08:03  INFO      app.services.transaction_service  Created 6 unified transactions from CC statement (card=463202XXXXXX4418)
+2026-04-18 17:08:04  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:04  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:04  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:04  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:04  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:04  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 1 transactions
+2026-04-18 17:08:04  INFO      app.parsers.generic_pdf_parser  Multi-line text strategy succeeded
+2026-04-18 17:08:04  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:08:04  INFO      app.services.credit_card_service  Saved new statement id=20 for card 4632 02XX XXXX 4418
+2026-04-18 17:08:04  INFO      app.services.transaction_service  Created 1 unified transactions from CC statement (card=4632 02XX XXXX 4418)
+INFO:     127.0.0.1:52774 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:08:05  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:05  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:05  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:05  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:05  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:05  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 1 transactions
+2026-04-18 17:08:05  INFO      app.parsers.generic_pdf_parser  Multi-line text strategy succeeded
+2026-04-18 17:08:05  INFO      app.services.parser_service  Generic parser succeeded: 1 transactions
+2026-04-18 17:08:05  INFO      app.services.credit_card_service  Saved new statement id=21 for card 4632 02XX XXXX 4418
+2026-04-18 17:08:05  INFO      app.services.transaction_service  Created 1 unified transactions from CC statement (card=4632 02XX XXXX 4418)
+2026-04-18 17:08:06  INFO      app.parsers.generic_pdf_parser  Generic PDF credit card parse: 5 transactions
+2026-04-18 17:08:06  INFO      app.parsers.generic_pdf_parser  Credit card multi-line strategy succeeded
+2026-04-18 17:08:06  INFO      app.services.parser_service  Generic parser succeeded: 5 transactions
+2026-04-18 17:08:06  INFO      app.services.credit_card_service  Saved new statement id=22 for card 463202XXXXXX4418
+2026-04-18 17:08:06  INFO      app.services.transaction_service  Created 5 unified transactions from CC statement (card=463202XXXXXX4418)
+INFO:     127.0.0.1:52778 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+2026-04-18 17:08:06  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:06  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:06  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:06  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:06  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:07  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:07  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:07  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:07  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:07  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:07  WARNING   app.services.parser_service  Generic parser insufficient (Could not extract transactions from PDF using table, single-line text, or multi-line text strategy.), trying LLM fallback...
+2026-04-18 17:08:07  INFO      app.parsers.llm_parser  Generic LLM parsing: HDFC/CREDIT_CARD with ollama
+2026-04-18 17:08:07  INFO      httpx  HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 404 Not Found"
+2026-04-18 17:08:07  ERROR     app.parsers.llm_parser  Generic LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+Traceback (most recent call last):
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 235, in parse_with_llm_generic
+    raw_json = _call_llm_ollama(full_prompt, text)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/app/parsers/llm_parser.py", line 287, in _call_llm_ollama
+    response = client.chat(
+               ^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 365, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 189, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ghiridhars/Codebase/finance-tracker-personal/backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 133, in _request_raw
+    raise ResponseError(e.response.text, e.response.status_code) from None
+ollama._types.ResponseError: model 'lfm2-extract' not found (status code: 404)
+2026-04-18 17:08:07  WARNING   app.services.parser_service  LLM fallback also failed: LLM parsing failed: model 'lfm2-extract' not found (status code: 404)
+INFO:     127.0.0.1:42980 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42988 - "GET /api/v2/local-sync/scan/651a6479 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43002 - "GET /api/v2/local-sync/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43008 - "GET /api/v2/local-sync/status HTTP/1.1" 200 OK
+2026-04-18 17:08:18  INFO      app.main  Finance Tracker shutting down

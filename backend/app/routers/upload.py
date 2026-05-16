@@ -9,7 +9,8 @@ New endpoints:
 """
 import logging
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, Depends
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,6 +19,7 @@ from app.parsers.parser_registry import get_registered_banks
 from app.services.parser_service import ParserService
 from app.services.account_resolution_service import AccountResolutionService
 from app.services.statement_audit_service import StatementAuditService
+from app.utils.file_utils import review_status_from_parser
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,7 @@ async def upload_statement_v2(
         description="Statement type: SAVINGS or CREDIT_CARD",
     ),
     save: bool = Query(True, description="Whether to save to database"),
+    password: Optional[str] = Form(None, description="Password for encrypted PDFs"),
     db: Session = Depends(get_db),
 ):
     """
@@ -124,7 +127,11 @@ async def upload_statement_v2(
             )
 
         result = await parser_service.parse_statement(
-            content, file.filename or "upload.pdf", bank_type, statement_type
+            content,
+            file.filename or "upload.pdf",
+            bank_type,
+            statement_type,
+            password=password or None,
         )
 
         if not result.get("success"):
@@ -155,10 +162,7 @@ async def upload_statement_v2(
         if save:
             # Determine review_status from parser used
             parser_used = result.get("parser", "unknown")
-            if "llm" in parser_used.lower():
-                review_status = "LLM_PARSED"
-            else:
-                review_status = "AUTO_PARSED"
+            review_status = review_status_from_parser(parser_used)
 
             # Resolve or create bank account
             account_number = _get_account_number(statement, statement_type)

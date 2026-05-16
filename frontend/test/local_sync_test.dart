@@ -32,6 +32,9 @@ class MockLocalSyncNotifier extends Notifier<LocalSyncState>
   void updateFileBank(int index, String bank) {}
 
   @override
+  void updateBankPassword(String bank, String password) {}
+
+  @override
   void updateFileType(int index, String type) {}
 
   @override
@@ -82,6 +85,7 @@ class MockStatementsNotifier extends Notifier<UploadState>
     required String statementType,
     bool save = true,
     bool isCsv = false,
+    String? password,
   }) async {}
 }
 

@@ -66,9 +66,11 @@ class ApiService {
   static Future<Map<String, dynamic>> uploadStatementV2({
     required List<int> fileBytes, required String fileName,
     required String bank, required String statementType, bool save = true,
+    String? password,
   }) => UploadApi.uploadStatementV2(
     fileBytes: fileBytes, fileName: fileName,
     bank: bank, statementType: statementType, save: save,
+    password: password,
   );
 
   static Future<Map<String, dynamic>> uploadCsvStatementV2({

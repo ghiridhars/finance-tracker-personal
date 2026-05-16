@@ -6,12 +6,19 @@ bank and statement type from filenames and folder structure.
 """
 from pathlib import Path
 
-from app.models.enums import BankType
+from app.models.enums import BankType, ReviewStatus
 
 
 # Extensions considered as CSV-like (vs PDF)
 CSV_EXTENSIONS = {".csv", ".txt", ".tsv", ".xlsx", ".xls"}
 SUPPORTED_EXTENSIONS = {".pdf"} | CSV_EXTENSIONS
+
+
+def review_status_from_parser(parser_used: str) -> str:
+    """Return the ReviewStatus value based on which parser handled the file."""
+    if "llm" in parser_used.lower():
+        return ReviewStatus.LLM_PARSED.value
+    return ReviewStatus.AUTO_PARSED.value
 
 
 def infer_file_type(filename: str, relative_path: str = "") -> tuple[str, str]:

@@ -39,7 +39,7 @@ jobs:
       - name: Install Flutter SDK
         run: |
           if [ ! -d "/opt/flutter" ]; then
-            git clone https://github.com/flutter/flutter.git /opt/flutter -b stable --depth 1
+            git clone https://github.com/flutter/flutter.git /opt/flutter -b ${{ env.FLUTTER_VERSION }} --depth 1
           fi
           echo "/opt/flutter/bin" >> $GITHUB_PATH
 

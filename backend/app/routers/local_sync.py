@@ -37,6 +37,7 @@ class FileScanItem(BaseModel):
 class ScanRequest(BaseModel):
     files: list[FileScanItem]
     force: bool = False
+    bank_passwords: dict[str, str] = {}
 
 
 class ResetRequest(BaseModel):
@@ -131,7 +132,13 @@ async def local_sync_scan(
         # session is closed by the time BackgroundTasks runs.
         db = SessionLocal()
         try:
-            await scan_and_import(db=db, files=files_dicts, job_id=job_id, force=body.force)
+            await scan_and_import(
+                db=db,
+                files=files_dicts,
+                job_id=job_id,
+                force=body.force,
+                bank_passwords=body.bank_passwords,
+            )
         except Exception as e:
             logger.error(f"Local sync scan failed: {e}", exc_info=True)
         finally:

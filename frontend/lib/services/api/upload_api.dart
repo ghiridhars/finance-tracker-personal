@@ -12,6 +12,7 @@ class UploadApi {
     required String bank,
     required String statementType,
     bool save = true,
+    String? password,
   }) async {
     final uri = Uri.parse(
       '${ApiClient.baseUrl}/api/v2/statements/upload'
@@ -25,6 +26,9 @@ class UploadApi {
       filename: fileName,
       contentType: MediaType('application', 'pdf'),
     ));
+    if (password != null && password.isNotEmpty) {
+      request.fields['password'] = password;
+    }
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);

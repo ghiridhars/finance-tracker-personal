@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Data / secrets
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Dev artefacts
+full_logs.txt
+*.log
+
+# Git
+.git/
+.gitignore

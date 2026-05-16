@@ -70,6 +70,7 @@ class StatementsNotifier extends Notifier<UploadState> {
     required String statementType,
     bool save = true,
     bool isCsv = false,
+    String? password,
   }) async {
     state = state.copyWith(isUploading: true, clearResult: true, isError: false);
 
@@ -100,6 +101,7 @@ class StatementsNotifier extends Notifier<UploadState> {
           bank: bank,
           statementType: statementType,
           save: save,
+          password: password,
         );
       }
 

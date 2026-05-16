@@ -65,14 +65,20 @@ class GenericPdfParser:
       3. Multi-line text parsing
     """
 
-    def parse(self, file_path: str | Path, statement_type: StatementType) -> ParseResult:
+    def parse(
+        self,
+        file_path: str | Path,
+        statement_type: StatementType,
+        password: str | None = None,
+    ) -> ParseResult:
         file_path = Path(file_path)
         if not file_path.exists():
             raise ParseException(f"File not found: {file_path}")
 
         try:
             # Strategy 1: table extraction (pdfplumber — better for tables)
-            with pdfplumber.open(str(file_path)) as pdf:
+            pdf_password = password or ""
+            with pdfplumber.open(str(file_path), password=pdf_password) as pdf:
                 if not pdf.pages:
                     return ParseResult.failure("PDF has no pages")
 
@@ -83,7 +89,7 @@ class GenericPdfParser:
                     return result
 
             # Strategy 2 & 3: text-based parsing (pymupdf — faster text)
-            raw_text = self.extract_raw_text(file_path)
+            raw_text = self.extract_raw_text(file_path, password=password)
 
             if settings.debug:
                 try:
@@ -132,16 +138,29 @@ class GenericPdfParser:
         except Exception as e:
             raise ParseException(f"Failed to parse PDF: {e}", cause=e)
 
-    def extract_raw_text(self, file_path: str | Path) -> str:
+    def extract_raw_text(self, file_path: str | Path, password: str | None = None) -> str:
         """Extract text using pymupdf (fitz) — significantly faster than pdfplumber."""
         try:
             doc = fitz.open(str(file_path))
+            if doc.needs_pass:
+                if not password:
+                    doc.close()
+                    raise ParseException(
+                        "PDF is password-protected — please provide the password."
+                    )
+                authenticated = doc.authenticate(password)
+                if not authenticated:
+                    doc.close()
+                    raise ParseException("Incorrect PDF password.")
             text = "\n".join(page.get_text() for page in doc)
             doc.close()
             return text
+        except ParseException:
+            raise
         except Exception:
             # Fallback to pdfplumber if pymupdf fails
-            with pdfplumber.open(str(file_path)) as pdf:
+            pdf_password = password or ""
+            with pdfplumber.open(str(file_path), password=pdf_password) as pdf:
                 return "\n".join(page.extract_text() or "" for page in pdf.pages)
 
     # ── Strategy 1: Table extraction ──────────────────────────
