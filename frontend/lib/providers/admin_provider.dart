@@ -154,6 +154,18 @@ class AdminNotifier extends Notifier<AdminState> {
     await _fetchRows();
   }
 
+  Future<void> goToPage(int page) async {
+    if (page == state.currentPage) return;
+    state = state.copyWith(currentPage: page, isLoading: true);
+    await _fetchRows();
+  }
+
+  Future<void> setPageSize(int size) async {
+    if (size == state.pageSize) return;
+    state = state.copyWith(pageSize: size, currentPage: 0, isLoading: true);
+    await _fetchRows();
+  }
+
   Future<void> _fetchRows() async {
     final tableName = state.selectedTable;
     if (tableName == null) return;

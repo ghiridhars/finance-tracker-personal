@@ -3,6 +3,7 @@
 /// Accessed from Settings → Advanced → Database Manager.
 /// Provides table selection, paginated row browsing, search, sort,
 /// and full CRUD via dynamically generated forms.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,8 +21,8 @@ class DatabaseManagerScreen extends ConsumerStatefulWidget {
 class _DatabaseManagerScreenState
     extends ConsumerState<DatabaseManagerScreen> {
   final _searchController = TextEditingController();
-  final _searchDebounce = ValueNotifier<String?>(null);
   final _tableScrollController = ScrollController();
+  Timer? _searchDebounceTimer;
 
   @override
   void initState() {
@@ -34,8 +35,8 @@ class _DatabaseManagerScreenState
   @override
   void dispose() {
     _searchController.dispose();
-    _searchDebounce.dispose();
     _tableScrollController.dispose();
+    _searchDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -125,7 +126,15 @@ class _DatabaseManagerScreenState
                           : null,
                     ),
                     enabled: adminState.selectedTable != null,
+                    onChanged: (value) {
+                      _searchDebounceTimer?.cancel();
+                      _searchDebounceTimer = Timer(
+                        const Duration(milliseconds: 400),
+                        () => notifier.setSearch(value.isEmpty ? null : value),
+                      );
+                    },
                     onSubmitted: (value) {
+                      _searchDebounceTimer?.cancel();
                       notifier.setSearch(value.isEmpty ? null : value);
                     },
                   ),
@@ -238,10 +247,7 @@ class _DatabaseManagerScreenState
             columns: [
               // Data columns
               ...schema.columns.map((col) => DataColumn(
-                    label: Text(
-                      col.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    label: _buildColumnHeader(col),
                     onSort: (_, __) => notifier.setSort(col.name),
                     numeric: col.type == 'integer' || col.type == 'number',
                   )),
@@ -250,6 +256,8 @@ class _DatabaseManagerScreenState
             ],
             rows: adminState.rows.map((row) {
               return DataRow(
+                onSelectChanged: (_) =>
+                    _showRowDialog(context, ref, existingRow: row),
                 cells: [
                   ...schema.columns.map((col) {
                     final value = row[col.name];
@@ -357,12 +365,39 @@ class _DatabaseManagerScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Page size selector
+          Row(
+            children: [
+              Text('Rows: ', style: textTheme.bodySmall),
+              DropdownButton<int>(
+                value: adminState.pageSize,
+                isDense: true,
+                underline: const SizedBox(),
+                items: [25, 50, 100, 200]
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text('$s', style: textTheme.bodySmall),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) notifier.setPageSize(v);
+                },
+              ),
+            ],
+          ),
           Text(
             'Showing $start–$end of ${adminState.total}',
             style: textTheme.bodySmall,
           ),
           Row(
             children: [
+              IconButton(
+                icon: const Icon(Icons.first_page),
+                tooltip: 'First page',
+                onPressed: adminState.currentPage > 0
+                    ? () => notifier.goToPage(0)
+                    : null,
+              ),
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 onPressed: adminState.currentPage > 0
@@ -376,10 +411,40 @@ class _DatabaseManagerScreenState
                     ? () => notifier.nextPage()
                     : null,
               ),
+              IconButton(
+                icon: const Icon(Icons.last_page),
+                tooltip: 'Last page',
+                onPressed: adminState.currentPage < maxPage
+                    ? () => notifier.goToPage(maxPage)
+                    : null,
+              ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildColumnHeader(ColumnInfo col) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(col.name,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (col.primaryKey) ...[const SizedBox(width: 4), const _ColBadge('PK', Colors.orange)],
+            if (col.foreignKey != null) ...[const SizedBox(width: 4), const _ColBadge('FK', Colors.blue)],
+            if (!col.nullable && !col.primaryKey) ...[const SizedBox(width: 4), const _ColBadge('REQ', Colors.red)],
+          ],
+        ),
+        Text(
+          col.type,
+          style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic),
+        ),
+      ],
     );
   }
 
@@ -531,6 +596,16 @@ class _RowFormDialogState extends State<_RowFormDialog> {
     _data = Map.from(widget.initialData);
   }
 
+  // System/audit columns that should not be user-editable
+  static const _systemColumns = {
+    'created_at',
+    'updated_at',
+    'source_type',
+    'source_transaction_id',
+    'statement_audit_id',
+    'transfer_group_id',
+  };
+
   List<ColumnInfo> get _editableColumns {
     return widget.schema.columns.where((col) {
       // Skip autoincrement PKs in create mode
@@ -539,6 +614,8 @@ class _RowFormDialogState extends State<_RowFormDialog> {
       }
       // Always skip PK in edit mode
       if (widget.isEditing && col.primaryKey) return false;
+      // Skip internal/system columns
+      if (_systemColumns.contains(col.name)) return false;
       return true;
     }).toList();
   }
@@ -597,6 +674,11 @@ class _RowFormDialogState extends State<_RowFormDialog> {
     // Boolean — switch
     if (col.type == 'boolean') {
       return _buildBoolSwitch(col);
+    }
+
+    // Datetime
+    if (col.type == 'datetime') {
+      return _buildDateTimeField(col);
     }
 
     // Date
@@ -718,6 +800,50 @@ class _RowFormDialogState extends State<_RowFormDialog> {
     );
   }
 
+  Widget _buildDateTimeField(ColumnInfo col) {
+    final currentVal = _data[col.name]?.toString() ?? '';
+    return TextFormField(
+      key: ValueKey('${col.name}_$currentVal'),
+      initialValue: currentVal,
+      decoration: InputDecoration(
+        labelText: col.name,
+        hintText: 'YYYY-MM-DDTHH:MM:SS',
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.access_time),
+          tooltip: 'Pick date & time',
+          onPressed: () async {
+            final parsed = DateTime.tryParse(currentVal);
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: parsed ?? DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked == null || !mounted) return;
+            final pickedTime = await showTimePicker(
+              context: context,
+              initialTime: TimeOfDay.fromDateTime(parsed ?? DateTime.now()),
+            );
+            if (!mounted) return;
+            final combined = DateTime(
+              picked.year, picked.month, picked.day,
+              pickedTime?.hour ?? 0, pickedTime?.minute ?? 0,
+            );
+            setState(() => _data[col.name] = combined.toIso8601String());
+          },
+        ),
+      ),
+      validator: (v) {
+        if (!col.nullable && (v == null || v.isEmpty)) {
+          return '${col.name} is required';
+        }
+        return null;
+      },
+      onSaved: (v) =>
+          _data[col.name] = (v == null || v.isEmpty) ? null : v,
+    );
+  }
+
   Widget _buildEnumDropdown(ColumnInfo col) {
     return DropdownButtonFormField<String>(
       value: _data[col.name]?.toString(),
@@ -788,5 +914,31 @@ class _RowFormDialogState extends State<_RowFormDialog> {
     if (mounted) {
       setState(() => _isSaving = false);
     }
+  }
+}
+
+// ── Column badge chip ───────────────────────────────────────
+
+class _ColBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ColBadge(this.label, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withAlpha(40),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: color.withAlpha(120), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontSize: 9, color: color, fontWeight: FontWeight.bold),
+      ),
+    );
   }
 }
