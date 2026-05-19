@@ -55,11 +55,8 @@ class Settings(BaseSettings):
     ollama_model: str = "lfm2-extract"
     ollama_host: str = "http://localhost:11434"
 
-    # Google Drive sync
-    gdrive_enabled: bool = False
-    gdrive_credentials_file: str = ""  # Path to service account JSON key file
-    gdrive_folder_id: str = ""  # Google Drive folder ID to watch
-    gdrive_poll_interval_minutes: int = 60  # Auto-sync interval (0 = disabled)
+    # Google Drive sync (OAuth)
+    gdrive_oauth_secrets_file: str = "credentials_google.json"
 
     # Local directory sync
     local_sync_path: str = ""  # Local folder path containing statement files

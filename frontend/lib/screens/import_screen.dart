@@ -12,9 +12,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/statements_provider.dart';
 import '../providers/local_sync_provider.dart';
+import '../providers/gdrive_import_provider.dart';
 import '../services/api_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-enum _ImportMode { upload, directory }
+enum _ImportMode { upload, directory, gdrive }
 
 class ImportScreen extends ConsumerStatefulWidget {
   const ImportScreen({super.key});
@@ -84,6 +86,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     Future.microtask(() {
       ref.read(statementsProvider.notifier).checkBackend();
       ref.read(localSyncProvider.notifier).loadStatus();
+      ref.read(gdriveImportProvider.notifier).loadStatus();
     });
   }
 
@@ -139,6 +142,11 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       label: Text('Directory Import'),
                       icon: Icon(Icons.folder_open),
                     ),
+                    ButtonSegment(
+                      value: _ImportMode.gdrive,
+                      label: Text('Google Drive'),
+                      icon: Icon(Icons.cloud_queue),
+                    ),
                   ],
                   selected: {_mode},
                   onSelectionChanged: (sel) =>
@@ -152,7 +160,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 duration: const Duration(milliseconds: 200),
                 child: _mode == _ImportMode.upload
                     ? _buildUploadMode(colorScheme)
-                    : _buildDirectoryMode(colorScheme),
+                    : (_mode == _ImportMode.directory
+                        ? _buildDirectoryMode(colorScheme)
+                        : _buildGDriveMode(colorScheme)),
               ),
             ],
           ),
@@ -1106,7 +1116,657 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       return iso;
     }
   }
-}
+
+  // ══════════════════════════════════════════════════════════════
+  // MODE 3: GOOGLE DRIVE IMPORT
+  // ══════════════════════════════════════════════════════════════
+
+  Widget _buildGDriveMode(ColorScheme colorScheme) {
+    final gdriveState = ref.watch(gdriveImportProvider);
+
+    return Column(
+      key: const ValueKey('gdrive'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Connection section
+        _buildGDriveConnectionSection(gdriveState, colorScheme),
+        const SizedBox(height: 16),
+
+        if (gdriveState.isConnected) ...[
+          // Folder Explorer section
+          _buildGDriveExplorerSection(gdriveState, colorScheme),
+          const SizedBox(height: 16),
+
+          // File Discovery & Selection list
+          if (gdriveState.files.isNotEmpty || gdriveState.isLoadingFiles) ...[
+            _buildGDriveFileSection(gdriveState, colorScheme),
+            const SizedBox(height: 16),
+          ],
+
+          // Import job progress polling card
+          if (gdriveState.importStatus != null)
+            _buildGDriveProgressSection(gdriveState, colorScheme),
+        ],
+
+        // Error display
+        if (gdriveState.error != null) ...[
+          const SizedBox(height: 16),
+          _buildErrorBanner(gdriveState.error!, colorScheme),
+          Center(
+            child: TextButton(
+              onPressed: () => ref.read(gdriveImportProvider.notifier).clearError(),
+              child: const Text('Dismiss Error'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ── Connection Card ───────────────────────────────────────
+
+  Widget _buildGDriveConnectionSection(GDriveImportState gdriveState, ColorScheme colorScheme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  gdriveState.isConnected ? Icons.cloud_done : Icons.cloud_off,
+                  color: gdriveState.isConnected ? Colors.blue.shade600 : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Text('Google Drive Connection',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (gdriveState.isConnected) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Connected to account: ${gdriveState.email ?? "Authorized User"}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.error,
+                      side: BorderSide(color: colorScheme.error.withValues(alpha: 0.5)),
+                    ),
+                    onPressed: () => ref.read(gdriveImportProvider.notifier).disconnect(),
+                    icon: const Icon(Icons.logout, size: 16),
+                    label: const Text('Disconnect'),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Text(
+                'Connect your personal Google account to browse, select, and import statement PDFs or CSVs directly from your Google Drive.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black87,
+                    elevation: 1,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  onPressed: () async {
+                    try {
+                      final url = await ref.read(gdriveImportProvider.notifier).getAuthUrl();
+                      final uri = Uri.parse(url);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        _showSnackBar('Could not launch authorization page', isError: true);
+                      }
+                    } catch (e) {
+                      _showSnackBar('Authorization error: $e', isError: true);
+                    }
+                  },
+                  icon: Image.network(
+                    'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
+                    height: 18,
+                    width: 18,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.login, color: Colors.blue, size: 18),
+                  ),
+                  label: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Subfolder Explorer Card ──────────────────────────────
+
+  Widget _buildGDriveExplorerSection(GDriveImportState gdriveState, ColorScheme colorScheme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.folder_shared_outlined, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Folder Navigator', style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Breadcrumbs Navigation
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () => ref.read(gdriveImportProvider.notifier).navigateBack(-1),
+                      child: Text(
+                        'My Drive',
+                        style: TextStyle(
+                          color: gdriveState.currentPath.isEmpty ? colorScheme.onSurface : colorScheme.primary,
+                          fontWeight: gdriveState.currentPath.isEmpty ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    for (int i = 0; i < gdriveState.currentPath.length; i++) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Icon(Icons.chevron_right, size: 16, color: colorScheme.onSurfaceVariant),
+                      ),
+                      InkWell(
+                        onTap: () => ref.read(gdriveImportProvider.notifier).navigateBack(i),
+                        child: Text(
+                          gdriveState.currentPath[i].name,
+                          style: TextStyle(
+                            color: i == gdriveState.currentPath.length - 1 ? colorScheme.onSurface : colorScheme.primary,
+                            fontWeight: i == gdriveState.currentPath.length - 1 ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Folder grid list
+            if (gdriveState.isLoadingFolders) ...[
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ] else if (gdriveState.folders.isEmpty) ...[
+              Text(
+                'No subfolders found in this directory.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+              ),
+            ] else ...[
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: Scrollbar(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 220,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 2.8,
+                    ),
+                    itemCount: gdriveState.folders.length,
+                    itemBuilder: (context, index) {
+                      final folder = gdriveState.folders[index];
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        color: colorScheme.surfaceContainerLow,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: InkWell(
+                          onTap: () => ref.read(gdriveImportProvider.notifier).navigateInto(folder),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.folder, color: Colors.amber, size: 22),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    folder.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Folder scan button
+            Row(
+              children: [
+                FilledButton.icon(
+                  onPressed: gdriveState.isLoadingFiles || gdriveState.isImporting
+                      ? null
+                      : () => ref.read(gdriveImportProvider.notifier).scanCurrentFolder(),
+                  icon: gdriveState.isLoadingFiles
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.find_in_page_outlined),
+                  label: Text(gdriveState.isLoadingFiles
+                      ? 'Scanning Folder...'
+                      : 'Scan ${gdriveState.currentFolderName} for Statements'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Scanned Statement Review Section ──────────────────────
+
+  Widget _buildGDriveFileSection(GDriveImportState gdriveState, ColorScheme colorScheme) {
+    if (gdriveState.isLoadingFiles) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(48),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    final files = gdriveState.files;
+    if (files.isEmpty) return const SizedBox.shrink();
+
+    final newCount = gdriveState.newFileCount;
+    final processedCount = files.length - newCount;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.list_alt, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('${files.length} statement files discovered',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (newCount > 0)
+                  Text('$newCount new',
+                      style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600)),
+                if (processedCount > 0) ...[
+                  const SizedBox(width: 12),
+                  Text('$processedCount already imported',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => ref.read(gdriveImportProvider.notifier).selectAll(),
+                  icon: const Icon(Icons.select_all, size: 18),
+                  label: const Text('Select All'),
+                ),
+                TextButton.icon(
+                  onPressed: () => ref.read(gdriveImportProvider.notifier).deselectAll(),
+                  icon: const Icon(Icons.deselect, size: 18),
+                  label: const Text('Deselect All'),
+                ),
+                const Spacer(),
+                if (processedCount > 0)
+                  TextButton.icon(
+                    onPressed: () => ref.read(gdriveImportProvider.notifier).resetFiles(),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reset Sync Cache'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Files view
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 500),
+              child: Scrollbar(
+                controller: _fileListScrollController,
+                child: ListView.separated(
+                  controller: _fileListScrollController,
+                  shrinkWrap: true,
+                  itemCount: files.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) =>
+                      _buildGDriveFileRow(files[index], index, gdriveState, colorScheme),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Passwords section
+            _buildGDriveBankPasswordsSection(gdriveState, colorScheme),
+
+            // Import Trigger Button
+            FilledButton.icon(
+              onPressed: gdriveState.isImporting || gdriveState.selectedCount == 0
+                  ? null
+                  : () => ref.read(gdriveImportProvider.notifier).startImport(),
+              icon: gdriveState.isImporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_download),
+              label: Text(gdriveState.isImporting
+                  ? 'Importing from Google Drive...'
+                  : 'Import Selected (${gdriveState.selectedCount})'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGDriveFileRow(
+    LocalSyncFile file,
+    int index,
+    GDriveImportState gdriveState,
+    ColorScheme colorScheme,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.of(context).size.width - 100,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Checkbox(
+              value: file.selected,
+              onChanged: gdriveState.isImporting
+                  ? null
+                  : (_) => ref.read(gdriveImportProvider.notifier).toggleFile(index),
+            ),
+            _statusIcon(file, colorScheme),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 350,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(file.filename,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis),
+                  Row(
+                    children: [
+                      Text(_formatFileSize(file.size),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant)),
+                      if (file.errorMessage != null) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(file.errorMessage!,
+                              style: TextStyle(
+                                  fontSize: 11, color: colorScheme.error),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Bank selector
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: file.selectedBank,
+                isDense: true,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  border: OutlineInputBorder(),
+                ),
+                items: _bankOptionsShort
+                    .map((opt) => DropdownMenuItem(
+                          value: opt['value'],
+                          child: Text(opt['label']!,
+                              style: const TextStyle(fontSize: 13)),
+                        ))
+                    .toList(),
+                onChanged: gdriveState.isImporting
+                    ? null
+                    : (val) {
+                        if (val != null) {
+                          ref
+                              .read(gdriveImportProvider.notifier)
+                              .updateFileBank(index, val);
+                        }
+                      },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Statement type selector
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: file.selectedType,
+                isDense: true,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  border: OutlineInputBorder(),
+                ),
+                items: _typeOptionsShort
+                    .map((opt) => DropdownMenuItem(
+                          value: opt['value'],
+                          child: Text(opt['label']!,
+                              style: const TextStyle(fontSize: 13)),
+                        ))
+                    .toList(),
+                onChanged: gdriveState.isImporting
+                    ? null
+                    : (val) {
+                        if (val != null) {
+                          ref
+                              .read(gdriveImportProvider.notifier)
+                              .updateFileType(index, val);
+                        }
+                      },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Passwords Grid ────────────────────────────────────────
+
+  Widget _buildGDriveBankPasswordsSection(
+      GDriveImportState gdriveState, ColorScheme colorScheme) {
+    final banksWithPdf = gdriveState.files
+        .where((f) =>
+            f.selected && f.filename.toLowerCase().endsWith('.pdf'))
+        .map((f) => f.selectedBank)
+        .toSet()
+        .toList()
+      ..sort();
+
+    if (banksWithPdf.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lock_outline, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Bank Passwords (optional)',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Enter passwords for any password-protected PDF statements.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            ...banksWithPdf.map((bank) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _BankPasswordField(
+                    bank: bank,
+                    initialValue: _bankPasswords[bank] ?? '',
+                    enabled: !gdriveState.isImporting,
+                    onChanged: (val) {
+                      _bankPasswords[bank] = val;
+                      ref
+                          .read(gdriveImportProvider.notifier)
+                          .updateBankPassword(bank, val);
+                    },
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Import Progress card ──────────────────────────────────
+
+  Widget _buildGDriveProgressSection(
+      GDriveImportState gdriveState, ColorScheme colorScheme) {
+    final isRunning = gdriveState.importStatus == 'running' ||
+        gdriveState.importStatus == 'started';
+    final isDone = gdriveState.importStatus == 'completed';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(isDone ? Icons.check_circle : Icons.sync,
+                    color:
+                        isDone ? Colors.green.shade600 : colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(isDone ? 'Google Drive Import Complete' : 'Downloading & Importing...',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (isRunning && gdriveState.importTotal > 0)
+              Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: gdriveState.currentIndex / gdriveState.importTotal,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Processing ${gdriveState.currentIndex} of ${gdriveState.importTotal}'
+                    '${gdriveState.currentFile != null ? ': ${gdriveState.currentFile}' : ''}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                if (gdriveState.importProcessed > 0)
+                  Chip(
+                    avatar: Icon(Icons.check_circle,
+                        size: 16, color: Colors.green.shade600),
+                    label: Text('${gdriveState.importProcessed} imported'),
+                    backgroundColor: Colors.green.shade50,
+                  ),
+                if (gdriveState.importFailed > 0)
+                  Chip(
+                    avatar: Icon(Icons.error,
+                        size: 16, color: colorScheme.error),
+                    label: Text('${gdriveState.importFailed} failed'),
+                    backgroundColor: colorScheme.errorContainer,
+                  ),
+                if (gdriveState.importSkipped > 0)
+                  Chip(
+                    avatar: Icon(Icons.skip_next,
+                        size: 16, color: colorScheme.onSurfaceVariant),
+                    label: Text('${gdriveState.importSkipped} skipped'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 /// A stateful password field for a single bank, with visibility toggle.
 class _BankPasswordField extends StatefulWidget {

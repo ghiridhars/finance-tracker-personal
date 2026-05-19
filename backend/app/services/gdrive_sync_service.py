@@ -1,274 +1,457 @@
 """
-Google Drive sync service.
+Google Drive sync service using personal OAuth2 authentication.
 
-Connects to a Google Drive folder (via service account) and downloads
-new bank statement files, then feeds them through the existing parser pipeline.
-
-Setup:
-  1. Create a project in Google Cloud Console
-  2. Enable the Google Drive API
-  3. Create a service account and download the JSON key file
-  4. Share your statements folder with the service account email
-  5. Set GDRIVE_CREDENTIALS_FILE and GDRIVE_FOLDER_ID in .env
+Connects to a user's personal Google Drive folder, lists files,
+downloads selected statements, and imports them through the parser pipeline.
 """
 import asyncio
 import json
 import logging
+import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from app.config import settings
-from app.utils.file_utils import review_status_from_parser
+import httpx
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from io import BytesIO
 
-# Lock for state file writes (prevents race conditions on concurrent sync triggers)
-_state_lock = asyncio.Lock()
+from app.config import settings
+from app.utils.file_utils import infer_file_type, is_csv_file, review_status_from_parser
 
 logger = logging.getLogger(__name__)
 
-# Track processed files to avoid re-processing
-_SYNC_STATE_FILE = Path(settings.data_dir) / ".gdrive_sync_state.json"
+# Token file for current authorized user
+_TOKEN_FILE = Path(settings.data_dir) / ".gdrive_user_token.json"
+
+# In-memory background job tracking
+_gdrive_jobs: dict[str, dict] = {}
+_jobs_lock = asyncio.Lock()
 
 
-def _load_sync_state() -> dict:
-    """Load the set of already-processed Drive file IDs."""
-    if not _SYNC_STATE_FILE.exists():
-        return {"processed_files": {}, "last_sync": None}
-    try:
-        return json.loads(_SYNC_STATE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, KeyError):
-        return {"processed_files": {}, "last_sync": None}
-
-
-def _save_sync_state(state: dict) -> None:
-    """Persist sync state to disk."""
-    _SYNC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _SYNC_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-
-
-def _get_drive_service():
-    """Build an authenticated Google Drive API service client."""
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-
-    creds_path = settings.gdrive_credentials_file
-    if not creds_path or not Path(creds_path).exists():
-        raise ValueError(
-            f"Google Drive credentials file not found: {creds_path}. "
-            "Set GDRIVE_CREDENTIALS_FILE in .env"
-        )
-
-    credentials = service_account.Credentials.from_service_account_file(
-        creds_path,
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+def _get_secrets_path() -> Path:
+    """Find the credentials_google.json client secrets file."""
+    p = Path(settings.gdrive_oauth_secrets_file)
+    if p.exists():
+        return p
+    # Check parent workspace directory
+    p_parent = Path("..") / settings.gdrive_oauth_secrets_file
+    if p_parent.exists():
+        return p_parent
+    # Fallback absolute path
+    p_abs = Path("/home/ghiridhars/Codebase/finance-tracker-personal/backend") / settings.gdrive_oauth_secrets_file
+    if p_abs.exists():
+        return p_abs
+    raise ValueError(
+        f"Google OAuth client secrets file '{settings.gdrive_oauth_secrets_file}' not found. "
+        "Place your credentials_google.json at the backend workspace root."
     )
-    return build("drive", "v3", credentials=credentials)
 
 
-def _infer_file_type(filename: str) -> tuple[str, str]:
-    """
-    Infer bank and statement type from filename conventions.
+def _load_client_secrets() -> dict:
+    """Load client secrets for the installed app OAuth flow."""
+    path = _get_secrets_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # Installed app credential JSON format typically nests everything under "installed"
+        if "installed" in data:
+            return data["installed"]
+        elif "web" in data:
+            return data["web"]
+        return data
+    except Exception as e:
+        raise ValueError(f"Failed to read or parse client secrets file: {e}")
 
-    Delegates to the shared utility in app.utils.file_utils.
-    Kept as a local wrapper for backward compatibility within this module.
-    """
-    from app.utils.file_utils import infer_file_type
-    return infer_file_type(filename)
 
-
-def get_sync_status() -> dict:
-    """Return current sync configuration and state."""
-    state = _load_sync_state()
-    return {
-        "enabled": settings.gdrive_enabled,
-        "folder_id": settings.gdrive_folder_id or None,
-        "credentials_configured": bool(
-            settings.gdrive_credentials_file
-            and Path(settings.gdrive_credentials_file).exists()
-        ),
-        "poll_interval_minutes": settings.gdrive_poll_interval_minutes,
-        "last_sync": state.get("last_sync"),
-        "processed_file_count": len(state.get("processed_files", {})),
+def get_auth_url(redirect_uri: str) -> str:
+    """Generate the Google OAuth2 authorization URL."""
+    secrets = _load_client_secrets()
+    client_id = secrets["client_id"]
+    
+    # We require readonly drive access to list/download files, plus userinfo to get user email
+    scopes = [
+        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/userinfo.email"
+    ]
+    scope_str = " ".join(scopes)
+    
+    import urllib.parse
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": scope_str,
+        "access_type": "offline",  # Crucial to get refresh token
+        "prompt": "consent"        # Force consent screen to guarantee refresh token is returned
     }
+    return "https://accounts.google.com/o/oauth2/auth?" + urllib.parse.urlencode(params)
 
 
-def list_drive_files() -> list[dict]:
-    """List statement files in the configured Drive folder."""
-    if not settings.gdrive_folder_id:
-        raise ValueError("GDRIVE_FOLDER_ID not configured")
+async def exchange_auth_code(code: str, redirect_uri: str) -> dict:
+    """Exchange OAuth auth code for access + refresh tokens and save them."""
+    secrets = _load_client_secrets()
+    client_id = secrets["client_id"]
+    client_secret = secrets["client_secret"]
+    
+    async with httpx.AsyncClient() as client:
+        # Token exchange
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+        
+        token_res = await client.post(token_url, data=data)
+        if token_res.status_code != 200:
+            raise ValueError(f"Failed to exchange code: {token_res.text}")
+        
+        token_data = token_res.json()
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token") # might be missing if prompt consent was omitted
+        expires_in = token_data.get("expires_in", 3600)
+        expires_at = time.time() + expires_in
+        
+        # Get user email
+        userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        userinfo_res = await client.get(userinfo_url, headers=headers)
+        
+        email = None
+        if userinfo_res.status_code == 200:
+            email = userinfo_res.json().get("email")
+            
+        # If we already have a refresh token on disk, preserve it if not returned in this request
+        existing_refresh_token = None
+        if _TOKEN_FILE.exists():
+            try:
+                old_data = json.loads(_TOKEN_FILE.read_text(encoding="utf-8"))
+                existing_refresh_token = old_data.get("refresh_token")
+            except Exception:
+                pass
+                
+        final_refresh_token = refresh_token or existing_refresh_token
+        
+        tokens_to_save = {
+            "access_token": access_token,
+            "refresh_token": final_refresh_token,
+            "expires_at": expires_at,
+            "email": email,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TOKEN_FILE.write_text(json.dumps(tokens_to_save, indent=2), encoding="utf-8")
+        
+        return tokens_to_save
 
+
+def get_connection_status() -> dict:
+    """Return whether Google Drive is connected and user info."""
+    if not _TOKEN_FILE.exists():
+        return {"connected": False, "email": None}
+    
+    try:
+        data = json.loads(_TOKEN_FILE.read_text(encoding="utf-8"))
+        email = data.get("email")
+        
+        # Check if secrets file exists to confirm app config is healthy
+        secrets_configured = False
+        try:
+            _get_secrets_path()
+            secrets_configured = True
+        except ValueError:
+            pass
+            
+        return {
+            "connected": True,
+            "email": email,
+            "secrets_configured": secrets_configured
+        }
+    except Exception:
+        return {"connected": False, "email": None}
+
+
+def disconnect() -> None:
+    """Disconnect account by deleting stored user token on server."""
+    if _TOKEN_FILE.exists():
+        try:
+            _TOKEN_FILE.unlink()
+        except Exception as e:
+            logger.error(f"Failed to delete Google user token file: {e}")
+
+
+def _get_drive_service() -> build:
+    """Build an authenticated Google Drive API client using saved tokens with auto-refresh."""
+    if not _TOKEN_FILE.exists():
+        raise ValueError("Google Drive is not connected. Authenticate first.")
+        
+    try:
+        token_data = json.loads(_TOKEN_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise ValueError(f"Failed to read stored user tokens: {e}")
+        
+    secrets = _load_client_secrets()
+    client_id = secrets["client_id"]
+    client_secret = secrets["client_secret"]
+    
+    access_token = token_data["access_token"]
+    refresh_token = token_data.get("refresh_token")
+    expires_at = token_data.get("expires_at", 0)
+    
+    # Check if access token is expired and refresh it synchronously if possible
+    if expires_at < time.time() + 60: # 60 seconds buffer
+        if not refresh_token:
+            raise ValueError("Google Drive access token expired and no refresh token found. Re-authenticate.")
+            
+        logger.info("Google Drive access token is expired. Refreshing...")
+        try:
+            token_url = "https://oauth2.googleapis.com/token"
+            data = {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token"
+            }
+            res = httpx.post(token_url, data=data)
+            if res.status_code != 200:
+                raise ValueError(f"Failed to refresh access token: {res.text}")
+                
+            refresh_res = res.json()
+            access_token = refresh_res["access_token"]
+            expires_in = refresh_res.get("expires_in", 3600)
+            expires_at = time.time() + expires_in
+            
+            # Update token file
+            token_data["access_token"] = access_token
+            token_data["expires_at"] = expires_at
+            token_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            _TOKEN_FILE.write_text(json.dumps(token_data, indent=2), encoding="utf-8")
+            logger.info("Google Drive access token refreshed successfully.")
+        except Exception as e:
+            logger.error(f"Error refreshing Google access token: {e}")
+            raise ValueError(f"Google authorization expired. Please log in again: {e}")
+            
+    creds = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret
+    )
+    return build("drive", "v3", credentials=creds)
+
+
+def list_drive_folders(parent_id: str = "root") -> list[dict]:
+    """List subfolders within a parent Google Drive folder."""
     service = _get_drive_service()
+    
+    query = f"'{parent_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    
+    results = (
+        service.files()
+        .list(
+            q=query,
+            fields="files(id, name, modifiedTime, createdTime)",
+            orderBy="name",
+            pageSize=100,
+        )
+        .execute()
+    )
+    
+    folders = []
+    for f in results.get("files", []):
+        folders.append({
+            "id": f["id"],
+            "name": f["name"],
+            "modifiedTime": f.get("modifiedTime"),
+        })
+        
+    return folders
 
-    # Query for PDF and CSV files in the target folder
+
+def list_drive_files(folder_id: str) -> list[dict]:
+    """List supported statement files (PDF/CSV) inside a folder."""
+    service = _get_drive_service()
+    
     query = (
-        f"'{settings.gdrive_folder_id}' in parents "
+        f"'{folder_id}' in parents "
         "and trashed = false "
         "and (mimeType = 'application/pdf' "
         "or mimeType = 'text/csv' "
         "or mimeType = 'application/vnd.ms-excel' "
         "or mimeType = 'text/plain')"
     )
-
+    
     results = (
         service.files()
         .list(
             q=query,
             fields="files(id, name, mimeType, size, modifiedTime, createdTime)",
-            orderBy="modifiedTime desc",
+            orderBy="name",
             pageSize=100,
         )
         .execute()
     )
-
-    state = _load_sync_state()
-    processed = state.get("processed_files", {})
-
+    
+    # We will track processed files in our OAuth gdrive sync state separately
+    state_file = Path(settings.data_dir) / ".gdrive_oauth_sync_state.json"
+    processed = {}
+    if state_file.exists():
+        try:
+            processed = json.loads(state_file.read_text(encoding="utf-8")).get("processed_files", {})
+        except Exception:
+            pass
+            
     files = []
     for f in results.get("files", []):
+        filename = f["name"]
+        file_id = f["id"]
+        
+        # Infer bank and type
+        bank, stmt_type = infer_file_type(filename)
+        
         files.append({
-            "id": f["id"],
-            "name": f["name"],
-            "mimeType": f["mimeType"],
+            "filepath": file_id, # for OAuth flow, filepath field is the file ID
+            "relative_path": filename,
+            "filename": filename,
             "size": int(f.get("size", 0)),
-            "modifiedTime": f.get("modifiedTime"),
-            "createdTime": f.get("createdTime"),
-            "already_processed": f["id"] in processed,
+            "modified_time": f.get("modifiedTime"),
+            "inferred_bank": bank,
+            "inferred_type": stmt_type,
+            "already_processed": file_id in processed,
+            "file_key": file_id,
         })
-
+        
     return files
 
 
-async def sync_from_drive(
+async def download_and_import(
     db,
-    bank_override: Optional[str] = None,
-    type_override: Optional[str] = None,
-    file_ids: Optional[list[str]] = None,
+    files: list[dict],
+    bank_passwords: Optional[dict[str, str]] = None,
+    job_id: Optional[str] = None,
     force: bool = False,
 ) -> dict:
-    """
-    Download and parse new files from Google Drive.
-
-    Args:
-        db: SQLAlchemy session
-        bank_override: Force all files to be parsed as this bank
-        type_override: Force all files to be parsed as this statement type
-        file_ids: Only sync specific file IDs (None = all new files)
-        force: Re-process already-processed files
-
-    Returns:
-        Summary dict with counts of processed, skipped, failed files
-    """
-    from io import BytesIO
-    from googleapiclient.http import MediaIoBaseDownload
+    """Background task that downloads selected files from Drive and parses them."""
     from app.models.enums import BankType, StatementType
     from app.services.parser_service import ParserService
     from app.parsers.csv_parser import parse_csv
     from app.services.account_resolution_service import AccountResolutionService
     from app.services.statement_audit_service import StatementAuditService
-
-    if not settings.gdrive_folder_id:
-        raise ValueError("GDRIVE_FOLDER_ID not configured")
-
+    
+    if not job_id:
+        job_id = str(uuid.uuid4())[:8]
+        
     service = _get_drive_service()
     parser_service = ParserService()
-
-    state = _load_sync_state()
+    
+    # Load oauth gdrive sync state
+    state_file = Path(settings.data_dir) / ".gdrive_oauth_sync_state.json"
+    state = {"processed_files": {}}
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+            
     processed = state.get("processed_files", {})
-
-    # Get files from Drive
-    all_files = list_drive_files()
-
-    # Filter to requested files
-    if file_ids:
-        all_files = [f for f in all_files if f["id"] in file_ids]
-
+    
     results = {
-        "total": len(all_files),
+        "job_id": job_id,
+        "status": "running",
+        "total": len(files),
         "processed": 0,
         "skipped": 0,
         "failed": 0,
+        "current_file": None,
+        "current_index": 0,
         "details": [],
     }
-
-    for file_info in all_files:
-        file_id = file_info["id"]
-        filename = file_info["name"]
-
-        # Skip already processed (unless forced)
+    
+    async with _jobs_lock:
+        _gdrive_jobs[job_id] = results
+        
+    for idx, file_info in enumerate(files):
+        file_id = file_info["filepath"] # Drive file ID
+        filename = file_info["filename"]
+        bank_str = file_info.get("bank", "OTHER")
+        type_str = file_info.get("type", "SAVINGS")
+        
+        results["current_file"] = filename
+        results["current_index"] = idx + 1
+        
+        # Check skipped
         if file_id in processed and not force:
             results["skipped"] += 1
             results["details"].append({
+                "filepath": file_id,
                 "file": filename,
                 "status": "skipped",
                 "reason": "already processed",
             })
             continue
-
+            
         try:
-            # Download file content
+            # Download file from Drive API
+            logger.info(f"GDrive OAuth Sync — Downloading '{filename}' ({file_id})")
             request = service.files().get_media(fileId=file_id)
             buffer = BytesIO()
             downloader = MediaIoBaseDownload(buffer, request)
-
+            
             done = False
             while not done:
                 _, done = downloader.next_chunk()
-
+                
             content = buffer.getvalue()
-
-            # Determine bank and statement type
-            if bank_override:
-                bank_str = bank_override
-            else:
-                bank_str, _ = _infer_file_type(filename)
-
-            if type_override:
-                type_str = type_override
-            else:
-                _, type_str = _infer_file_type(filename)
-
+            
             bank_type = BankType.from_string(bank_str)
             statement_type = StatementType(type_str)
-
-            # Parse based on file type
-            is_csv = filename.lower().endswith((".csv", ".txt", ".tsv"))
-
+            
+            is_csv = is_csv_file(filename)
+            
             if is_csv:
-                result = parse_csv(content, bank_type, statement_type)
+                result = parse_csv(content, bank_type, statement_type, filename=filename)
                 parser_used = "csv"
                 success = result.success
                 statement = result.result if success else None
                 error = result.error_message if not success else None
             else:
+                pdf_password = (bank_passwords or {}).get(bank_str) or None
                 result = await parser_service.parse_statement(
-                    content, filename, bank_type, statement_type
+                    content, filename, bank_type, statement_type,
+                    password=pdf_password
                 )
                 parser_used = result.get("parser", "unknown")
                 success = result.get("success", False)
                 statement = result.get("statement") if success else None
                 error = result.get("error") if not success else None
-
+                
             if success and statement:
-                # Determine review_status
                 review_status = review_status_from_parser(parser_used)
-
-                # Resolve or create bank account
+                
+                # Resolve bank account
                 if statement_type == StatementType.CREDIT_CARD:
                     acct_number = getattr(statement, "card_number", None)
                     holder = getattr(statement, "card_holder_name", None)
                 else:
                     acct_number = getattr(statement, "account_number", None)
                     holder = getattr(statement, "account_holder_name", None)
-
+                    
                 bank_account = AccountResolutionService.resolve_or_create(
                     db,
                     bank_name=bank_type.value,
                     account_type=statement_type.value,
                     account_number=acct_number,
-                    holder_name=holder,
+                    holder_name=holder
                 )
-
-                # Save via unified audit service
+                
+                # Audit and persist statement
                 strategy = result.get("strategy") if isinstance(result, dict) else "csv"
                 StatementAuditService.save_statement(
                     db,
@@ -280,20 +463,20 @@ async def sync_from_drive(
                     file_content=content,
                     parser_strategy=strategy,
                     review_status=review_status,
-                    source="gdrive",
+                    source="gdrive_oauth"
                 )
-
-                # Mark as processed
+                
+                # Update processed set
                 processed[file_id] = {
                     "filename": filename,
                     "processed_at": datetime.now(timezone.utc).isoformat(),
                     "bank": bank_type.value,
                     "type": statement_type.value,
-                    "parser": parser_used,
                 }
-
+                
                 results["processed"] += 1
                 results["details"].append({
+                    "filepath": file_id,
                     "file": filename,
                     "status": "success",
                     "bank": bank_type.value,
@@ -301,48 +484,91 @@ async def sync_from_drive(
                     "parser": parser_used,
                 })
             else:
+                StatementAuditService.record(
+                    db,
+                    file_name=filename,
+                    file_content=content,
+                    bank_name=bank_type.value,
+                    statement_type=statement_type.value,
+                    status="FAILED",
+                    error_message=error or "Parse returned no data",
+                    source="gdrive_oauth",
+                )
+                db.commit()
                 results["failed"] += 1
                 results["details"].append({
+                    "filepath": file_id,
                     "file": filename,
                     "status": "failed",
                     "error": error or "Parse returned no data",
                 })
-
+                
         except Exception as e:
-            logger.error(f"Failed to process Drive file {filename}: {e}", exc_info=True)
+            if db:
+                db.rollback()
+            logger.error(f"Failed to download or parse Google Drive file '{filename}': {e}", exc_info=True)
             results["failed"] += 1
             results["details"].append({
+                "filepath": file_id,
                 "file": filename,
                 "status": "failed",
                 "error": str(e),
             })
-
-    # Update sync state
-    state["processed_files"] = processed
-    state["last_sync"] = datetime.now(timezone.utc).isoformat()
-    async with _state_lock:
-        _save_sync_state(state)
-
-    results["last_sync"] = state["last_sync"]
+            
+        # Update state on disk
+        try:
+            state["processed_files"] = processed
+            state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+            
+        await asyncio.sleep(0) # yield execution control
+        
+    results["status"] = "completed"
+    results["current_file"] = None
+    
+    # Save final scan timestamp
+    try:
+        state["last_scan"] = datetime.now(timezone.utc).isoformat()
+        state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+        
     return results
 
 
-def reset_sync_state(file_ids: Optional[list[str]] = None) -> dict:
-    """
-    Reset sync state so files can be re-processed.
+def get_job_status(job_id: str) -> Optional[dict]:
+    """Retrieve progress status of an active or finished background import job."""
+    return _gdrive_jobs.get(job_id)
 
-    Args:
-        file_ids: Specific file IDs to reset (None = reset all)
-    """
-    state = _load_sync_state()
 
+def has_running_import() -> bool:
+    """Check if any Google Drive import job is currently executing."""
+    return any(job.get("status") in ("started", "running") for job in _gdrive_jobs.values())
+
+
+def reset_gdrive_sync_state(file_ids: Optional[list[str]] = None) -> dict:
+    """Reset processed cache so files can be re-imported."""
+    state_file = Path(settings.data_dir) / ".gdrive_oauth_sync_state.json"
+    state = {"processed_files": {}}
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+            
+    processed = state.get("processed_files", {})
+    removed = 0
+    
     if file_ids:
         for fid in file_ids:
-            state["processed_files"].pop(fid, None)
-        removed = len(file_ids)
+            if fid in processed:
+                del processed[fid]
+                removed += 1
     else:
-        removed = len(state["processed_files"])
-        state["processed_files"] = {}
-
-    _save_sync_state(state)
+        removed = len(processed)
+        processed = {}
+        
+    state["processed_files"] = processed
+    state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
     return {"reset_count": removed}

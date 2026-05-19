@@ -11,11 +11,11 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.auth import auth_router
+from app.auth import auth_router, get_current_user
 from app.config import settings
 from app.database import create_tables, migrate_schema
 from app.routers import (
@@ -163,10 +163,9 @@ async def generic_error_handler(request: Request, exc: Exception):
 # Public routes (no auth required)
 app.include_router(auth_router)
 app.include_router(health_router)
+app.include_router(gdrive_router)  # Handles its own per-endpoint auth dependencies to allow public /callback
 
 # Protected routes (require valid JWT)
-from app.auth import get_current_user
-
 for protected_router in [
     transactions_router,
     upload_router,
@@ -179,7 +178,6 @@ for protected_router in [
     goals_router,
     reminders_router,
     export_router,
-    gdrive_router,
     transfers_router,
     upi_router,
     admin_router,

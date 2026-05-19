@@ -77,6 +77,7 @@ backend/alembic/versions/__pycache__/
 !.env.example
 *.pem
 *.key
+backend/credentials_google.json
 
 # ─── Uploaded / Sensitive files ─────────────────────
 *.pdf
