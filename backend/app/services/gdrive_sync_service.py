@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 # Token file for current authorized user
 _TOKEN_FILE = Path(settings.data_dir) / ".gdrive_user_token.json"
 
+# Folder → bank/type mapping config
+_FOLDER_CONFIG_FILE = Path(settings.data_dir) / ".gdrive_folder_config.json"
+
 # In-memory background job tracking
 _gdrive_jobs: dict[str, dict] = {}
 _jobs_lock = asyncio.Lock()
@@ -247,6 +250,44 @@ def _get_drive_service() -> build:
     return build("drive", "v3", credentials=creds)
 
 
+# ── Folder Configuration (bank/type mapping) ──────────────────
+
+def get_folder_configs() -> dict:
+    """Return all saved folder → bank/type mappings."""
+    if not _FOLDER_CONFIG_FILE.exists():
+        return {}
+    try:
+        return json.loads(_FOLDER_CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def set_folder_config(folder_id: str, folder_name: str, bank: str, stmt_type: str, label: str = "") -> dict:
+    """Save or update the bank/type mapping for a folder."""
+    configs = get_folder_configs()
+    configs[folder_id] = {
+        "folder_id": folder_id,
+        "folder_name": folder_name,
+        "bank": bank,
+        "type": stmt_type,
+        "label": label or folder_name,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _FOLDER_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _FOLDER_CONFIG_FILE.write_text(json.dumps(configs, indent=2), encoding="utf-8")
+    return configs[folder_id]
+
+
+def delete_folder_config(folder_id: str) -> bool:
+    """Remove the bank/type mapping for a folder. Returns True if it existed."""
+    configs = get_folder_configs()
+    if folder_id not in configs:
+        return False
+    del configs[folder_id]
+    _FOLDER_CONFIG_FILE.write_text(json.dumps(configs, indent=2), encoding="utf-8")
+    return True
+
+
 def list_drive_folders(parent_id: str = "root") -> list[dict]:
     """List subfolders within a parent Google Drive folder."""
     service = _get_drive_service()
@@ -265,11 +306,16 @@ def list_drive_folders(parent_id: str = "root") -> list[dict]:
     )
     
     folders = []
+    configs = get_folder_configs()
     for f in results.get("files", []):
+        folder_id = f["id"]
+        cfg = configs.get(folder_id)
         folders.append({
-            "id": f["id"],
+            "id": folder_id,
             "name": f["name"],
             "modifiedTime": f.get("modifiedTime"),
+            "configured": cfg is not None,
+            "config": cfg,
         })
         
     return folders
@@ -307,14 +353,21 @@ def list_drive_files(folder_id: str) -> list[dict]:
             processed = json.loads(state_file.read_text(encoding="utf-8")).get("processed_files", {})
         except Exception:
             pass
-            
+
+    # Check if this folder has a saved bank/type mapping
+    folder_config = get_folder_configs().get(folder_id)
+
     files = []
     for f in results.get("files", []):
         filename = f["name"]
         file_id = f["id"]
         
-        # Infer bank and type
-        bank, stmt_type = infer_file_type(filename)
+        # Prefer folder config over filename inference
+        if folder_config:
+            bank = folder_config["bank"]
+            stmt_type = folder_config["type"]
+        else:
+            bank, stmt_type = infer_file_type(filename)
         
         files.append({
             "filepath": file_id, # for OAuth flow, filepath field is the file ID

@@ -11,13 +11,50 @@ import 'local_sync_provider.dart'; // Reuse the LocalSyncFile model
 class GDriveFolder {
   final String id;
   final String name;
+  final bool configured;
+  final GDriveFolderConfig? config;
 
-  const GDriveFolder({required this.id, required this.name});
+  const GDriveFolder({
+    required this.id,
+    required this.name,
+    this.configured = false,
+    this.config,
+  });
 
   factory GDriveFolder.fromJson(Map<String, dynamic> json) {
+    final rawConfig = json['config'] as Map<String, dynamic>?;
     return GDriveFolder(
       id: json['id'] as String,
       name: json['name'] as String? ?? 'Untitled Folder',
+      configured: json['configured'] as bool? ?? false,
+      config: rawConfig != null ? GDriveFolderConfig.fromJson(rawConfig) : null,
+    );
+  }
+}
+
+/// Bank/type mapping saved for a specific GDrive folder.
+class GDriveFolderConfig {
+  final String folderId;
+  final String folderName;
+  final String bank;
+  final String type;
+  final String label;
+
+  const GDriveFolderConfig({
+    required this.folderId,
+    required this.folderName,
+    required this.bank,
+    required this.type,
+    required this.label,
+  });
+
+  factory GDriveFolderConfig.fromJson(Map<String, dynamic> json) {
+    return GDriveFolderConfig(
+      folderId: json['folder_id'] as String? ?? '',
+      folderName: json['folder_name'] as String? ?? '',
+      bank: json['bank'] as String? ?? 'OTHER',
+      type: json['type'] as String? ?? 'SAVINGS',
+      label: json['label'] as String? ?? '',
     );
   }
 }
@@ -50,6 +87,7 @@ class GDriveImportState {
 
   final String? error;
   final Map<String, String> bankPasswords;
+  final List<GDriveFolderConfig> folderConfigs;
 
   const GDriveImportState({
     this.isConnected = false,
@@ -71,6 +109,7 @@ class GDriveImportState {
     this.currentIndex = 0,
     this.error,
     this.bankPasswords = const {},
+    this.folderConfigs = const [],
   });
 
   int get selectedCount => files.where((f) => f.selected).length;
@@ -98,6 +137,7 @@ class GDriveImportState {
     int? currentIndex,
     String? error,
     Map<String, String>? bankPasswords,
+    List<GDriveFolderConfig>? folderConfigs,
     bool clearError = false,
     bool clearJobId = false,
     bool clearImportStatus = false,
@@ -122,6 +162,7 @@ class GDriveImportState {
       currentIndex: currentIndex ?? this.currentIndex,
       error: clearError ? null : (error ?? this.error),
       bankPasswords: bankPasswords ?? this.bankPasswords,
+      folderConfigs: folderConfigs ?? this.folderConfigs,
     );
   }
 }
@@ -149,9 +190,12 @@ class GDriveImportNotifier extends Notifier<GDriveImportState> {
         clearError: true,
       );
 
-      // If connected, fetch the root directories automatically
+      // If connected, fetch the root directories + folder configs automatically
       if (connected && state.folders.isEmpty && !state.isLoadingFolders) {
         await fetchFolders();
+      }
+      if (connected) {
+        await loadFolderConfigs();
       }
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -163,6 +207,54 @@ class GDriveImportNotifier extends Notifier<GDriveImportState> {
     try {
       await GDriveApi.disconnect();
       state = const GDriveImportState();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// Load all saved folder → bank/type configs.
+  Future<void> loadFolderConfigs() async {
+    try {
+      final raw = await GDriveApi.getFolderConfigs();
+      final configs = raw
+          .map((e) => GDriveFolderConfig.fromJson(e as Map<String, dynamic>))
+          .toList();
+      state = state.copyWith(folderConfigs: configs);
+    } catch (e) {
+      // Non-fatal: just leave existing configs in place
+    }
+  }
+
+  /// Save a folder → bank/type mapping.
+  Future<void> saveFolderConfig({
+    required String folderId,
+    required String folderName,
+    required String bank,
+    required String type,
+    String label = '',
+  }) async {
+    try {
+      await GDriveApi.setFolderConfig(
+        folderId: folderId,
+        folderName: folderName,
+        bank: bank,
+        type: type,
+        label: label,
+      );
+      await loadFolderConfigs();
+      // Refresh folder list so the configured badge updates
+      await fetchFolders();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// Remove a folder → bank/type mapping.
+  Future<void> removeFolderConfig(String folderId) async {
+    try {
+      await GDriveApi.deleteFolderConfig(folderId);
+      await loadFolderConfigs();
+      await fetchFolders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }

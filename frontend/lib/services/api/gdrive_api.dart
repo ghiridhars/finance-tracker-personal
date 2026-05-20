@@ -137,4 +137,61 @@ class GDriveApi {
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
+
+  // ── Folder Configuration ──────────────────────────────────
+
+  /// Fetch all saved folder → bank/type mappings.
+  static Future<List<dynamic>> getFolderConfigs() async {
+    final response = await http
+        .get(Uri.parse('$_base/folder-configs'), headers: ApiClient.headers)
+        .timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch folder configs: ${response.statusCode}');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['configs'] as List<dynamic>;
+  }
+
+  /// Save or update the bank/type mapping for a folder.
+  static Future<Map<String, dynamic>> setFolderConfig({
+    required String folderId,
+    required String folderName,
+    required String bank,
+    required String type,
+    String label = '',
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_base/folder-configs/$folderId'),
+          headers: ApiClient.jsonHeaders,
+          body: jsonEncode({
+            'folder_name': folderName,
+            'bank': bank,
+            'type': type,
+            'label': label,
+          }),
+        )
+        .timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
+    if (response.statusCode != 200) {
+      final detail = ApiClient.extractErrorDetail(response.body);
+      throw Exception('Failed to save folder config: $detail');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Remove the bank/type mapping for a folder.
+  static Future<void> deleteFolderConfig(String folderId) async {
+    final response = await http
+        .delete(
+          Uri.parse('$_base/folder-configs/$folderId'),
+          headers: ApiClient.headers,
+        )
+        .timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete folder config: ${response.statusCode}');
+    }
+  }
 }

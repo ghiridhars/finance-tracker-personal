@@ -72,6 +72,7 @@ class AuthNotifier extends Notifier<AuthState> {
           headers: {'Authorization': 'Bearer $savedToken'},
         );
         if (meResp.statusCode == 200) {
+          ApiService.setAuthToken(savedToken); // Apply to ApiClient so all API modules can use it
           state = AuthState(
             token: savedToken,
             username: savedUsername,

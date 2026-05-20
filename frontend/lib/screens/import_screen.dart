@@ -6,6 +6,7 @@
 ///
 /// Each mode delegates to its own existing provider
 /// (statementsProvider / localSyncProvider).
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   final Map<String, String> _bankPasswords = {};
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+
+  // ── GDrive auth polling ──
+  Timer? _gdriveAuthPollTimer;
 
   // ── Directory mode state ──
   final _pathController = TextEditingController();
@@ -92,6 +96,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   @override
   void dispose() {
+    _gdriveAuthPollTimer?.cancel();
     _pathController.dispose();
     _passwordController.dispose();
     _fileListScrollController.dispose();
@@ -1133,6 +1138,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         const SizedBox(height: 16),
 
         if (gdriveState.isConnected) ...[
+          // Configured Folders shortcuts (shown when at least one folder is mapped)
+          if (gdriveState.folderConfigs.isNotEmpty) ...[
+            _buildConfiguredFoldersPanel(gdriveState, colorScheme),
+            const SizedBox(height: 16),
+          ],
+
           // Folder Explorer section
           _buildGDriveExplorerSection(gdriveState, colorScheme),
           const SizedBox(height: 16),
@@ -1232,6 +1243,20 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       final uri = Uri.parse(url);
                       if (await canLaunchUrl(uri)) {
                         await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        // Poll loadStatus every 2 s until connected or 60 s timeout.
+                        _gdriveAuthPollTimer?.cancel();
+                        var elapsed = 0;
+                        _gdriveAuthPollTimer = Timer.periodic(
+                          const Duration(seconds: 2),
+                          (timer) async {
+                            await ref.read(gdriveImportProvider.notifier).loadStatus();
+                            elapsed += 2;
+                            if (ref.read(gdriveImportProvider).isConnected ||
+                                elapsed >= 60) {
+                              timer.cancel();
+                            }
+                          },
+                        );
                       } else {
                         _showSnackBar('Could not launch authorization page', isError: true);
                       }
@@ -1249,6 +1274,178 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Configured Folders Shortcuts Panel ──────────────────────
+
+  Widget _buildConfiguredFoldersPanel(GDriveImportState gdriveState, ColorScheme colorScheme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.bookmark_outlined, color: colorScheme.primary, size: 18),
+                const SizedBox(width: 8),
+                Text('Configured Folders', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message:
+                      'These folders have bank/type mappings saved.\nTap a chip to navigate and scan directly.',
+                  child: Icon(Icons.help_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: gdriveState.folderConfigs.map((cfg) {
+                return ActionChip(
+                  avatar: Icon(Icons.folder_special, size: 16, color: colorScheme.primary),
+                  label: Text(
+                    cfg.label.isNotEmpty ? cfg.label : cfg.folderName,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  tooltip: '${cfg.bank} · ${cfg.type}\nTap to navigate and scan',
+                  backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                  side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
+                  onPressed: () async {
+                    final folder = GDriveFolder(
+                      id: cfg.folderId,
+                      name: cfg.folderName,
+                      configured: true,
+                      config: cfg,
+                    );
+                    await ref.read(gdriveImportProvider.notifier).navigateInto(folder);
+                    await ref.read(gdriveImportProvider.notifier).scanCurrentFolder();
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Configure Folder Dialog ───────────────────────────────
+
+  void _showConfigureFolderDialog(GDriveFolder folder) {
+    final existing = folder.config;
+    var selectedBank = existing?.bank ?? 'OTHER';
+    var selectedType = existing?.type ?? 'SAVINGS';
+    final labelCtrl = TextEditingController(text: existing?.label ?? folder.name);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.folder_special_outlined),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Configure "${folder.name}"',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Map this folder to a bank and account type so all files inside are auto-tagged.',
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: labelCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Label (optional)',
+                    hintText: 'e.g. HDFC Savings – Gmail A',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedBank,
+                  decoration: const InputDecoration(
+                    labelText: 'Bank',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _bankOptions
+                      .map((b) => DropdownMenuItem(
+                            value: b['value'],
+                            child: Text(b['label']!),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => selectedBank = v!),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Account Type',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _typeOptions
+                      .map((t) => DropdownMenuItem(
+                            value: t['value'],
+                            child: Text(t['label']!),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => selectedType = v!),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (existing != null)
+              TextButton.icon(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('Remove', style: TextStyle(color: Colors.red)),
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await ref.read(gdriveImportProvider.notifier).removeFolderConfig(folder.id);
+                  _showSnackBar('Folder mapping removed');
+                },
+              ),
+            const Spacer(),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await ref.read(gdriveImportProvider.notifier).saveFolderConfig(
+                  folderId: folder.id,
+                  folderName: folder.name,
+                  bank: selectedBank,
+                  type: selectedType,
+                  label: labelCtrl.text.trim(),
+                );
+                _showSnackBar('Folder mapped to $selectedBank · $selectedType');
+              },
+              child: const Text('Save'),
+            ),
           ],
         ),
       ),
@@ -1344,29 +1541,66 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                     itemCount: gdriveState.folders.length,
                     itemBuilder: (context, index) {
                       final folder = gdriveState.folders[index];
+                      final isConfigured = folder.configured;
                       return Card(
                         margin: EdgeInsets.zero,
-                        color: colorScheme.surfaceContainerLow,
+                        color: isConfigured
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                            : colorScheme.surfaceContainerLow,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                          side: BorderSide(
+                            color: isConfigured
+                                ? colorScheme.primary.withValues(alpha: 0.5)
+                                : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: InkWell(
                           onTap: () => ref.read(gdriveImportProvider.notifier).navigateInto(folder),
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.only(left: 10, right: 2, top: 4, bottom: 4),
                             child: Row(
                               children: [
-                                const Icon(Icons.folder, color: Colors.amber, size: 22),
-                                const SizedBox(width: 8),
+                                Icon(
+                                  isConfigured ? Icons.folder_special : Icons.folder,
+                                  color: isConfigured ? colorScheme.primary : Colors.amber,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 6),
                                 Expanded(
-                                  child: Text(
-                                    folder.name,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        folder.name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                      ),
+                                      if (isConfigured && folder.config != null)
+                                        Text(
+                                          '${folder.config!.bank} · ${folder.config!.type}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                    ],
                                   ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.settings_outlined,
+                                    size: 16,
+                                    color: isConfigured ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                                  ),
+                                  tooltip: isConfigured ? 'Edit folder mapping' : 'Configure folder',
+                                  onPressed: () => _showConfigureFolderDialog(folder),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                 ),
                               ],
                             ),
@@ -1767,6 +2001,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       ),
     );
   }
+}
 
 /// A stateful password field for a single bank, with visibility toggle.
 class _BankPasswordField extends StatefulWidget {

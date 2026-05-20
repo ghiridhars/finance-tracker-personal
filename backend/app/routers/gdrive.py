@@ -43,6 +43,13 @@ class GDriveResetRequest(BaseModel):
     file_ids: list[str] | None = None
 
 
+class FolderConfigRequest(BaseModel):
+    folder_name: str
+    bank: str
+    type: str
+    label: str = ""
+
+
 # ── OAuth & Connection Endpoints ───────────────────────────────
 
 @router.get("/status")
@@ -333,3 +340,40 @@ def gdrive_reset(body: GDriveResetRequest, current_user: dict = Depends(get_curr
     """Reset processed file tracking cache on Google Drive."""
     from app.services.gdrive_sync_service import reset_gdrive_sync_state
     return reset_gdrive_sync_state(file_ids=body.file_ids)
+
+
+# ── Folder Configuration Endpoints ─────────────────────────────
+
+@router.get("/folder-configs")
+def get_folder_configs(current_user: dict = Depends(get_current_user)):
+    """Return all saved folder → bank/type mappings."""
+    from app.services.gdrive_sync_service import get_folder_configs as _get
+    return {"configs": list(_get().values())}
+
+
+@router.post("/folder-configs/{folder_id}")
+def save_folder_config(
+    folder_id: str,
+    body: FolderConfigRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Save or update the bank/type mapping for a specific folder."""
+    from app.services.gdrive_sync_service import set_folder_config
+    config = set_folder_config(
+        folder_id=folder_id,
+        folder_name=body.folder_name,
+        bank=body.bank,
+        stmt_type=body.type,
+        label=body.label,
+    )
+    return config
+
+
+@router.delete("/folder-configs/{folder_id}")
+def remove_folder_config(folder_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove the bank/type mapping for a folder."""
+    from app.services.gdrive_sync_service import delete_folder_config
+    deleted = delete_folder_config(folder_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"No config found for folder {folder_id}")
+    return {"success": True, "folder_id": folder_id}
