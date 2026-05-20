@@ -30,8 +30,8 @@
 ## High-level architecture
 
 - This is a two-app repo: a FastAPI backend in `backend\app` and a Flutter frontend in `frontend\lib`.
-- The backend follows a layered flow of **router -> service -> model/schema**. `backend\app\main.py` creates the app, configures CORS and exception handlers, creates tables on startup, seeds default categories, and registers public vs protected routers.
-- Authentication is single-user JWT auth in `backend\app\auth.py`. Credentials are stored in `backend\data\.credentials.json`, not in the database. Protected routers receive `Depends(get_current_user)` centrally in `main.py` rather than per-endpoint.
+- The backend follows a layered flow of **router -> service -> model/schema**. `backend\app\main.py` creates the app, configures CORS and exception handlers, creates tables on startup, seeds default categories and MCC codes, and registers public vs protected routers.
+- Authentication is single-user JWT auth in `backend\app\auth.py`. Credentials are stored in `backend\data\.credentials.json`, not in the database. Protected routers receive `Depends(get_current_user)` centrally in `main.py` rather than per-endpoint. There are 18 router modules with ~122 endpoints.
 - Statement ingestion is the core backend pipeline:
   - upload endpoints in `backend\app\routers\upload.py`
   - parser dispatch in `backend\app\services\parser_service.py` and `backend\app\parsers\parser_registry.py`
@@ -41,11 +41,13 @@
   - auto-categorization and merchant normalization in `backend\app\services\categorization_service.py`
 - `unified_transactions` is the main query surface for the app. Legacy savings/credit-card endpoints still exist, but most current features read from the unified transaction API under `/api/v2/transactions`.
 - SQLite is the default database, configured in `backend\app\database.py` with WAL mode and foreign keys enabled.
-- Google Drive sync is a first-class integration, not a side script. The sync routes call the same parsing/storage pipeline and track state in a JSON file.
+- Google Drive sync is a first-class integration using personal OAuth2 authentication. The sync routes call the same parsing/storage pipeline and track state in a JSON file. Token management (including auto-refresh) is handled in `gdrive_sync_service.py`.
+- Local directory sync (`local_sync_service.py`) provides similar import functionality for local filesystem folders, using the same parsing pipeline.
+- The admin panel (`admin.py` router) provides generic database CRUD operations for an allowlist of tables using SQLAlchemy Core.
 - The Flutter app boots from `frontend\lib\main.dart` with `ProviderScope`, `MaterialApp.router`, shared theme configuration, and an auth gate that shows `LoginScreen` until the token is validated.
 - Routing lives in `frontend\lib\router.dart` with a `ShellRoute` and shared `NavDestination` metadata. Some routes still exist for deep-linking even when they are no longer primary navigation entries.
 - Frontend state is organized as **screen/widget -> Riverpod notifier/provider -> API module**. UI widgets should stay thin; async loading and derived state usually belong in providers.
-- `frontend\lib\services\api_service.dart` is a compatibility facade and barrel export. New API work should usually go into `frontend\lib\services\api\*.dart` and only keep the facade aligned if older callers still depend on it.
+- `frontend\lib\services\api_service.dart` is a compatibility facade and barrel export. New API work should go into `frontend\lib\services\api\*.dart` (12 modular API modules including `admin_api`, `gdrive_api`, `local_sync_api`) and only keep the facade aligned if older callers still depend on it.
 - Dashboard, transaction filters, auth token, backend URL, theme settings, and dashboard layout persistence are all client-driven and rely heavily on `SharedPreferences`.
 
 ## File creation policy

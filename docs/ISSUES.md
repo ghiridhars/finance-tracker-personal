@@ -26,8 +26,8 @@ backend, frontend, infrastructure, and tooling.
 |------|-----------|--------|
 | Parsers (generic PDF, CSV, LLM) | 3 files | Partial |
 | Local sync | 1 file | Partial |
-| Routers (17 modules, 81 endpoints) | **0** | Missing |
-| Services (16 modules) | **0** | Missing |
+| Routers (18 modules, ~122 endpoints) | **0** | Missing |
+| Services (17 modules) | **0** | Missing |
 | Auth module | **0** | Missing |
 | Database layer | **0** | Missing |
 | Schemas / DTOs | **0** | Missing |
@@ -42,8 +42,8 @@ backend, frontend, infrastructure, and tooling.
 - **No shared fixtures**: No `conftest.py`. Each test file writes its own
   monkeypatches and in-memory DB setup, leading to inconsistent patterns and
   poor test isolation.
-- **No coverage tracking**: `pytest-cov` is absent from `requirements.txt` and
-  CI. No coverage thresholds or reporting.
+- **No coverage tracking**: `pytest-cov` is now in `requirements.txt` but not yet
+  integrated into CI. No coverage thresholds or reporting.
 - **Parser tests are fragile**: Tests in `test_generic_pdf_parser.py` and
   `test_csv_parser.py` depend on specific PDF/CSV fixtures and monkeypatch
   module-level singletons, making them brittle.
@@ -56,9 +56,9 @@ backend, frontend, infrastructure, and tooling.
 
 | File | Lines | Issue |
 |------|-------|-------|
-| `backend/app/services/savings_service.py` | 134 | Calls `UnifiedTransactionService.create_from_savings()` which **no longer exists** — runtime crash if invoked. |
-| `backend/app/services/credit_card_service.py` | 155 | Same problem: calls `UnifiedTransactionService.create_from_credit_card()` which doesn't exist. |
-| `backend/app/schemas/common.py` | ~10 | Empty file containing only a comment. |
+| `backend/app/services/savings_service.py` | — | ✅ **Removed** — previously called `UnifiedTransactionService.create_from_savings()` which no longer existed. File has been deleted. |
+| `backend/app/services/credit_card_service.py` | — | ✅ **Removed** — previously called `UnifiedTransactionService.create_from_credit_card()` which didn't exist. File has been deleted. |
+| `backend/app/schemas/common.py` | — | ✅ **Removed** — was an empty file. |
 | `backend/app/routers/transactions.py` | 80 | Legacy v1 compatibility shim that queries DB directly instead of delegating to services. |
 | `frontend/.../api/transaction_api.dart:11-48` | 38 | `getSavingsTransactions()` and `getCreditCardTransactions()` call legacy v1 endpoints `/api/transactions/savings` + `/api/transactions/credit-card`. These routes are the dead v1 shim above, not the unified v2 endpoint. |
 
@@ -66,9 +66,9 @@ backend, frontend, infrastructure, and tooling.
 
 | Pattern | Files | Impact |
 |---------|-------|--------|
-| Parse-and-save logic (CSV vs PDF branching, state tracking) | `gdrive_sync_service.py:229-307` + `local_sync_service.py:336-434` | ~150 lines of near-identical branching duplicated |
+| Parse-and-save logic (CSV vs PDF branching, state tracking) | `gdrive_sync_service.py:387-590` + `local_sync_service.py:336-434` | ~150 lines of near-identical branching duplicated |
 | `_tx_to_dict` helper | `routers/transactions.py:69` + `routers/export.py:133` | Simple shared serializer would eliminate duplication |
-| `review_status` from parser name | `local_sync_service.py:360`, `gdrive_sync_service.py:248`, `routers/upload.py:158` | Duplicated 3 times |
+| `review_status` from parser name | `local_sync_service.py`, `gdrive_sync_service.py`, `routers/upload.py` | Duplicated 3 times (partially extracted to `utils/file_utils.py`) |
 | Notifier methods (`setDateRange`, `applyPreset`, `loadTransactions`) | `frontend/.../transactions_provider.dart:62-110` vs `:113-161` | Identical code duplicated across 3 notifier classes |
 | Statement save with dedup | `credit_card_service.py:50-83` + `savings_service.py:49-83` | Nearly identical save+dedup+create-unified flow |
 | `str(e)` in sync result details | `local_sync_service.py:444`, `gdrive_sync_service.py:315` | Exception message exposed verbatim in the JSON response body for both sync backends (matches existing `upload.py:201` issue) |
@@ -120,8 +120,8 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 
 | Issue | Location | Severity |
 |-------|----------|----------|
-| **Default JWT secret hardcoded** | `config.py:12` — `"CHANGE-ME-set-JWT_SECRET-env-var"` | **High** — token forgery if deployed without env var |
-| **JWT_SECRET not set in docker-compose** | `docker-compose.yml:25-26` (only sets `DATABASE_URL` + `CORS_ORIGINS`) | **High** — Docker deploy uses hardcoded default |
+| **Default JWT secret hardcoded** | `config.py:12` — `"CHANGE-ME-set-JWT_SECRET-env-var"` | **High** — token forgery if deployed without env var (runtime warning is issued) |
+| ~~**JWT_SECRET not set in docker-compose**~~ | ~~`docker-compose.yml:25-26`~~ | ✅ **Fixed** — Now uses `${JWT_SECRET:-CHANGE-ME-set-JWT_SECRET-env-var}` from host env |
 | **`str(exc)` in 400 responses** | `main.py:120` — `value_error_handler` returns `str(exc)` to the client | Medium — file paths and internal error messages from `ValueError` raised anywhere in a service (e.g. "Path does not exist: /app/data/...") are leaked |
 | **In-memory rate limiter** | `auth.py:144-160` | Medium — resets on restart, doesn't work across workers |
 | **Error details leaked in responses** | `routers/upload.py:201` + `local_sync_service.py:444` + `gdrive_sync_service.py:315` — `str(e)` in response | Medium — may leak internals; upload, local-sync, and gdrive-sync all expose raw exception strings |
@@ -214,8 +214,8 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 | **Duplicate dep** | `bcrypt==4.0.1` is listed separately and also pulled in by `passlib[bcrypt]==1.7.4` |
 | **Unnecessary pin** | `starlette==0.38.6` is a transitive dep of FastAPI — risks version conflicts |
 | **Unpinned deps** | `pymupdf`, `pandas`, `openpyxl`, `python-dateutil`, `charset-normalizer`, `google-genai`, `ollama`, `google-api-python-client`, `google-auth` all use `>=` — not reproducible |
-| **Missing** | `pytest-cov` for coverage reporting |
-| **Missing** | `ruff` should be in requirements.txt (CI installs it separately) |
+| ~~**Missing pytest-cov**~~ | ✅ **Fixed** — `pytest-cov==5.0.0` now in `requirements.txt` |
+| ~~**Missing ruff**~~ | ✅ **Fixed** — `ruff==0.8.0` now in `requirements.txt` |
 
 ### Over-reliance on `>=`
 
@@ -236,11 +236,11 @@ All deps appear current and reasonable. No critical issues.
 
 | Issue | Location | Details |
 |-------|----------|---------|
-| **JWT_SECRET missing** | `docker-compose.yml:25-26` | Only `DATABASE_URL` and `CORS_ORIGINS` set — Docker deploy uses hardcoded default |
+| ~~**JWT_SECRET missing**~~ | ~~`docker-compose.yml:25-26`~~ | ✅ **Fixed** — Now set via `${JWT_SECRET:-...}` env var substitution |
 | No `.dockerignore` | backend/, frontend/ | Build context includes venv, `.git`, `__pycache__` — bloated images |
 | No `apt-get clean` | `backend/Dockerfile:10-12` | After installing `curl`, no `apt-get clean` — slightly larger image |
 | No nginx volume mount | `docker-compose.yml` | Frontend nginx config can't be customized at runtime |
-| Deprecated `version:` field | `docker-compose.yml:12` — `version: "3.8"` | Ignored by Docker Compose v2; generates warnings and is misleading |
+| ~~Deprecated `version:` field~~ | ~~`docker-compose.yml:12`~~ | ✅ **Fixed** — `version:` field has been removed |
 
 ### CI/CD
 
@@ -250,7 +250,7 @@ All deps appear current and reasonable. No critical issues.
 | Flutter version mismatch | `frontend.yml:18,42` | Env var is `3.29.1` but clone uses `stable` branch — if cache misses, installed Flutter version may differ from the pinned key |
 | No SAST scanning | Both workflows | No `bandit`, `trivy`, or dependency vulnerability scanning |
 | `upload-pages-artifact@v3` | `frontend.yml:97` | Potentially outdated version |
-| `ruff` not in requirements.txt | `backend.yml:40` + `requirements.txt` | CI installs `ruff` separately with `pip install ruff` — not pinned to a version, not reproducible locally without knowing to install it |
+| ~~`ruff` not in requirements.txt~~ | ~~`backend.yml:40` + `requirements.txt`~~ | ✅ **Fixed** — `ruff==0.8.0` now in `requirements.txt` |
 
 ### Misc
 
@@ -266,19 +266,19 @@ All deps appear current and reasonable. No critical issues.
 
 | # | Task | Impact | Effort |
 |---|------|--------|--------|
-| 1 | Remove `credit_card_service.py` + `savings_service.py` (dead code) | Medium | 15min |
-| 2 | Add `JWT_SECRET` to `docker-compose.yml` | High | 5min |
+| 1 | ~~Remove `credit_card_service.py` + `savings_service.py` (dead code)~~ | ✅ Done | — |
+| 2 | ~~Add `JWT_SECRET` to `docker-compose.yml`~~ | ✅ Done | — |
 | 3 | Add indexes on `unified_transactions.date`, `.type`, `.bank` | High | 30min |
 | 4 | Remove `|| true` from CI `backend.yml` | Medium | 5min |
-| 5 | Remove empty `schemas/common.py` | Low | 2min |
-| 6 | Extract duplicated `review_status` logic into shared helper | Low | 30min |
+| 5 | ~~Remove empty `schemas/common.py`~~ | ✅ Done | — |
+| 6 | ~~Extract duplicated `review_status` logic into shared helper~~ | ✅ Partially done (`utils/file_utils.py`) | — |
 | 7 | Create `.dockerignore` files | Medium | 20min |
 | 8 | Pin all `>=` deps to exact versions | Low | 30min |
-| 9 | Remove duplicate `bcrypt` and unnecessary `starlette` from `requirements.txt`; add `ruff` and `pytest-cov` | Low | 5min |
+| 9 | ~~Remove duplicate `bcrypt` and unnecessary `starlette` from `requirements.txt`; add `ruff` and `pytest-cov`~~ | ✅ Done | — |
 | 10 | Fix Flutter version pinning in CI `frontend.yml` (use `flutter-version` action input, not `git clone -b stable`) | Medium | 15min |
 | 11 | Add `asyncio.Lock()` around `_save_sync_state` in `gdrive_sync_service.py` | Medium | 10min |
 | 12 | Replace `SharedPreferences` JWT storage with `flutter_secure_storage` | High | 1h |
-| 13 | Remove deprecated `version: "3.8"` from `docker-compose.yml` | Low | 2min |
+| 13 | ~~Remove deprecated `version: "3.8"` from `docker-compose.yml`~~ | ✅ Done | — |
 | 14 | Migrate `getSavingsTransactions` / `getCreditCardTransactions` in `transaction_api.dart` to use the unified v2 endpoint | Medium | 30min |
 
 ---
@@ -288,9 +288,7 @@ All deps appear current and reasonable. No critical issues.
 ```
                     High Impact                  Low Impact
 Urgent       │  Add indexes                 │  Fix CI || true
-             │  JWT_SECRET in docker-compose │  Remove dead code
-             │  Fix CI Flutter version       │  Create .dockerignore
-             │  Secure JWT storage (flutter) │  Remove deprecated version:
+             │  Secure JWT storage (flutter) │  Create .dockerignore
 ─────────────┼───────────────────────────────┼────────────────────
 Important    │  Add tests (routers/services) │  Pin all deps
              │  Fix N+1 in analytics         │  Remove empty files

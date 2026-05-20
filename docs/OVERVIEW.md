@@ -36,13 +36,13 @@ Complete technical specification: architecture, database schema, API details, an
 │           Python 3.12+ / FastAPI 0.115                  │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ Routers  │  │ Services │  │  Parsers   │            │
-│  │ (16 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
+│  │ (18 mods)│  │ (logic)  │  │ (PDF/CSV)  │            │
 │  └──────────┘  └──────────┘  └────────────┘            │
 │               ↕ SQLAlchemy ORM                          │
 ├─────────────────────────────────────────────────────────┤
 │                    Database                              │
 │          SQLite (WAL mode, foreign keys)                │
-│            13 tables, 5 enums                           │
+│            15+ tables, 6 enums                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -105,23 +105,25 @@ backend/
 │   ├── database.py             # SQLAlchemy engine, session, Base
 │   ├── auth.py                 # JWT authentication (register/login, get_current_user dependency)
 │   ├── models/
-│   │   ├── enums.py            # TransactionType, BankType, StatementType, SourceType
+│   │   ├── enums.py            # TransactionType, BankType, StatementType, SourceType, TransferType, ReviewStatus
 │   │   ├── credit_card.py      # CreditCardStatement, CreditCardTransaction
 │   │   ├── savings_account.py  # SavingsAccountStatement, SavingsAccountTransaction
 │   │   ├── transaction.py      # UnifiedTransaction (denormalized)
-│   │   ├── category.py         # Category, CategoryKeyword
+│   │   ├── category.py         # Category, CategoryKeyword, MccCategory
 │   │   ├── tag.py              # Tag, TransactionTag
 │   │   ├── budget.py           # Budget, SavingsGoal, BillReminder, RecurringTransaction
-│   │   └── upi.py              # UpiId (UPI handle mappings)
+│   │   ├── upi.py              # UpiId (UPI handle mappings)
+│   │   ├── bank_account.py     # BankAccount (first-class account entity)
+│   │   └── statement_audit.py  # StatementAudit (parse tracking + statement metadata)
 │   ├── schemas/
-│   │   ├── common.py           # ApiError
 │   │   ├── credit_card.py      # Credit card DTOs
 │   │   ├── savings_account.py  # Savings DTOs
 │   │   ├── category.py         # Category CRUD DTOs
 │   │   ├── tag.py              # Tag DTOs
 │   │   ├── transaction.py      # UnifiedTransaction query/update DTOs + transfer schemas
 │   │   ├── budget.py           # Budget, Goal, Reminder, Recurring DTOs
-│   │   └── upi.py              # UPI ID DTOs (create, update, response)
+│   │   ├── upi.py              # UPI ID DTOs (create, update, response)
+│   │   └── admin.py            # Admin / Database Manager DTOs
 │   ├── parsers/
 │   │   ├── base_parser.py      # ABC + pdfplumber integration
 │   │   ├── generic_pdf_parser.py # Bank-agnostic PDF parser (table + text)
@@ -130,21 +132,24 @@ backend/
 │   │   ├── parser_registry.py  # (BankType, StatementType) → parser dispatch
 │   │   └── patterns.py         # Parser pattern utilities
 │   ├── services/
-│   │   ├── parser_service.py   # Unified parse orchestration
-│   │   ├── credit_card_service.py
-│   │   ├── savings_service.py
+│   │   ├── parser_service.py           # Unified parse orchestration
 │   │   ├── transaction_service.py      # UnifiedTransaction CRUD
-│   │   ├── category_service.py         # Category CRUD + seed defaults
+│   │   ├── category_service.py         # Category CRUD + seed defaults + MCC codes
 │   │   ├── categorization_service.py   # Auto-categorization + merchant normalization
 │   │   ├── analytics_service.py        # Dashboard aggregation queries
 │   │   ├── accounts_service.py         # Account discovery + statement management
+│   │   ├── account_resolution_service.py # BankAccount resolve-or-create logic
+│   │   ├── statement_audit_service.py  # Statement audit tracking + persistence
 │   │   ├── budget_service.py           # Budget CRUD + progress
 │   │   ├── goals_service.py            # Savings goal CRUD + contributions
 │   │   ├── bill_reminder_service.py    # Reminders + CC auto-detect
 │   │   ├── recurring_service.py        # Recurring pattern detection
 │   │   ├── transfer_detection_service.py # Transfer auto-detection + manual link/unlink
 │   │   ├── upi_service.py              # UPI CRUD + rescan logic
-│   │   └── gdrive_sync_service.py      # Google Drive file sync + parser dispatch
+│   │   ├── gdrive_sync_service.py      # Google Drive OAuth sync + parser dispatch
+│   │   └── local_sync_service.py       # Local directory sync + parser dispatch
+│   ├── utils/
+│   │   └── file_utils.py       # Shared file utilities (type inference, review status)
 │   └── routers/
 │       ├── health.py           # GET /health
 │       ├── transactions.py     # Legacy transaction queries
@@ -160,7 +165,9 @@ backend/
 │       ├── export.py           # CSV/JSON export + clear data
 │       ├── transfers.py        # Transfer management (detect, link, unlink)
 │       ├── upi.py              # UPI ID management (CRUD + rescan)
-│       └── gdrive.py           # Google Drive sync (status, files, sync, reset)
+│       ├── gdrive.py           # Google Drive OAuth (connect, browse, import)
+│       ├── admin.py            # Database admin panel (table CRUD)
+│       └── local_sync.py       # Local directory sync (scan, import, status)
 ├── alembic/                    # Migration configs
 ├── data/                       # SQLite database files
 ├── requirements.txt
@@ -183,21 +190,21 @@ All settings are loaded from environment variables or `.env` file via `pydantic-
 | `JWT_SECRET` | `CHANGE-ME-...` | Secret key for JWT signing (must change in production) |
 | `JWT_ALGORITHM` | HS256 | JWT signing algorithm |
 | `JWT_EXPIRY_MINUTES` | 1440 | Token lifetime (default: 24 hours) |
-| `LLM_PROVIDER` | gemini | LLM provider: gemini/ollama/none |
+| `LLM_PROVIDER` | ollama | LLM provider: gemini/ollama/none |
 | `GEMINI_API_KEY` | — | Google Gemini API key |
 | `GEMINI_MODEL` | gemini-2.0-flash | Gemini model |
-| `OLLAMA_MODEL` | llama3.2 | Ollama model |
+| `OLLAMA_MODEL` | lfm2-extract | Ollama model |
 | `OLLAMA_HOST` | http://localhost:11434 | Ollama server |
-| `GDRIVE_ENABLED` | false | Enable Google Drive sync |
-| `GDRIVE_CREDENTIALS_FILE` | — | Path to service account JSON key |
-| `GDRIVE_FOLDER_ID` | — | Google Drive folder to watch |
-| `GDRIVE_POLL_INTERVAL_MINUTES` | 60 | Auto-sync interval (0 = manual only) |
+| `GDRIVE_OAUTH_SECRETS_FILE` | credentials_google.json | Path to Google OAuth client secrets JSON |
+| `LOCAL_SYNC_PATH` | — | Local folder path for directory sync |
+| `LOCAL_SYNC_MAX_FILES` | 500 | Max files returned per scan |
+| `LOCAL_SYNC_ALLOWED_ROOTS` | — | Comma-separated allowed root dirs (empty = home + data_dir) |
 
 ### Middleware
 
 - **CORS**: Configured via `CORSMiddleware` with configurable origins (defaults to localhost variants)
 - **Authentication**: JWT-based single-user auth. All routes (except `/health` and `/api/auth/*` public endpoints) require a valid `Authorization: Bearer <token>` header. Dependency injection via `get_current_user`.
-- **Lifespan**: Creates tables on startup, seeds 15 default categories
+- **Lifespan**: Creates tables on startup, seeds 15 default categories, upgrades keywords, and seeds MCC codes
 
 ---
 
@@ -219,6 +226,7 @@ frontend/lib/
 │   ├── analytics_models.dart
 │   ├── account_models.dart
 │   ├── budget_models.dart
+│   ├── admin_models.dart
 │   ├── converters.dart
 │   └── upi_models.dart
 ├── providers/
@@ -232,30 +240,37 @@ frontend/lib/
 │   ├── budget_provider.dart            # Budgets, goals, reminders, recurring
 │   ├── transfers_provider.dart         # Transfer pair state
 │   ├── upi_provider.dart               # UPI ID state
+│   ├── gdrive_import_provider.dart    # Google Drive OAuth + import state
+│   ├── local_sync_provider.dart       # Local directory sync state
+│   ├── admin_provider.dart            # Database admin state
 │   └── date_range_mixin.dart           # Shared date range mixin
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
 │   ├── calendar_screen.dart            # Full-page spending calendar with editable transaction popup
+│   ├── import_screen.dart              # Import hub: upload + local sync + Google Drive
+│   ├── database_manager_screen.dart   # Admin table browser and editor
 │   ├── login_screen.dart               # Login/register screen (JWT auth)
 │   └── settings_screen.dart            # Settings UI
 ├── services/
-│   ├── api_service.dart                # HTTP client (all API methods, auth token injection)
+│   ├── api_service.dart                # HTTP client (compatibility facade + barrel export)
 │   ├── auth_service.dart               # JWT auth state (login, register, logout, token persistence)
 │   └── api/                            # Modular API layer
 │       ├── api_client.dart             # Base HTTP client
 │       ├── account_api.dart            # Account API methods
+│       ├── admin_api.dart              # Admin/database API
 │       ├── analytics_api.dart          # Analytics API methods
 │       ├── budget_api.dart             # Budget/goals/reminders API
 │       ├── export_api.dart             # Export/data API
+│       ├── gdrive_api.dart             # Google Drive OAuth API
+│       ├── local_sync_api.dart         # Local directory sync API
 │       ├── transaction_api.dart        # Transaction API
 │       ├── transfers_api.dart          # Transfer API
 │       ├── upload_api.dart             # Upload API
 │       └── upi_api.dart               # UPI API
 └── widgets/
-    ├── statement_upload_widget.dart     # Upload with drop zone
+    ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts)
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
     ├── unified_transaction_list_widget.dart  # Unified list with filters + editable categories
-    ├── dashboard_widget.dart           # Customizable dashboard (grid layout, charts)
     ├── accounts_widget.dart            # Account cards → inline filtered transactions
     ├── budget_goals_widget.dart        # Budgets, goals, reminders
     ├── upi_management_widget.dart      # UPI handle management UI
@@ -275,8 +290,9 @@ frontend/lib/
 | Route | Screen/Widget | Description |
 |-------|--------------|-------------|
 | `/` | DashboardWidget | Customizable grid dashboard: summary, charts, top merchants |
-| `/upload` | StatementUploadWidget | PDF/CSV upload |
 | `/calendar` | CalendarScreen | Full-page spending calendar with daily transaction popup (editable categories) |
+| `/import` | ImportScreen | Import hub: file upload, local directory sync, Google Drive sync |
+| `/upload` | *(redirect)* | Legacy redirect to `/import` |
 | `/accounts` | AccountsWidget | Account cards → click to view filtered transactions inline |
 | `/budget` | BudgetGoalsWidget | Budgets, goals, reminders |
 | `/settings` | SettingsScreen | App preferences |
@@ -306,7 +322,7 @@ frontend/lib/
 ## Database Schema
 
 **Engine:** SQLite with WAL mode and foreign keys enabled via PRAGMA.
-**Tables:** 13 | **Enums:** 5
+**Tables:** 15+ | **Enums:** 6
 
 ### Enums
 
@@ -320,7 +336,69 @@ frontend/lib/
 
 **TransferType:** `INTERNAL_TRANSFER`, `CC_BILL_PAYMENT`
 
+**ReviewStatus:** `AUTO_PARSED`, `LLM_PARSED`, `NEEDS_REVIEW`, `REVIEWED`
+
 ### Tables
+
+#### bank_accounts
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| name | String(100) | No | | Display name |
+| bank_name | String(30) | No | | BankType value |
+| account_type | String(20) | No | | SAVINGS / CREDIT_CARD |
+| account_number | String(30) | Yes | | Masked or full |
+| holder_name | String(255) | Yes | | Account holder |
+| ifsc_code | String(11) | Yes | | IFSC code |
+| is_active | Boolean | No | | Default: true |
+| created_at | DateTime | No | | Auto-set |
+
+Unique: `(bank_name, account_type, account_number)`
+Has many: `statement_audit`
+
+#### statement_audit
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| file_name | String(500) | No | | Original filename |
+| file_hash | String(64) | Yes | IDX | SHA-256 hash |
+| file_size_bytes | Integer | Yes | | File size |
+| bank_account_id | Integer | Yes | FK | → bank_accounts.id |
+| bank_name | String(30) | Yes | | Denormalized for failed imports |
+| statement_type | String(20) | No | | SAVINGS/CREDIT_CARD |
+| period_start | Date | Yes | | Statement start date |
+| period_end | Date | Yes | | Statement end date |
+| opening_balance | Numeric(15,2) | Yes | | |
+| closing_balance | Numeric(15,2) | Yes | | |
+| due_date | Date | Yes | | CC-specific |
+| credit_limit | Numeric(15,2) | Yes | | CC-specific |
+| available_credit | Numeric(15,2) | Yes | | CC-specific |
+| minimum_amount_due | Numeric(15,2) | Yes | | CC-specific |
+| account_holder_name | String(255) | Yes | | Savings-specific |
+| card_holder_name | String(255) | Yes | | CC-specific |
+| account_number | String(30) | Yes | | |
+| card_number | String(20) | Yes | | |
+| ifsc_code | String(11) | Yes | | |
+| branch_name | String(255) | Yes | | |
+| parser_strategy | String(50) | Yes | | e.g., table_extraction, text_lines, llm |
+| transaction_count | Integer | No | | Default: 0 |
+| status | String(20) | No | IDX | SUCCESS/FAILED/SKIPPED |
+| error_message | Text | Yes | | Error details for failed imports |
+| source | String(20) | No | | upload / local_sync / gdrive_oauth |
+| imported_at | DateTime | No | | Auto-set |
+
+Unique: `(bank_account_id, period_start, period_end)`
+
+#### mcc_categories
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| mcc_code | String(4) | No | UK | 4-digit Merchant Category Code |
+| description | String(200) | Yes | | MCC description |
+| category_id | Integer | No | FK | → categories.id |
 
 #### credit_card_statements
 
@@ -569,11 +647,14 @@ unified_transactions *───* tags (via transaction_tags)
 | Savings Goals | 6 | `/api/v2/goals/` |
 | Reminders | 6 | `/api/v2/reminders/` |
 | Recurring | 4 | `/api/v2/recurring/` |
-| Export/Data | 2 | `/api/v2/export/`, `/api/v2/data/` |
-| Google Drive Sync | 4 | `/api/v2/gdrive/` |
+| Export | 2 | `/api/v2/export/` |
+| Data (Clear) | 1 | `/api/v2/data/` |
+| Google Drive (OAuth) | 12 | `/api/v2/gdrive/` |
 | Transfers | 5 | `/api/v2/transfers/` |
-| UPI IDs | 6 | `/api/v2/upi-ids/` |
-| **Total** | **81** | |
+| UPI IDs | 7 | `/api/v2/upi-ids/` |
+| Local Directory Sync | 6 | `/api/v2/local-sync/` |
+| Admin / Database | 7+ | `/api/v2/admin/` |
+| **Total** | **~122** | |
 
 > See [FLOW.md](FLOW.md) for the complete endpoint reference with parameters and descriptions.
 
@@ -699,7 +780,7 @@ This app was migrated from Java/Spring Boot + React to Python/FastAPI + Flutter.
 | Task | Description | Status |
 |------|-------------|--------|
 | Authentication | Single-user JWT auth (bcrypt + HS256). Register/login endpoints. Token persistence via SharedPreferences on frontend | ✅ Done |
-| Google Drive Sync | Auto-import statements from Google Drive via service account. File type inference, sync state tracking, 4 API endpoints | ✅ Done |
+| Google Drive Sync (OAuth2) | Import statements from personal Google Drive via OAuth2. Folder browsing, bank/type mappings, background import with job tracking, 12 API endpoints | ✅ Done |
 | Data encryption | AES-256 encryption for account/card numbers at rest | Planned |
 | PostgreSQL option | Switch from SQLite to PostgreSQL for multi-device access | Planned |
 | Backup/Restore | One-click DB backup and restore with download/upload | Planned |

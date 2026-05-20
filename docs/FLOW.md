@@ -10,14 +10,14 @@ Upload a bank statement (PDF or CSV), parse it, and save transactions.
 
 ```
 User selects bank + statement type → Picks file → Uploads
-  → Backend parses (regex or LLM fallback) → Saves statement + transactions
-  → Auto-creates unified transactions → Auto-categorizes → Returns result
+  → Backend parses (regex or LLM fallback) → Resolves/creates BankAccount
+  → Saves statement audit + transactions → Auto-categorizes → Returns result
 ```
 
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|
 | List supported banks | GET | `/api/v2/banks` | Returns bank/type combos + LLM availability |
-| Upload PDF | POST | `/api/v2/statements/upload` | Params: `bank`, `type` (SAVINGS/CREDIT_CARD), `save` (bool). Body: PDF file |
+| Upload PDF | POST | `/api/v2/statements/upload` | Params: `bank`, `type` (SAVINGS/CREDIT_CARD), `save` (bool), `password` (optional). Body: PDF file |
 | Upload CSV | POST | `/api/v2/statements/upload-csv` | Params: `bank`, `type`, `save`. Body: CSV/TXT file. Auto-detects columns |
 
 ---
@@ -248,7 +248,7 @@ User clicks clear all → Double confirmation → Wipes all data (keeps categori
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|
 | Export transactions | GET | `/api/v2/export/transactions` | Params: `format` (csv/json), plus same filters as unified transactions. Up to 10,000 rows. Returns file download |
-| Clear all data | POST | `/api/v2/data/clear-all` | Deletes all transactions, statements, budgets, goals, reminders. Preserves categories |
+| Clear all data | POST | `/api/v2/data/clear-all` | Deletes all transactions, statements, accounts, budgets, goals, reminders. Preserves categories |
 
 ---
 
@@ -302,31 +302,48 @@ App starts → Checks /api/auth/status (is registered?)
 
 ---
 
-## 14. Google Drive Sync Flow
+## 14. Google Drive OAuth Sync Flow
 
-Auto-import bank statements from a shared Google Drive folder.
+Import bank statements from a user's personal Google Drive using OAuth2 authentication.
 
 ```
-Admin configures → shares Drive folder with service account
-  → User checks /api/v2/gdrive/status → Lists files → Triggers sync
-  → Files downloaded → Parsed through existing pipeline → Saved to DB
-  → Sync state tracked to avoid re-processing
+User clicks "Connect Google Drive" → Redirected to Google consent screen
+  → Grants drive.readonly access → Callback exchanges code for tokens
+  → User browses folders → Configures folder bank/type mappings
+  → Selects files → Triggers background import → Polls progress
 ```
+
+### Connection & Authentication
 
 | Step | Method | Endpoint | Details |
 |------|--------|----------|---------|
-| Check status | GET | `/api/v2/gdrive/status` | Returns: enabled, folder_id, credentials_configured, last_sync, processed_file_count |
-| List files | GET | `/api/v2/gdrive/files` | PDF/CSV files in the configured Drive folder. Shows which are already processed |
-| Sync files | POST | `/api/v2/gdrive/sync` | Params: `bank` (override), `type` (override), `file_ids` (comma-separated), `force` (bool). Downloads + parses + saves new files |
-| Reset state | POST | `/api/v2/gdrive/reset` | Params: `file_ids` (comma-separated, optional). Clears processed markers for re-processing |
+| Check status | GET | `/api/v2/gdrive/status` | Returns: connected (bool), email, secrets_configured |
+| Get auth URL | GET | `/api/v2/gdrive/auth-url` | Generates Google OAuth consent URL. Requires `credentials_google.json` on server |
+| OAuth callback | GET | `/api/v2/gdrive/callback` | Exchanges auth code for access+refresh tokens. Saves to `.gdrive_user_token.json`. Returns HTML success/error page. **Public endpoint** (no JWT required) |
+| Disconnect | POST | `/api/v2/gdrive/disconnect` | Revokes access by deleting stored tokens |
 
-**Configuration (env vars):**
-- `GDRIVE_ENABLED` — Enable the feature (default: false)
-- `GDRIVE_CREDENTIALS_FILE` — Path to Google service account JSON key
-- `GDRIVE_FOLDER_ID` — Drive folder ID to watch
-- `GDRIVE_POLL_INTERVAL_MINUTES` — Auto-sync interval (0 = manual only)
+### Folder Browsing & Configuration
 
-**File type inference:** Bank and statement type inferred from filename conventions (e.g., `BOB_savings_jan.pdf` → BOB, SAVINGS).
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| List folders | GET | `/api/v2/gdrive/folders` | Params: `parent_id` (default: root). Lists subfolders with config status |
+| List files | GET | `/api/v2/gdrive/files` | Params: `folder_id`. Lists PDF/CSV files with inferred bank/type and processed status |
+| Get folder configs | GET | `/api/v2/gdrive/folder-configs` | All saved folder → bank/type mappings |
+| Save folder config | POST | `/api/v2/gdrive/folder-configs/{folder_id}` | Body: `folder_name`, `bank`, `type`, `label`. Maps a folder to a bank/statement type |
+| Delete folder config | DELETE | `/api/v2/gdrive/folder-configs/{folder_id}` | Removes mapping for a folder |
+
+### Import & Progress
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| Import files | POST | `/api/v2/gdrive/import` | Body: `files` (list of {filepath, filename, bank, type}), `force` (bool), `bank_passwords` (dict). Downloads + parses in background |
+| Import status | GET | `/api/v2/gdrive/import/{job_id}` | Poll progress: total, processed, skipped, failed, current_file, per-file details |
+| Reset sync state | POST | `/api/v2/gdrive/reset` | Body: `file_ids` (optional list). Clears processed markers for re-import |
+
+**Configuration:**
+- `GDRIVE_OAUTH_SECRETS_FILE` — Path to `credentials_google.json` (Google OAuth client secrets, "Desktop app" type)
+- Token stored at `data/.gdrive_user_token.json` (auto-refreshed when expired)
+- Folder configs stored at `data/.gdrive_folder_config.json`
 
 ---
 
@@ -374,6 +391,57 @@ User adds UPI handles → Marks own UPIs (linked to accounts)
 
 ---
 
+## 17. Local Directory Sync Flow
+
+Scan and import bank statements from a local filesystem directory.
+
+```
+User configures a local folder path → Scans for PDF/CSV files
+  → Reviews detected files with inferred bank/type → Selects files to import
+  → Triggers background scan & parse → Polls progress → Files saved to DB
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| Check status | GET | `/api/v2/local-sync/status` | Returns: configured path, path exists, last scan info |
+| Configure path | POST | `/api/v2/local-sync/configure` | Body: `{ path }`. Validates directory exists and is readable |
+| List files | GET | `/api/v2/local-sync/files` | Params: `path` (optional, uses configured path). Recursively lists PDF/CSV/Excel files with inferred bank/type and processed status |
+| Start scan | POST | `/api/v2/local-sync/scan` | Body: `files` (list of {filepath, bank, type}), `force` (bool), `bank_passwords` (dict). Background processing |
+| Scan status | GET | `/api/v2/local-sync/scan/{job_id}` | Poll progress: total, processed, skipped, failed, per-file details |
+| Reset state | POST | `/api/v2/local-sync/reset` | Body: `filepaths` (optional list). Clears processed markers for re-processing |
+
+**Configuration (env vars):**
+- `LOCAL_SYNC_PATH` — Default local folder path
+- `LOCAL_SYNC_MAX_FILES` — Max files to return per scan (default: 500)
+- `LOCAL_SYNC_ALLOWED_ROOTS` — Comma-separated allowed root directories for security
+
+---
+
+## 18. Admin / Database Manager Flow
+
+Browse, search, and edit database tables through a generic admin interface.
+
+```
+User opens Database Manager → Views list of allowed tables
+  → Clicks a table → Views schema and rows with search/sort/pagination
+  → Can create, update, or delete individual rows
+  → Foreign key columns show dropdown options from related tables
+```
+
+| Step | Method | Endpoint | Details |
+|------|--------|----------|---------|
+| List tables | GET | `/api/v2/admin/tables` | Returns allowed tables with column count and row count |
+| Get table schema | GET | `/api/v2/admin/tables/{table_name}/schema` | Column metadata: type, nullable, PK, FK, enum values, max length |
+| List rows | GET | `/api/v2/admin/tables/{table_name}/rows` | Params: `limit` (1–500), `offset`, `sort`, `order` (asc/desc), `search`. Paginated with search across string columns |
+| Create row | POST | `/api/v2/admin/tables/{table_name}/rows` | Body: field-value dict. Autoincrement PK columns auto-stripped |
+| Update row | PUT | `/api/v2/admin/tables/{table_name}/rows/{row_id}` | Body: field-value dict. PK columns excluded |
+| Delete row | DELETE | `/api/v2/admin/tables/{table_name}/rows/{row_id}` | Deletes by primary key |
+| FK options | GET | `/api/v2/admin/tables/{table_name}/fk-options/{column_name}` | Dropdown values for foreign key columns |
+
+**Allowed tables:** `bank_accounts`, `categories`, `category_keywords`, `mcc_categories`, `tags`, `transaction_tags`, `unified_transactions`, `statement_audit`, `budgets`, `savings_goals`, `bill_reminders`, `recurring_transactions`, `upi_ids`
+
+---
+
 ## API Summary
 
 | Domain | Endpoints | Version |
@@ -381,22 +449,25 @@ User adds UPI handles → Marks own UPIs (linked to accounts)
 | Health | 1 | — |
 | Authentication | 4 | — |
 | Legacy Transactions | 3 | v1 |
-| Upload (Unified) | 3 | v2 |
-| Categories | 7 | v2 |
+| Upload (Unified) | 3+ | v2 |
+| Categories | 7+ | v2 |
 | Unified Transactions | 8 | v2 |
-| Tags | 3 | v2 |
+| Tags | 4 | v2 |
 | Analytics | 7 | v2 |
-| Accounts | 5 | v2 |
-| Budgets | 7 | v2 |
-| Savings Goals | 6 | v2 |
-| Reminders | 6 | v2 |
+| Accounts | 4 | v2 |
+| Budgets | 8 | v2 |
+| Savings Goals | 7 | v2 |
+| Reminders | 12 | v2 |
 | Recurring | 4 | v2 |
-| Export/Data | 2 | v2 |
-| Google Drive Sync | 4 | v2 |
+| Export/Data | 3 | v2 |
+| Google Drive (OAuth) | 12 | v2 |
 | Transfers | 5 | v2 |
-| UPI IDs | 6 | v2 |
-| **Total** | **81** | |
+| UPI IDs | 7 | v2 |
+| Local Directory Sync | 6 | v2 |
+| Admin / Database | 7+ | v2 |
+| **Total** | **~122** | |
 
 > All v2 endpoints are prefixed with `/api/v2/`. Legacy v1 endpoints remain at `/api/` for backward compatibility.
 > Auth endpoints are at `/api/auth/`. The `/health` and `/api/auth/status` endpoints are public; all others require a valid JWT Bearer token.
+> Google Drive `/callback` endpoint is also public (handles OAuth redirect).
 > Interactive API docs available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when the backend is running.

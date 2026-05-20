@@ -11,9 +11,9 @@ graph TB
     subgraph Client["Frontend — Flutter 3.x"]
         UI["Material Design 3 UI"]
         Router["GoRouter<br/>(6 nav destinations)"]
-        Providers["Riverpod Providers<br/>(10 notifiers)"]
+        Providers["Riverpod Providers<br/>(14 notifiers)"]
         AuthSvc["Auth Service<br/>(JWT token mgmt)"]
-        ApiSvc["API Service<br/>(HTTP client)"]
+        ApiSvc["Modular API Layer<br/>(12 API modules)"]
 
         UI --> Router
         UI --> Providers
@@ -23,10 +23,10 @@ graph TB
 
     subgraph Server["Backend — FastAPI 0.115"]
         Auth["Auth Module<br/>(JWT + bcrypt)"]
-        Routers["16 Router Modules<br/>(81 endpoints)"]
-        Services["15 Service Classes<br/>(business logic)"]
+        Routers["18 Router Modules<br/>(~122 endpoints)"]
+        Services["17 Service Classes<br/>(business logic)"]
         Parsers["Parser Registry<br/>(PDF/CSV/LLM)"]
-        Models["SQLAlchemy Models<br/>(13 tables)"]
+        Models["SQLAlchemy Models<br/>(15+ tables, 6 enums)"]
 
         Auth --> Routers
         Routers --> Services
@@ -37,11 +37,12 @@ graph TB
     subgraph Storage["Data Layer"]
         SQLite[("SQLite DB<br/>(WAL mode)")]
         CredFile["Credentials JSON<br/>(.credentials.json)"]
-        SyncState["Sync State JSON<br/>(.gdrive_sync_state.json)"]
+        SyncState["Sync State JSON<br/>(gdrive + local)"]
+        LocalFS["Local Filesystem<br/>(statement files)"]
     end
 
     subgraph External["External Services"]
-        GDrive["Google Drive API"]
+        GDrive["Google Drive API<br/>(OAuth2)"]
         Gemini["Google Gemini<br/>(LLM)"]
         Ollama["Ollama<br/>(local LLM)"]
     end
@@ -51,6 +52,7 @@ graph TB
     Auth --> CredFile
     Services --> SyncState
     Services --> GDrive
+    Services --> LocalFS
     Parsers --> Gemini
     Parsers --> Ollama
 ```
@@ -78,7 +80,9 @@ graph TB
         R13["gdrive.py"]
         R14["transfers.py"]
         R15["upi.py"]
-        R16["transactions.py<br/>(legacy)"]
+        R16["admin.py"]
+        R17["local_sync.py"]
+        R18["transactions.py<br/>(legacy)"]
     end
 
     subgraph Business["Service Layer"]
@@ -94,16 +98,17 @@ graph TB
         S9["BillReminderService"]
         S10["RecurringService"]
         S11["GDriveSyncService"]
-        S12["CreditCardService"]
-        S13["SavingsService"]
-        S14["TransferDetectionService"]
-        S15["UpiService"]
+        S12["TransferDetectionService"]
+        S13["UpiService"]
+        S14["AccountResolutionService"]
+        S15["StatementAuditService"]
+        S16["LocalSyncService"]
     end
 
     subgraph Data["Model Layer"]
         direction LR
         M1["UnifiedTransaction"]
-        M2["Category / CategoryKeyword"]
+        M2["Category / CategoryKeyword / MccCategory"]
         M3["Tag / TransactionTag"]
         M4["Budget"]
         M5["SavingsGoal"]
@@ -112,6 +117,8 @@ graph TB
         M8["CreditCardStatement<br/>CreditCardTransaction"]
         M9["SavingsAccountStatement<br/>SavingsAccountTransaction"]
         M10["UpiId"]
+        M11["BankAccount"]
+        M12["StatementAudit"]
     end
 
     Presentation --> Business
@@ -171,66 +178,75 @@ flowchart TD
     H --> J
     D --> J
 
-    J --> K[Save Raw Statement<br/>CC or Savings table]
-    K --> L[Create UnifiedTransactions<br/>denormalized rows]
-    L --> M[Auto-Categorize<br/>keyword matching]
-    M --> N[Normalize Merchant Names<br/>strip UPI/NEFT/IMPS prefixes]
-    N --> O[Done ✓]
+    J --> K[AccountResolutionService<br/>resolve or create BankAccount]
+    K --> L[StatementAuditService<br/>save audit record + transactions]
+    L --> M[Create UnifiedTransactions<br/>denormalized rows]
+    M --> N[Auto-Categorize<br/>keyword + MCC matching]
+    N --> O[Normalize Merchant Names<br/>strip UPI/NEFT/IMPS prefixes]
+    O --> P[Done ✓]
 
     style A fill:#e1f5fe
-    style O fill:#e8f5e9
+    style P fill:#e8f5e9
     style I fill:#ffebee
 ```
 
 ---
 
-## 5. Google Drive Sync Flow
+## 5. Google Drive OAuth Sync Flow
 
 ```mermaid
 flowchart TD
-    A[User triggers sync<br/>POST /api/v2/gdrive/sync] --> B[Load sync state<br/>.gdrive_sync_state.json]
-    B --> C[List files in<br/>Drive folder]
-    C --> D{For each file}
+    A[User clicks Connect<br/>Google Drive] --> B[GET /api/v2/gdrive/auth-url]
+    B --> C[Open Google OAuth<br/>consent screen]
+    C --> D[User grants access]
+    D --> E[GET /api/v2/gdrive/callback<br/>exchange auth code for tokens]
+    E --> F[Save tokens to<br/>.gdrive_user_token.json]
 
-    D --> E{Already processed?}
-    E -->|Yes & !force| F[Skip]
-    E -->|No or force| G[Download file content]
-
-    G --> H[Infer bank + type<br/>from filename]
-    H --> I{CSV or PDF?}
-
-    I -->|CSV| J[CSV Parser]
-    I -->|PDF| K[ParserService<br/>regex → LLM fallback]
-
-    J --> L{Parse success?}
-    K --> L
-
-    L -->|Yes| M[Save statement + transactions]
-    L -->|No| N[Mark as failed]
-
-    M --> O[Mark file as processed<br/>in sync state]
-
-    F --> P[Next file]
-    O --> P
-    N --> P
-
-    P --> D
-    D -->|All done| Q[Save sync state<br/>return summary]
+    F --> G[User browses folders<br/>GET /api/v2/gdrive/folders]
+    G --> H[Select folder → view files<br/>GET /api/v2/gdrive/files]
+    H --> I[Configure folder bank/type<br/>POST /api/v2/gdrive/folder-configs]
+    I --> J[Select files to import<br/>POST /api/v2/gdrive/import]
+    J --> K[Background download + parse]
+    K --> L[Poll progress<br/>GET /api/v2/gdrive/import/job_id]
+    L --> M{Complete?}
+    M -->|No| L
+    M -->|Yes| N[Done ✓]
 
     style A fill:#e1f5fe
-    style Q fill:#e8f5e9
+    style N fill:#e8f5e9
 ```
 
 ---
 
-## 6. Database Entity Relationship Diagram
+## 6. Local Directory Sync Flow
+
+```mermaid
+flowchart TD
+    A[User configures path<br/>POST /api/v2/local-sync/configure] --> B[Scan for files<br/>GET /api/v2/local-sync/files]
+    B --> C[User confirms bank/type<br/>per file]
+    C --> D[Trigger scan<br/>POST /api/v2/local-sync/scan]
+    D --> E[Background parse + import]
+    E --> F[Poll progress<br/>GET /api/v2/local-sync/scan/job_id]
+    F --> G{Complete?}
+    G -->|No| F
+    G -->|Yes| H[Done ✓]
+
+    style A fill:#e1f5fe
+    style H fill:#e8f5e9
+```
+
+---
+
+## 7. Database Entity Relationship Diagram
 
 ```mermaid
 erDiagram
+    bank_accounts ||--o{ statement_audit : "has many"
     credit_card_statements ||--o{ credit_card_transactions : "has many"
     savings_account_statements ||--o{ savings_account_transactions : "has many"
 
     categories ||--o{ category_keywords : "has many"
+    categories ||--o{ mcc_categories : "has many"
     categories ||--o{ categories : "parent_id (self)"
     categories ||--o{ unified_transactions : "categorizes"
     categories ||--o{ budgets : "budget per category"
@@ -238,6 +254,35 @@ erDiagram
     categories ||--o{ recurring_transactions : "optional category"
 
     unified_transactions }o--o{ tags : "many-to-many via transaction_tags"
+
+    bank_accounts {
+        int id PK
+        string name
+        string bank_name
+        string account_type
+        string account_number
+        string holder_name
+        bool is_active
+        datetime created_at
+    }
+
+    statement_audit {
+        int id PK
+        string file_name
+        string file_hash
+        int bank_account_id FK
+        string bank_name
+        string statement_type
+        date period_start
+        date period_end
+        decimal opening_balance
+        decimal closing_balance
+        string parser_strategy
+        int transaction_count
+        string status
+        string source
+        datetime imported_at
+    }
 
     credit_card_statements {
         int id PK
@@ -311,6 +356,13 @@ erDiagram
         int category_id FK
     }
 
+    mcc_categories {
+        int id PK
+        string mcc_code UK
+        string description
+        int category_id FK
+    }
+
     tags {
         int id PK
         string name UK
@@ -376,7 +428,7 @@ erDiagram
 
 ---
 
-## 7. Frontend Widget & Provider Architecture
+## 8. Frontend Widget & Provider Architecture
 
 ```mermaid
 graph TB
@@ -397,17 +449,19 @@ graph TB
 
     subgraph Screens["Screens & Widgets"]
         Dashboard["DashboardWidget<br/>charts + summary"]
-        Upload["StatementUploadWidget<br/>drag-drop + bank selector"]
+        Import["ImportScreen<br/>upload + local sync + Google Drive"]
         Calendar["CalendarScreen<br/>spending heatmap + editable transactions"]
         Accounts["AccountsWidget<br/>account cards + inline transaction list"]
         Budget["BudgetGoalsWidget<br/>budgets + goals + reminders"]
         UpiMgmt["UpiManagementWidget<br/>UPI handle mappings"]
         Settings["SettingsScreen<br/>theme + currency + URL"]
+        DbManager["DatabaseManagerScreen<br/>admin table browser"]
     end
 
     subgraph Providers["Riverpod State Management"]
         AppSettings["AppSettingsNotifier<br/>(theme, currency, URL)"]
         DashProv["DashboardNotifier<br/>(analytics data)"]
+        DashLayout["DashboardLayoutNotifier<br/>(grid config, edit mode)"]
         TxnProv["UnifiedTransactionsNotifier<br/>(filters, pagination)"]
         CatProv["CategoriesNotifier<br/>(categories + tags)"]
         AccProv["AccountsNotifier<br/>(accounts + statements)"]
@@ -415,23 +469,30 @@ graph TB
         StmtProv["StatementsNotifier<br/>(upload state)"]
         XferProv["TransfersNotifier<br/>(transfer pairs)"]
         UpiProv["UpiNotifier<br/>(UPI mappings)"]
+        GDriveProv["GDriveImportNotifier<br/>(OAuth + import)"]
+        LocalProv["LocalSyncNotifier<br/>(directory sync)"]
+        AdminProv["AdminNotifier<br/>(table browsing)"]
     end
 
-    subgraph API["API Layer"]
-        ApiService["ApiService<br/>(static HTTP client)"]
+    subgraph API["Modular API Layer"]
+        ApiClient["api_client.dart"]
+        ApiModules["12 API modules<br/>(account, analytics, admin,<br/>budget, export, gdrive,<br/>local_sync, transaction,<br/>transfers, upload, upi)"]
     end
 
     Main --> AuthProv
     AuthProv -->|authenticated| AppShell
     AuthProv -->|unauthenticated| LoginScr
     LoginScr --> AuthSvc
-    AuthSvc --> ApiService
+    AuthSvc --> ApiClient
 
     AppShell --> GoRouter
     GoRouter --> Screens
 
     Dashboard --> DashProv
-    Upload --> StmtProv
+    Dashboard --> DashLayout
+    Import --> StmtProv
+    Import --> GDriveProv
+    Import --> LocalProv
     Calendar --> DashProv
     Calendar --> CatProv
     Accounts --> AccProv
@@ -440,14 +501,16 @@ graph TB
     UpiMgmt --> UpiProv
     UpiMgmt --> CatProv
     Settings --> AppSettings
+    DbManager --> AdminProv
 
-    Providers --> ApiService
-    ApiService -- "HTTP + JWT" --> Backend["FastAPI Backend"]
+    Providers --> ApiModules
+    ApiModules --> ApiClient
+    ApiClient -- "HTTP + JWT" --> Backend["FastAPI Backend"]
 ```
 
 ---
 
-## 8. Deployment Architecture (Docker)
+## 9. Deployment Architecture (Docker)
 
 ```mermaid
 graph LR
@@ -480,7 +543,7 @@ graph LR
 
 ---
 
-## 9. Auto-Categorization Pipeline
+## 10. Auto-Categorization Pipeline
 
 ```mermaid
 flowchart LR
@@ -488,20 +551,23 @@ flowchart LR
     B --> C["Match against<br/>category keywords"]
     C --> D{Match found?}
     D -->|Yes| E["Assign category<br/>(longest match wins)"]
-    D -->|No| F["Assign 'Other'<br/>category"]
+    D -->|No| F["Check MCC code<br/>mapping"]
+    F --> G{MCC match?}
+    G -->|Yes| E
+    G -->|No| H["Assign 'Other'<br/>category"]
 
-    G["Transaction<br/>Description"] --> H["Strip UPI/NEFT/IMPS<br/>prefixes"]
-    H --> I["Remove reference<br/>numbers & dates"]
-    I --> J["Title Case<br/>cleanup"]
-    J --> K["Store as<br/>merchant_name"]
+    I["Transaction<br/>Description"] --> J["Strip UPI/NEFT/IMPS<br/>prefixes"]
+    J --> K["Remove reference<br/>numbers & dates"]
+    K --> L["Title Case<br/>cleanup"]
+    L --> M["Store as<br/>merchant_name"]
 
     style E fill:#e8f5e9
-    style F fill:#fff3e0
+    style H fill:#fff3e0
 ```
 
 ---
 
-## 10. Navigation & Responsive Layout
+## 11. Navigation & Responsive Layout
 
 ```mermaid
 graph TD

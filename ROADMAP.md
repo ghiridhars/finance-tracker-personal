@@ -270,7 +270,7 @@
 | # | Task | Status | Details |
 |---|------|--------|---------|
 | 7.1 | Authentication | ✅ Done | Single-user JWT-based auth. Bcrypt password hashing. Register/login endpoints. Credentials stored in local JSON file. OAuth2 password flow. 24-hour token expiry. All API routes (except health + auth) are protected. Frontend login screen with auto-token persistence via SharedPreferences. |
-| 7.2 | Google Drive Sync | ✅ Done | Auto-import bank statements from a Google Drive folder via service account. File type inference from filename conventions. Sync state tracking to skip already-processed files. 4 endpoints: status, list files, sync, reset. Configurable via env vars. |
+| 7.2 | Google Drive Sync (OAuth2) | ✅ Done | Import bank statements from a user's personal Google Drive via OAuth2. Folder browsing with configurable bank/type mappings. Background download + parse with job tracking. 12 endpoints: status, auth-url, callback, disconnect, folders, files, import, import/{job_id}, reset, folder-configs CRUD. Auto-refresh of expired access tokens. |
 | 7.3 | Data encryption | ⬜ Not Started | Encrypt account/card numbers at rest. |
 | 7.4 | PostgreSQL option | ⬜ Not Started | Multi-device access. |
 | 7.5 | Backup/Restore | ⬜ Not Started | One-click DB backup. |
@@ -280,19 +280,21 @@
 - [frontend/lib/services/auth_service.dart](frontend/lib/services/auth_service.dart) — AuthNotifier (Riverpod): login, register, logout, token persistence, auto-validate on startup
 - [frontend/lib/screens/login_screen.dart](frontend/lib/screens/login_screen.dart) — Login/register UI with form validation
 
-**Files Created (7.2 — Google Drive Sync):**
-- [backend/app/services/gdrive_sync_service.py](backend/app/services/gdrive_sync_service.py) — Google Drive API client, file download, parser dispatch, sync state management
-- [backend/app/routers/gdrive.py](backend/app/routers/gdrive.py) — 4 endpoints: status, files, sync, reset
+**Files Created (7.2 — Google Drive OAuth Sync):**
+- [backend/app/services/gdrive_sync_service.py](backend/app/services/gdrive_sync_service.py) — Google Drive OAuth2 client, token management (auto-refresh), folder browsing, file download, parser dispatch, folder config persistence, background job tracking
+- [backend/app/routers/gdrive.py](backend/app/routers/gdrive.py) — 12 endpoints: OAuth (status, auth-url, callback, disconnect), browsing (folders, files), import (import, import/{job_id}), state (reset), folder configs (get, save, delete)
+- [frontend/lib/services/api/gdrive_api.dart](frontend/lib/services/api/gdrive_api.dart) — Google Drive API client module
+- [frontend/lib/providers/gdrive_import_provider.dart](frontend/lib/providers/gdrive_import_provider.dart) — Google Drive OAuth + import state management
 
 **Files Modified:**
 - [backend/app/main.py](backend/app/main.py) — Auth dependency injected into all protected routers; auth_router and gdrive_router registered
-- [backend/app/config.py](backend/app/config.py) — Added JWT (secret, algorithm, expiry) and Google Drive (enabled, credentials, folder_id, poll_interval) settings
+- [backend/app/config.py](backend/app/config.py) — Added JWT (secret, algorithm, expiry) and Google Drive (`gdrive_oauth_secrets_file`) settings
 - [backend/requirements.txt](backend/requirements.txt) — Added python-jose, passlib, google-api-python-client, google-auth
 - [frontend/lib/main.dart](frontend/lib/main.dart) — Auth state check wrapping the app; shows LoginScreen when unauthenticated
 - [frontend/lib/services/api_service.dart](frontend/lib/services/api_service.dart) — Added static auth token management; Authorization header injected into all requests
 - [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Export gdrive_router
 
-**New API Endpoints (8 new):**
+**New API Endpoints (16 new):**
 
 *Authentication (4):*
 - `POST /api/auth/register` — Register single user (one-time only)
@@ -300,11 +302,19 @@
 - `GET /api/auth/me` — Get current authenticated user
 - `GET /api/auth/status` — Check if any user is registered (public)
 
-*Google Drive Sync (4):*
-- `GET /api/v2/gdrive/status` — Sync config and state
-- `GET /api/v2/gdrive/files` — List files in Drive folder
-- `POST /api/v2/gdrive/sync` — Download + parse new files
-- `POST /api/v2/gdrive/reset` — Reset sync state for re-processing
+*Google Drive OAuth (12):*
+- `GET /api/v2/gdrive/status` — Check connection status
+- `GET /api/v2/gdrive/auth-url` — Generate OAuth consent URL
+- `GET /api/v2/gdrive/callback` — OAuth code exchange (public)
+- `POST /api/v2/gdrive/disconnect` — Revoke access
+- `GET /api/v2/gdrive/folders` — Browse folders
+- `GET /api/v2/gdrive/files` — List files in folder
+- `POST /api/v2/gdrive/import` — Trigger background import
+- `GET /api/v2/gdrive/import/{job_id}` — Poll import progress
+- `POST /api/v2/gdrive/reset` — Reset sync state
+- `GET /api/v2/gdrive/folder-configs` — List folder mappings
+- `POST /api/v2/gdrive/folder-configs/{folder_id}` — Save mapping
+- `DELETE /api/v2/gdrive/folder-configs/{folder_id}` — Delete mapping
 
 ---
 
@@ -407,11 +417,55 @@
 - [frontend/lib/providers/date_range_mixin.dart](frontend/lib/providers/date_range_mixin.dart) — Shared date range mixin for providers
 
 **Files Modified:**
-- [backend/app/models/enums.py](backend/app/models/enums.py) — Added `TransferType` enum (5 enums total)
+- [backend/app/models/enums.py](backend/app/models/enums.py) — Added `TransferType` enum
 - [backend/app/models/transaction.py](backend/app/models/transaction.py) — Added `is_transfer`, `transfer_group_id`, `transfer_type` columns
-- [backend/app/models/__init__.py](backend/app/models/__init__.py) — Export `UpiId` model (13 tables total)
+- [backend/app/models/__init__.py](backend/app/models/__init__.py) — Export `UpiId` model
 - [backend/app/schemas/transaction.py](backend/app/schemas/transaction.py) — Added `TransferLinkRequest`, `TransferPairSchema`, `TransferDetectResult` schemas; transfer fields in `UnifiedTransactionSchema`
-- [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Register `transfers_router`, `upi_router` (16 routers total)
-- [backend/app/main.py](backend/app/main.py) — Include `transfers_router`, `upi_router` (~81 routes total)
+- [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Register `transfers_router`, `upi_router`
+- [backend/app/main.py](backend/app/main.py) — Include `transfers_router`, `upi_router`
 - [frontend/lib/widgets/dashboard_widget.dart](frontend/lib/widgets/dashboard_widget.dart) — Imports extracted chart components from `charts/` subdirectory
+
+---
+
+## Phase 11: Admin Panel, Local Sync & Data Model Improvements — ✅ COMPLETED
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 11.1 | Local Directory Sync | ✅ Done | Scan and import statements from local filesystem folders. Path validation with security constraints. Background scan with job tracking. 6 endpoints: status, configure, files, scan, scan/{job_id}, reset. |
+| 11.2 | Database Admin Panel | ✅ Done | Generic CRUD admin interface for all database tables. Schema introspection, paginated row browsing with search/sort, create/update/delete rows, FK dropdown options. 7+ endpoints. Allowlisted table access. |
+| 11.3 | BankAccount Model | ✅ Done | First-class `bank_accounts` table replacing scattered account strings. Auto-created on first statement import. Unique constraint on (bank, type, number). |
+| 11.4 | StatementAudit Model | ✅ Done | Unified `statement_audit` table tracking every parse attempt with statement-level metadata. Replaces separate credit_card_statements/savings_account_statements metadata. Tracks file hash, parser strategy, source (upload/local_sync/gdrive). |
+| 11.5 | MCC Category Codes | ✅ Done | `mcc_categories` table mapping 4-digit Merchant Category Codes to categories. Seeded on startup. Used as fallback in auto-categorization. |
+| 11.6 | ReviewStatus Enum | ✅ Done | Added `ReviewStatus` enum (AUTO_PARSED, LLM_PARSED, NEEDS_REVIEW, REVIEWED) for parse confidence lifecycle tracking. |
+| 11.7 | Import Screen | ✅ Done | Unified import hub replacing separate upload widget. Combines file upload, local directory sync, and Google Drive import in a single tabbed interface. |
+| 11.8 | Account Resolution Service | ✅ Done | Centralized `AccountResolutionService` for resolve-or-create logic when processing statements. Ensures consistent BankAccount linkage. |
+| 11.9 | File Utilities | ✅ Done | Shared `utils/file_utils.py` for file type inference, CSV detection, and review status helpers. Reduces code duplication across sync services. |
+
+**Files Created:**
+- [backend/app/routers/admin.py](backend/app/routers/admin.py) — 7+ database admin endpoints with table allowlist
+- [backend/app/routers/local_sync.py](backend/app/routers/local_sync.py) — 6 local directory sync endpoints
+- [backend/app/schemas/admin.py](backend/app/schemas/admin.py) — Admin DTOs (TableInfo, ColumnInfo, RowsResponse, FKOption)
+- [backend/app/services/local_sync_service.py](backend/app/services/local_sync_service.py) — Local directory sync: path validation, file scanning, background import, job tracking
+- [backend/app/services/account_resolution_service.py](backend/app/services/account_resolution_service.py) — BankAccount resolve-or-create logic
+- [backend/app/services/statement_audit_service.py](backend/app/services/statement_audit_service.py) — Statement audit record creation + transaction persistence
+- [backend/app/models/bank_account.py](backend/app/models/bank_account.py) — `BankAccount` model (bank_accounts table)
+- [backend/app/models/statement_audit.py](backend/app/models/statement_audit.py) — `StatementAudit` model (statement_audit table)
+- [backend/app/utils/file_utils.py](backend/app/utils/file_utils.py) — Shared file utilities
+- [frontend/lib/screens/import_screen.dart](frontend/lib/screens/import_screen.dart) — Unified import hub (upload + local sync + GDrive)
+- [frontend/lib/screens/database_manager_screen.dart](frontend/lib/screens/database_manager_screen.dart) — Database admin browser/editor
+- [frontend/lib/models/admin_models.dart](frontend/lib/models/admin_models.dart) — Admin Dart models
+- [frontend/lib/providers/admin_provider.dart](frontend/lib/providers/admin_provider.dart) — Admin state management
+- [frontend/lib/providers/local_sync_provider.dart](frontend/lib/providers/local_sync_provider.dart) — Local sync state management
+- [frontend/lib/services/api/admin_api.dart](frontend/lib/services/api/admin_api.dart) — Admin API module
+- [frontend/lib/services/api/local_sync_api.dart](frontend/lib/services/api/local_sync_api.dart) — Local sync API module
+
+**Files Modified:**
+- [backend/app/models/enums.py](backend/app/models/enums.py) — Added `ReviewStatus` enum (6 enums total)
+- [backend/app/models/category.py](backend/app/models/category.py) — Added `MccCategory` model
+- [backend/app/models/__init__.py](backend/app/models/__init__.py) — Export `BankAccount`, `StatementAudit`, `MccCategory` (15+ tables total)
+- [backend/app/routers/__init__.py](backend/app/routers/__init__.py) — Register `admin_router`, `local_sync_router` (18 routers total)
+- [backend/app/main.py](backend/app/main.py) — Include admin_router, local_sync_router (~122 endpoints total)
+- [backend/app/config.py](backend/app/config.py) — Added local sync settings (`local_sync_path`, `local_sync_max_files`, `local_sync_allowed_roots`); updated GDrive to OAuth (`gdrive_oauth_secrets_file`)
+- [backend/app/services/category_service.py](backend/app/services/category_service.py) — Added `seed_mcc_codes()` and `upgrade_keywords()` methods
+- [frontend/lib/router.dart](frontend/lib/router.dart) — Changed `/upload` to `/import` with legacy redirect
 

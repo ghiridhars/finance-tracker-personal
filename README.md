@@ -6,7 +6,8 @@ A personal finance management app to upload bank statements, auto-categorize tra
 
 - **Authentication** — Single-user JWT-based login with registration, bcrypt password hashing, and credential persistence
 - Multi-bank PDF & CSV statement upload (HDFC, ICICI, SBI, Axis, Kotak, Yes Bank, Bank of Baroda, Federal Bank + any other bank)
-- Auto-categorization with 15 default categories and keyword matching
+- Password-protected PDF support
+- Auto-categorization with 15 default categories, keyword matching, and MCC code mapping
 - Customizable dashboard with spending trends, category breakdown, income vs expense charts
 - 12-column responsive grid layout with per-tile resize, reorder, and visibility controls
 - Full-page spending calendar heatmap with per-bank color-coded breakdown and editable transaction categories
@@ -17,7 +18,9 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - Savings goals with contribution tracking
 - Bill reminders with auto-detection from credit card dues
 - Recurring transaction detection
-- **Google Drive Sync** — Auto-import bank statements from a shared Google Drive folder (service account)
+- **Google Drive Sync** — OAuth2-based import from personal Google Drive with folder browsing, bank/type mapping, and background processing
+- **Local Directory Sync** — Scan and import statements from a local folder with background processing and job tracking
+- **Database Manager** — Admin panel for browsing and editing all database tables with schema introspection
 - CSV/JSON export
 - Dark/Light theme, responsive layout (desktop sidebar, mobile bottom nav)
 
@@ -28,7 +31,7 @@ A personal finance management app to upload bank statements, auto-categorize tra
 | Backend | Python 3.12+, FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2.9 |
 | Frontend | Flutter 3.x, Material Design 3, Riverpod 3.2, GoRouter |
 | Database | SQLite (WAL mode, foreign keys) |
-| PDF Parsing | pdfplumber + Gemini/Ollama LLM fallback |
+| PDF Parsing | pdfplumber + pymupdf + Gemini/Ollama LLM fallback |
 | Deployment | Docker Compose (nginx + uvicorn) |
 
 ## Quick Start
@@ -77,17 +80,18 @@ docker-compose up --build
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `sqlite:///./data/financial-tracker.db` | SQLAlchemy connection string |
+| `DATABASE_URL` | `sqlite:///./data/finance_tracker.db` | SQLAlchemy connection string |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed origins (comma-separated) |
 | `JWT_SECRET` | `CHANGE-ME-...` | Secret key for JWT token signing (change in production!) |
 | `JWT_EXPIRY_MINUTES` | `1440` | JWT token lifetime (default: 24 hours) |
 | `GEMINI_API_KEY` | — | Google Gemini API key for LLM parser |
-| `LLM_PROVIDER` | `gemini` | LLM provider: `gemini`, `ollama`, or `none` |
+| `LLM_PROVIDER` | `ollama` | LLM provider: `gemini`, `ollama`, or `none` |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `GDRIVE_ENABLED` | `false` | Enable Google Drive sync |
-| `GDRIVE_CREDENTIALS_FILE` | — | Path to Google service account JSON key file |
-| `GDRIVE_FOLDER_ID` | — | Google Drive folder ID to watch for statements |
-| `GDRIVE_POLL_INTERVAL_MINUTES` | `60` | Auto-sync interval (0 = disabled) |
+| `OLLAMA_MODEL` | `lfm2-extract` | Ollama model name |
+| `GDRIVE_OAUTH_SECRETS_FILE` | `credentials_google.json` | Path to Google OAuth client secrets JSON |
+| `LOCAL_SYNC_PATH` | — | Local folder path for directory sync |
+| `LOCAL_SYNC_MAX_FILES` | `500` | Max files returned per scan |
+| `LOCAL_SYNC_ALLOWED_ROOTS` | — | Comma-separated allowed root dirs (empty = home + data_dir) |
 
 ## Project Structure
 
@@ -99,11 +103,12 @@ finance-tracker-v2/
 │   │   ├── config.py         # Settings (env-based)
 │   │   ├── database.py       # SQLAlchemy engine + session
 │   │   ├── auth.py           # JWT authentication (register/login/token)
-│   │   ├── models/           # 13 SQLAlchemy ORM models
+│   │   ├── models/           # 15+ SQLAlchemy ORM models (6 enums)
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
-│   │   ├── services/         # Business logic layer (incl. Google Drive sync)
-│   │   └── routers/          # 16 API route modules (~81 endpoints)
+│   │   ├── services/         # Business logic layer (17 services)
+│   │   ├── routers/          # 18 API route modules (~122 endpoints)
+│   │   └── utils/            # Shared utilities (file_utils.py)
 │   ├── alembic/              # Database migrations
 │   └── requirements.txt
 ├── frontend/
@@ -112,16 +117,18 @@ finance-tracker-v2/
 │   │   ├── router.dart       # GoRouter config (6 nav destinations)
 │   │   ├── theme.dart        # Light/dark theme
 │   │   ├── models/           # Dart data models
-│   │   ├── providers/        # Riverpod state management
-│   │   ├── screens/          # App shell, login, settings, calendar
+│   │   ├── providers/        # Riverpod state management (14 providers)
+│   │   ├── screens/          # App shell, login, calendar, import, settings, database manager
 │   │   ├── services/         # API client + auth service + modular API layer
-│   │   └── widgets/          # Dashboard, upload, accounts, UPI, charts/
+│   │   └── widgets/          # Dashboard, accounts, UPI, charts/
 │   └── pubspec.yaml
 ├── docker-compose.yml
 └── docs/
     ├── ARCHITECTURE.md       # Mermaid architecture diagrams
     ├── FLOW.md               # User flows & API reference
-    └── OVERVIEW.md           # Technical specification & schema
+    ├── OVERVIEW.md           # Technical specification & schema
+    ├── ISSUES.md             # Known issues & improvement areas
+    └── PARSING.md            # PDF parsing strategy reference
 ```
 
 ## Documentation
@@ -129,3 +136,5 @@ finance-tracker-v2/
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — Mermaid diagrams: system architecture, data flow, ER diagram, deployment
 - [FLOW.md](docs/FLOW.md) — All user flows with API endpoints and details
 - [OVERVIEW.md](docs/OVERVIEW.md) — Technical spec, database schema, architecture, and future enhancements
+- [ISSUES.md](docs/ISSUES.md) — Known issues, technical debt, and improvement areas
+- [PARSING.md](docs/PARSING.md) — PDF parsing strategy reference and bank compatibility
