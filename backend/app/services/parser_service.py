@@ -76,9 +76,12 @@ class ParserService:
                 pass
 
             llm_enabled = settings.llm_provider.lower() != "none"
+            llm_status = "not_attempted"
+            llm_error = None
 
             # ── Step 1: Generic PDF parser (fast, reliable for tabular PDFs) ──
             result = parser.parse(tmp_path, statement_type, password=password)
+            generic_error = result.error_message or "0 transactions found"
 
             if result.success and result.result:
                 txn_count = len(getattr(result.result, "transactions", []))
@@ -95,15 +98,19 @@ class ParserService:
                         "strategy": result.strategy,
                     }
 
-            generic_error = result.error_message or "0 transactions found"
-            logger.warning(f"Generic parser insufficient ({generic_error}), trying LLM fallback...")
+            logger.warning(
+                f"Generic parser insufficient ({generic_error}), trying LLM fallback..."
+            )
 
             # ── Step 2: LLM fallback (for non-tabular or unusual formats) ─────
             if llm_enabled and raw_text:
+                llm_status = "attempted"
                 try:
                     from app.parsers.llm_parser import parse_with_llm_generic
 
                     llm_result = parse_with_llm_generic(raw_text, bank, statement_type)
+                    llm_error = llm_result.error_message or "0 transactions found"
+
                     if llm_result.success and llm_result.result:
                         txn_count = len(getattr(llm_result.result, "transactions", []))
                         if txn_count > 0:
@@ -118,20 +125,32 @@ class ParserService:
                                 "parser": "llm",
                                 "strategy": "llm",
                             }
-                    llm_error = (
-                        llm_result.error_message
-                        if not llm_result.success
-                        else "0 transactions found"
-                    )
+
                     logger.warning(f"LLM fallback also failed: {llm_error}")
                 except Exception as e:
+                    llm_error = str(e) or e.__class__.__name__
                     logger.warning(f"LLM fallback error: {e}")
+            elif not llm_enabled:
+                llm_status = "skipped_provider_none"
+                llm_error = "LLM fallback skipped because llm_provider is set to none."
+            else:
+                llm_status = "skipped_no_raw_text"
+                llm_error = "LLM fallback skipped because raw text extraction failed."
 
             return {
                 "success": False,
-                "error": f"Failed to parse {bank.value}/{statement_type.value} statement: {generic_error}",
+                "error": self._format_failure_error(
+                    bank=bank,
+                    statement_type=statement_type,
+                    generic_error=generic_error,
+                    llm_status=llm_status,
+                    llm_error=llm_error,
+                ),
                 "rawText": raw_text,
                 "parser": "none",
+                "generic_error": generic_error,
+                "llm_status": llm_status,
+                "llm_error": llm_error,
             }
 
         finally:
@@ -164,6 +183,27 @@ class ParserService:
                 statement.account_holder_name = bank_label
             if not getattr(statement, "account_number", None) and meta.get("account_number"):
                 statement.account_number = meta["account_number"]
+
+    @staticmethod
+    def _format_failure_error(
+        *,
+        bank: BankType,
+        statement_type: StatementType,
+        generic_error: str,
+        llm_status: str,
+        llm_error: str | None,
+    ) -> str:
+        """Build a user-facing parse failure message with generic and LLM detail."""
+        message = (
+            f"Failed to parse {bank.value}/{statement_type.value} statement: "
+            f"Generic parser failed: {generic_error}"
+        )
+
+        if llm_status == "attempted" and llm_error:
+            return f"{message}. LLM fallback failed: {llm_error}"
+        if llm_error:
+            return f"{message}. {llm_error}"
+        return message
 
     # ── Utilities ─────────────────────────────────────────────
 

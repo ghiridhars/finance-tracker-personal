@@ -10,12 +10,14 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.config import settings
+from app.parsers.base_parser import ParseException
 from app.utils.file_utils import infer_file_type, is_csv_file, is_supported_file, review_status_from_parser
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,32 @@ _jobs: dict[str, dict] = {}
 
 # Lock for state file access (defense-in-depth alongside single-scan enforcement)
 _state_lock = asyncio.Lock()
+
+
+def _normalize_password_candidates(
+    password_value: str | list[str] | None,
+) -> list[str]:
+    """Return ordered, de-duplicated password candidates for a bank."""
+    if password_value is None:
+        return []
+
+    raw_values = [password_value] if isinstance(password_value, str) else password_value
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    for raw_value in raw_values:
+        for part in re.split(r"[\r\n,]+", raw_value):
+            candidate = part.strip()
+            if candidate and candidate not in seen:
+                candidates.append(candidate)
+                seen.add(candidate)
+
+    return candidates
+
+
+def _is_incorrect_password_error(exc: Exception) -> bool:
+    """Return True when the parser failed because the PDF password was wrong."""
+    return str(exc).strip().lower() == "incorrect pdf password."
 
 
 # ── Path Security ──────────────────────────────────────────────
@@ -225,7 +253,7 @@ async def scan_and_import(
     files: list[dict],
     job_id: str | None = None,
     force: bool = False,
-    bank_passwords: dict[str, str] | None = None,
+    bank_passwords: dict[str, str | list[str]] | None = None,
 ) -> dict:
     """
     Parse and import a list of local files.
@@ -235,7 +263,7 @@ async def scan_and_import(
         files: List of dicts with {filepath, bank, type} — user-confirmed
         job_id: Job ID for progress tracking (auto-generated if None)
         force: Re-process already-processed files
-        bank_passwords: Optional mapping of bank name -> PDF password
+        bank_passwords: Optional mapping of bank name -> one or more PDF passwords
 
     Returns:
         Summary dict with counts and per-file details.
@@ -349,11 +377,44 @@ async def scan_and_import(
                 statement = result.result if success else None
                 error = result.error_message if not success else None
             else:
-                pdf_password = (bank_passwords or {}).get(bank_str) or None
-                result = await parser_service.parse_statement(
-                    content, filename, bank_type, statement_type,
-                    password=pdf_password,
+                password_candidates = _normalize_password_candidates(
+                    (bank_passwords or {}).get(bank_str)
                 )
+
+                if password_candidates:
+                    result = None
+                    last_password_error: Exception | None = None
+
+                    for candidate in password_candidates:
+                        try:
+                            result = await parser_service.parse_statement(
+                                content,
+                                filename,
+                                bank_type,
+                                statement_type,
+                                password=candidate,
+                            )
+                            last_password_error = None
+                            break
+                        except Exception as e:
+                            if _is_incorrect_password_error(e):
+                                last_password_error = e
+                                continue
+                            raise
+
+                    if result is None:
+                        raise last_password_error or ParseException(
+                            "Incorrect PDF password."
+                        )
+                else:
+                    result = await parser_service.parse_statement(
+                        content,
+                        filename,
+                        bank_type,
+                        statement_type,
+                        password=None,
+                    )
+
                 parser_used = result.get("parser", "unknown")
                 success = result.get("success", False)
                 statement = result.get("statement") if success else None

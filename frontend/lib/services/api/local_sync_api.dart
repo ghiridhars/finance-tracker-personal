@@ -9,6 +9,31 @@ import 'api_client.dart';
 class LocalSyncApi {
   static String get _base => '${ApiClient.baseUrl}/api/v2/local-sync';
 
+  static Map<String, List<String>> _normalizeBankPasswords(
+    Map<String, String>? bankPasswords,
+  ) {
+    final normalized = <String, List<String>>{};
+    if (bankPasswords == null) return normalized;
+
+    bankPasswords.forEach((bank, rawValue) {
+      final seen = <String>{};
+      final candidates = <String>[];
+
+      for (final part in rawValue.split(RegExp(r'[\r\n,]+'))) {
+        final candidate = part.trim();
+        if (candidate.isEmpty || seen.contains(candidate)) continue;
+        seen.add(candidate);
+        candidates.add(candidate);
+      }
+
+      if (candidates.isNotEmpty) {
+        normalized[bank] = candidates;
+      }
+    });
+
+    return normalized;
+  }
+
   /// Get current sync status and configuration.
   static Future<Map<String, dynamic>> getStatus() async {
     final response = await http
@@ -60,6 +85,8 @@ class LocalSyncApi {
     bool force = false,
     Map<String, String>? bankPasswords,
   }) async {
+    final normalizedPasswords = _normalizeBankPasswords(bankPasswords);
+
     final response = await http
         .post(
           Uri.parse('$_base/scan'),
@@ -67,8 +94,8 @@ class LocalSyncApi {
           body: jsonEncode({
             'files': files,
             'force': force,
-            if (bankPasswords != null && bankPasswords.isNotEmpty)
-              'bank_passwords': bankPasswords,
+            if (normalizedPasswords.isNotEmpty)
+              'bank_passwords': normalizedPasswords,
           }),
         )
         .timeout(ApiClient.timeout);

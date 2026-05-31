@@ -4,17 +4,37 @@ Unit tests for GenericPdfParser internal methods.
 Tests key parsing functions without requiring actual PDF files by calling
 the parser's internal methods directly on text/token inputs.
 """
-import pytest
 from datetime import date
 from decimal import Decimal
 
+import pytest
+from pdfminer.pdfdocument import PDFPasswordIncorrect
+
 from app.models.enums import StatementType, TransactionType
+from app.parsers.base_parser import ParseException
 from app.parsers.generic_pdf_parser import GenericPdfParser
 
 
 @pytest.fixture
 def parser():
     return GenericPdfParser()
+
+
+class TestPasswordErrors:
+    def test_parse_surfaces_incorrect_pdf_password(self, parser, tmp_path, monkeypatch):
+        filepath = tmp_path / "protected.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        def raise_incorrect_password(*args, **kwargs):
+            raise PDFPasswordIncorrect()
+
+        monkeypatch.setattr(
+            "app.parsers.generic_pdf_parser.pdfplumber.open",
+            raise_incorrect_password,
+        )
+
+        with pytest.raises(ParseException, match="Incorrect PDF password."):
+            parser.parse(filepath, StatementType.SAVINGS, password="wrong-password")
 
 
 # ── _parse_amount_or_dash ──────────────────────────────────────
@@ -43,6 +63,9 @@ class TestParseAmountOrDash:
 
     def test_currency_symbol_amount(self, parser):
         assert parser._parse_amount_or_dash("₹500.00") == Decimal("500.00")
+
+    def test_amount_with_cr_suffix(self, parser):
+        assert parser._parse_amount_or_dash("4006.44 Cr") == Decimal("4006.44")
 
 
 # ── _classify_amounts ──────────────────────────────────────────
@@ -238,6 +261,88 @@ class TestParseTableRows:
         assert transactions[0]["date"] == date(2018, 10, 15)
         assert transactions[0]["description"].startswith("UPI/")
         assert transactions[0]["debit"] == Decimal("30")
+
+
+class TestTableStrategy:
+    def test_collects_single_row_continuation_tables(self, parser):
+        class FakePage:
+            def __init__(self, tables):
+                self._tables = tables
+
+            def extract_tables(self):
+                return self._tables
+
+        class FakePdf:
+            def __init__(self, pages):
+                self.pages = pages
+
+        header_table = [
+            ["GHIRIDHAR S", None, None, "SAVINGS ACCOUNT - 05570100013649", None, None],
+            ["DATE", "NARRATION", "CHQ.NO.", "WITHDRAWAL (DR)", "DEPOSIT (CR)", "BALANCE"],
+            ["01-08-2021", "Opening Balance", "", "", "", "1952.44 Cr"],
+        ]
+        fragmented_txn_tables = [
+            [["10-08-2021", "UPI/122206334631/08:32:02/UPI/virenderganes\nh84-1@", "", "", "2000.00", "4006.44 Cr"]],
+            [["20-08-2021", "IMPS/P2A/123210563610/VSREENIVAS/-", "", "", "100.00", "2117.44 Cr"]],
+        ]
+        nominee_table = [
+            ["NOMINEE DETAILS", None, None, None, None],
+            ["SR.NO.", "ACCOUNT TYPE", "ACCOUNT NUMBER", "NOMINEE NAME(S)", None],
+            ["1", "SAVINGS ACCOUNT", "05570100013649", "1)", "V SREENIVAS"],
+        ]
+        fake_pdf = FakePdf(
+            [
+                FakePage([header_table, *fragmented_txn_tables]),
+                FakePage([nominee_table]),
+            ]
+        )
+
+        result = parser._try_table_strategy(fake_pdf, StatementType.SAVINGS)
+
+        assert result is not None
+        assert result.success
+        assert len(result.result.transactions) == 2
+        assert result.result.transactions[0].description.startswith("UPI/")
+        assert result.result.transactions[0].deposit_amount == Decimal("2000.00")
+        assert result.result.transactions[1].description.startswith("IMPS/")
+        assert result.result.transactions[1].deposit_amount == Decimal("100.00")
+
+
+class TestMultilineStrategy:
+    def test_parses_single_amount_balance_blocks(self, parser):
+        text = """
+01-08-2021
+Opening Balance
+1952.44 Cr
+06-08-2021
+05570100013649:Int.Pd:01-05-2021 to
+31-07-2021
+54.00
+2006.44 Cr
+10-08-2021
+UPI/122206334631/08:32:02/UPI/virenderganes
+h84-1@
+2000.00
+4006.44 Cr
+10-08-2021
+UPI/122246848419/08:33:33/UPI/groww.razorp
+ay@icic
+2000.00
+2006.44 Cr
+31-08-2021
+Closing Balance
+2006.44 Cr
+""".strip()
+
+        result = parser._try_multiline_strategy(text, StatementType.SAVINGS)
+
+        assert result is not None
+        assert result.success
+        assert len(result.result.transactions) == 3
+        assert result.result.opening_balance == Decimal("1952.44")
+        assert result.result.transactions[0].deposit_amount == Decimal("54.00")
+        assert result.result.transactions[1].deposit_amount == Decimal("2000.00")
+        assert result.result.transactions[2].withdrawal_amount == Decimal("2000.00")
 
 
 # ── extract_metadata ──────────────────────────────────────────

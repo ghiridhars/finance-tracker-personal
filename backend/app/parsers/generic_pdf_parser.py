@@ -23,6 +23,7 @@ from typing import Optional
 
 import fitz  # pymupdf — fast text extraction
 import pdfplumber  # table extraction
+from pdfminer.pdfdocument import PDFPasswordIncorrect
 
 from app.config import settings
 from app.models.enums import StatementType, TransactionType
@@ -76,6 +77,8 @@ class GenericPdfParser:
             raise ParseException(f"File not found: {file_path}")
 
         try:
+            candidate_results: list[ParseResult] = []
+
             # Strategy 1: table extraction (pdfplumber — better for tables)
             pdf_password = password or ""
             with pdfplumber.open(str(file_path), password=pdf_password) as pdf:
@@ -84,9 +87,8 @@ class GenericPdfParser:
 
                 result = self._try_table_strategy(pdf, statement_type)
                 if result and result.success:
-                    logger.info("Table extraction strategy succeeded")
                     result.strategy = "table"
-                    return result
+                    candidate_results.append(result)
 
             # Strategy 2 & 3: text-based parsing (pymupdf — faster text)
             raw_text = self.extract_raw_text(file_path, password=password)
@@ -101,9 +103,8 @@ class GenericPdfParser:
 
             result = self._try_text_strategy(raw_text, statement_type)
             if result and result.success:
-                logger.info("Single-line text strategy succeeded")
                 result.strategy = "single_line"
-                return result
+                candidate_results.append(result)
 
             # Strategy 3a/3b: credit-card-specific multi-line strategies
             # (run before generic multi-line to avoid false positives)
@@ -111,28 +112,36 @@ class GenericPdfParser:
                 # date|time + desc + amount
                 result = self._try_cc_multiline_strategy(raw_text)
                 if result and result.success:
-                    logger.info("Credit card multi-line strategy succeeded")
                     result.strategy = "cc_multiline"
-                    return result
+                    candidate_results.append(result)
 
                 # date / desc / amount [Cr]
                 result = self._try_cc_simple_multiline_strategy(raw_text)
                 if result and result.success:
-                    logger.info("Credit card simple multi-line strategy succeeded")
                     result.strategy = "cc_simple_multiline"
-                    return result
+                    candidate_results.append(result)
 
             # Strategy 4: generic multi-line text parsing
             result = self._try_multiline_strategy(raw_text, statement_type)
             if result and result.success:
-                logger.info("Multi-line text strategy succeeded")
                 result.strategy = "multiline"
-                return result
+                candidate_results.append(result)
+
+            best_result = self._select_best_result(candidate_results)
+            if best_result is not None:
+                logger.info(
+                    "Selected %s strategy with %s transactions",
+                    best_result.strategy,
+                    self._result_transaction_count(best_result),
+                )
+                return best_result
 
             return ParseResult.failure(
                 "Could not extract transactions from PDF using "
                 "table, single-line text, or multi-line text strategy."
             )
+        except PDFPasswordIncorrect as e:
+            raise ParseException("Incorrect PDF password.", cause=e) from e
         except ParseException:
             raise
         except Exception as e:
@@ -160,8 +169,11 @@ class GenericPdfParser:
         except Exception:
             # Fallback to pdfplumber if pymupdf fails
             pdf_password = password or ""
-            with pdfplumber.open(str(file_path), password=pdf_password) as pdf:
-                return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            try:
+                with pdfplumber.open(str(file_path), password=pdf_password) as pdf:
+                    return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            except PDFPasswordIncorrect as e:
+                raise ParseException("Incorrect PDF password.", cause=e) from e
 
     # ── Strategy 1: Table extraction ──────────────────────────
 
@@ -173,9 +185,10 @@ class GenericPdfParser:
 
         for page in pdf.pages:
             for table in page.extract_tables():
-                if not table or len(table) < 2:
+                if not table:
                     continue
 
+                appended_rows = False
                 for i, row in enumerate(table):
                     if self._is_table_header(row):
                         new_map = self._map_table_columns(row)
@@ -188,12 +201,22 @@ class GenericPdfParser:
                             if col_map is None:
                                 col_map = new_map
                             # Data rows follow the header
-                            all_data_rows.extend(table[i + 1:])
+                            all_data_rows.extend(
+                                self._filter_table_data_rows(
+                                    table[i + 1:],
+                                    col_map,
+                                )
+                            )
+                            appended_rows = True
                             break
-                else:
-                    # No header in this table — continuation from previous page
-                    if col_map is not None:
-                        all_data_rows.extend(table)
+
+                if not appended_rows and col_map is not None:
+                    # No header in this table — treat only transaction-like
+                    # rows as continuation data. This keeps fragmented
+                    # single-row tables while rejecting nominee/footer tables.
+                    all_data_rows.extend(
+                        self._filter_table_data_rows(table, col_map)
+                    )
 
         if col_map is None or not all_data_rows:
             return None
@@ -205,6 +228,42 @@ class GenericPdfParser:
             return None
 
         return self._build_result(transactions, statement_type)
+
+    def _filter_table_data_rows(
+        self,
+        rows: list[list[str | None]],
+        col_map: dict,
+    ) -> list[list[str | None]]:
+        """Keep only rows that look like actual transaction records."""
+        return [
+            row for row in rows if self._looks_like_table_data_row(row, col_map)
+        ]
+
+    def _looks_like_table_data_row(
+        self,
+        row: list[str | None],
+        col_map: dict,
+    ) -> bool:
+        if not row or all(not (cell or "").strip() for cell in row):
+            return False
+
+        date_val = get_cell(row, col_map.get("date"))
+        cleaned_date = date_val.replace("\n", " ").strip() if date_val else ""
+        if not re.search(r"\d{2}[/-]\d{2}[/-]\d{2,4}", cleaned_date):
+            return False
+
+        has_amount = any(
+            parse_amount(get_cell(row, col_map.get(field))) is not None
+            for field in ("debit", "credit", "amount")
+        )
+        if not has_amount:
+            return False
+
+        description = get_cell(row, col_map.get("description"))
+        if self._is_table_metadata_row(description.replace("\n", " ").strip()):
+            return False
+
+        return True
 
     def _is_table_header(self, row: list[str | None]) -> bool:
         return is_table_header(row)
@@ -347,6 +406,7 @@ class GenericPdfParser:
     _ML_DATE_RE = re.compile(r"^\d{2}[/-]\d{2}[/-]\d{2,4}$")
     _ML_SERIAL_RE = re.compile(r"^\d{1,4}$")
     _ML_AMOUNT_RE = re.compile(r"^[\d,]+(?:\.\d{1,2})?$")
+    _ML_BALANCE_RE = re.compile(r"^[\d,]+(?:\.\d{1,2})?\s*(?:Cr|CR|cr|Dr|DR|dr)?$")
     _ML_DASH_RE = re.compile(r"^-$")
 
     def _try_multiline_strategy(
@@ -376,6 +436,7 @@ class GenericPdfParser:
 
         transactions: list[dict] = []
         opening_balance: Decimal | None = None
+        previous_balance: Decimal | None = None
         i = 0
 
         while i < len(lines):
@@ -385,25 +446,19 @@ class GenericPdfParser:
                 i += 1
                 continue
 
-            # Detect opening balance
-            if line.lower() == "opening balance":
-                for j in range(i + 1, min(i + 4, len(lines))):
-                    val = lines[j].strip()
-                    if self._ML_DASH_RE.match(val):
-                        continue
-                    amt = parse_amount(val)
-                    if amt is not None:
-                        opening_balance = amt
-                        i = j + 1
-                        break
-                else:
-                    i += 1
-                continue
-
             # Try to parse a transaction block
-            txn = self._try_parse_multiline_block(lines, i)
+            txn = self._try_parse_multiline_block(lines, i, previous_balance)
             if txn:
-                transactions.append(txn["data"])
+                txn_data = txn["data"]
+                if txn_data.get("kind") == "opening_balance":
+                    opening_balance = txn_data["balance"]
+                    previous_balance = txn_data["balance"]
+                elif txn_data.get("kind") == "closing_balance":
+                    previous_balance = txn_data["balance"]
+                else:
+                    transactions.append(txn_data)
+                    if txn_data.get("balance") is not None:
+                        previous_balance = txn_data["balance"]
                 i = txn["next_index"]
             else:
                 i += 1
@@ -413,7 +468,12 @@ class GenericPdfParser:
 
         return self._build_result(transactions, statement_type, opening_balance)
 
-    def _try_parse_multiline_block(self, lines: list[str], start: int) -> dict | None:
+    def _try_parse_multiline_block(
+        self,
+        lines: list[str],
+        start: int,
+        previous_balance: Decimal | None = None,
+    ) -> dict | None:
         """
         Try to parse a transaction block starting at index `start`.
 
@@ -444,11 +504,28 @@ class GenericPdfParser:
         if i < n and self._ML_DATE_RE.match(lines[i]):
             i += 1
 
+        if i < n and lines[i].lower() in {"opening balance", "closing balance"}:
+            kind = lines[i].lower().replace(" ", "_")
+            i += 1
+            if i >= n:
+                return None
+            balance = parse_amount(lines[i])
+            if balance is None:
+                return None
+            return {
+                "data": {"kind": kind, "date": txn_date, "balance": balance},
+                "next_index": i + 1,
+            }
+
         # Step 4: Description (1+ lines until we hit amount/dash/serial+date)
         desc_lines: list[str] = []
         while i < n:
             l = lines[i]
-            if self._ML_AMOUNT_RE.match(l) or self._ML_DASH_RE.match(l):
+            if (
+                self._ML_AMOUNT_RE.match(l)
+                or self._ML_BALANCE_RE.match(l)
+                or self._ML_DASH_RE.match(l)
+            ):
                 break
             if self._ML_SERIAL_RE.match(l) and i + 1 < n and self._ML_DATE_RE.match(lines[i + 1]):
                 break
@@ -461,29 +538,36 @@ class GenericPdfParser:
 
         description = " ".join(desc_lines).strip()
 
-        # Step 5: Debit (amount or "-")
+        # Step 5+: Either [debit, credit, balance] or [amount, balance]
         if i >= n:
             return None
-        debit = self._parse_amount_or_dash(lines[i])
-        i += 1
-
-        # Step 6: Credit (amount or "-")
-        if i >= n:
-            return None
-        credit = self._parse_amount_or_dash(lines[i])
-        i += 1
-
-        # Step 7: Balance (required amount)
-        if i >= n:
-            return None
-        balance = parse_amount(lines[i])
-        if balance is None:
+        first_amount = self._parse_amount_or_dash(lines[i])
+        if first_amount is None:
             return None
         i += 1
 
-        # Must have at least one of debit/credit
-        if debit is None and credit is None:
+        if i >= n:
             return None
+        second_amount = self._parse_amount_or_dash(lines[i])
+        i += 1
+
+        next_value = parse_amount(lines[i]) if i < n else None
+        if next_value is not None:
+            debit = first_amount
+            credit = second_amount
+            balance = next_value
+            i += 1
+            if debit is None and credit is None:
+                return None
+        else:
+            balance = second_amount
+            if balance is None:
+                return None
+            debit, credit = self._infer_single_amount_direction(
+                amount=first_amount,
+                balance=balance,
+                previous_balance=previous_balance,
+            )
 
         txn_type = TransactionType.DEBIT if (debit and debit > 0) else TransactionType.CREDIT
 
@@ -507,6 +591,20 @@ class GenericPdfParser:
         if text == "-":
             return None
         return parse_amount(text)
+
+    @staticmethod
+    def _infer_single_amount_direction(
+        *,
+        amount: Decimal,
+        balance: Decimal,
+        previous_balance: Decimal | None,
+    ) -> tuple[Decimal | None, Decimal | None]:
+        if previous_balance is not None:
+            if balance == previous_balance + amount:
+                return None, amount
+            if balance == previous_balance - amount:
+                return amount, None
+        return amount, None
 
     # ── Strategy 4: Credit card multi-line parsing ──────────
 
@@ -858,6 +956,27 @@ class GenericPdfParser:
             amt = parse_amount(tokens[0])
             return amt, None, None
         return None, None, None
+
+    @staticmethod
+    def _result_transaction_count(result: ParseResult | None) -> int:
+        if result is None or not result.success or result.result is None:
+            return 0
+        return len(getattr(result.result, "transactions", []))
+
+    def _select_best_result(
+        self,
+        results: list[ParseResult],
+    ) -> ParseResult | None:
+        best_result: ParseResult | None = None
+        best_count = -1
+
+        for result in results:
+            count = self._result_transaction_count(result)
+            if count > best_count:
+                best_result = result
+                best_count = count
+
+        return best_result
 
     # ── Result building ────────────────────────────────────────
 

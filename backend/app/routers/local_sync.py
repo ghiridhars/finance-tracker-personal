@@ -13,7 +13,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import SessionLocal
 
@@ -37,7 +37,7 @@ class FileScanItem(BaseModel):
 class ScanRequest(BaseModel):
     files: list[FileScanItem]
     force: bool = False
-    bank_passwords: dict[str, str] = {}
+    bank_passwords: dict[str, str | list[str]] = Field(default_factory=dict)
 
 
 class ResetRequest(BaseModel):

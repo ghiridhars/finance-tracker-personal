@@ -128,6 +128,7 @@ def parse_amount(value: str | None) -> Optional[Decimal]:
         return None
     cleaned = re.sub(r"[₹$€£\s]", "", value.strip())
     cleaned = cleaned.replace("(", "-").replace(")", "")
+    cleaned = re.sub(r"(?i)(cr|dr)$", "", cleaned)
     if not cleaned or cleaned == "-" or cleaned == "0":
         return None
     cleaned = cleaned.replace(",", "")

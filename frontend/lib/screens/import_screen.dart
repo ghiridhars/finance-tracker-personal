@@ -801,7 +801,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Enter passwords for any password-protected PDF statements.',
+              'Enter one or more passwords for password-protected PDF statements. Separate multiple candidates with commas or new lines.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

@@ -5,9 +5,12 @@ Tests file type inference, directory listing, state tracking,
 path configuration, and edge cases.
 """
 import json
-import pytest
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+from app.parsers.base_parser import ParseException
 from app.utils.file_utils import infer_file_type, is_supported_file, is_csv_file
 
 
@@ -416,3 +419,134 @@ class TestConcurrencyGuard:
         svc._jobs["test-job"] = {"status": "completed"}
         assert svc.has_running_scan() is False
         svc._jobs.clear()
+
+
+class _FakeDbSession:
+    def rollback(self):
+        return None
+
+    def commit(self):
+        return None
+
+
+class TestScanAndImportPasswords:
+    @pytest.fixture(autouse=True)
+    def _allow_tmp(self, tmp_path, monkeypatch):
+        from app.services import local_sync_service as svc
+
+        monkeypatch.setattr(svc, "_get_allowed_roots", lambda: [tmp_path])
+        monkeypatch.setattr(svc, "get_configured_path", lambda: str(tmp_path))
+        monkeypatch.setattr(svc, "_SYNC_STATE_FILE", tmp_path / ".local_sync_state.json")
+        svc._jobs.clear()
+
+    @pytest.mark.asyncio
+    async def test_retries_multiple_password_candidates_until_success(
+        self, tmp_path, monkeypatch
+    ):
+        from app.services import local_sync_service as svc
+
+        filepath = tmp_path / "bob-statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        attempts: list[str | None] = []
+        statement = SimpleNamespace(
+            account_number="1234567890",
+            account_holder_name="Bob",
+            transactions=[SimpleNamespace()],
+        )
+
+        class FakeParserService:
+            async def parse_statement(
+                self,
+                file_content,
+                filename,
+                bank,
+                statement_type,
+                password=None,
+            ):
+                attempts.append(password)
+                if password != "correct-password":
+                    raise ParseException("Incorrect PDF password.")
+                return {
+                    "success": True,
+                    "statement": statement,
+                    "parser": "generic",
+                    "strategy": "table",
+                }
+
+        monkeypatch.setattr("app.services.parser_service.ParserService", FakeParserService)
+        monkeypatch.setattr(
+            "app.services.account_resolution_service.AccountResolutionService.resolve_or_create",
+            lambda *args, **kwargs: SimpleNamespace(id=1),
+        )
+
+        saved_statements: list[dict] = []
+        monkeypatch.setattr(
+            "app.services.statement_audit_service.StatementAuditService.save_statement",
+            lambda *args, **kwargs: saved_statements.append(kwargs),
+        )
+
+        result = await svc.scan_and_import(
+            db=_FakeDbSession(),
+            files=[
+                {
+                    "filepath": str(filepath),
+                    "bank": "BOB",
+                    "type": "SAVINGS",
+                }
+            ],
+            bank_passwords={"BOB": ["wrong-password", "correct-password"]},
+        )
+
+        assert attempts == ["wrong-password", "correct-password"]
+        assert result["processed"] == 1
+        assert result["failed"] == 0
+        assert result["details"][0]["status"] == "success"
+        assert len(saved_statements) == 1
+
+    @pytest.mark.asyncio
+    async def test_reports_clear_error_when_all_password_candidates_fail(
+        self, tmp_path, monkeypatch
+    ):
+        from app.services import local_sync_service as svc
+
+        filepath = tmp_path / "bob-statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        attempts: list[str | None] = []
+
+        class FakeParserService:
+            async def parse_statement(
+                self,
+                file_content,
+                filename,
+                bank,
+                statement_type,
+                password=None,
+            ):
+                attempts.append(password)
+                raise ParseException("Incorrect PDF password.")
+
+        monkeypatch.setattr("app.services.parser_service.ParserService", FakeParserService)
+        monkeypatch.setattr(
+            "app.services.statement_audit_service.StatementAuditService.record",
+            lambda *args, **kwargs: None,
+        )
+
+        result = await svc.scan_and_import(
+            db=_FakeDbSession(),
+            files=[
+                {
+                    "filepath": str(filepath),
+                    "bank": "BOB",
+                    "type": "SAVINGS",
+                }
+            ],
+            bank_passwords={"BOB": " wrong-password-one,\nwrong-password-two "},
+        )
+
+        assert attempts == ["wrong-password-one", "wrong-password-two"]
+        assert result["processed"] == 0
+        assert result["failed"] == 1
+        assert result["details"][0]["status"] == "failed"
+        assert result["details"][0]["error"] == "Incorrect PDF password."
