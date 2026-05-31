@@ -181,6 +181,7 @@ class UnifiedTransactionsState {
   final DateRangePreset preset;
   final int? categoryFilter;
   final String? bankFilter;
+  final int? bankAccountIdFilter;
   final String? accountIdentifierFilter;
   final String? sourceTypeFilter;
   final bool? isTransferFilter;
@@ -196,6 +197,7 @@ class UnifiedTransactionsState {
     this.preset = DateRangePreset.last3Months,
     this.categoryFilter,
     this.bankFilter,
+    this.bankAccountIdFilter,
     this.accountIdentifierFilter,
     this.sourceTypeFilter,
     this.isTransferFilter,
@@ -212,6 +214,7 @@ class UnifiedTransactionsState {
     DateRangePreset? preset,
     int? categoryFilter,
     String? bankFilter,
+    int? bankAccountIdFilter,
     String? accountIdentifierFilter,
     String? sourceTypeFilter,
     bool? isTransferFilter,
@@ -220,6 +223,7 @@ class UnifiedTransactionsState {
     bool clearError = false,
     bool clearCategoryFilter = false,
     bool clearBankFilter = false,
+    bool clearBankAccountIdFilter = false,
     bool clearAccountIdentifierFilter = false,
     bool clearSourceTypeFilter = false,
     bool clearIsTransferFilter = false,
@@ -236,6 +240,9 @@ class UnifiedTransactionsState {
       categoryFilter:
           clearCategoryFilter ? null : (categoryFilter ?? this.categoryFilter),
       bankFilter: clearBankFilter ? null : (bankFilter ?? this.bankFilter),
+        bankAccountIdFilter: clearBankAccountIdFilter
+          ? null
+          : (bankAccountIdFilter ?? this.bankAccountIdFilter),
       accountIdentifierFilter: clearAccountIdentifierFilter
           ? null
           : (accountIdentifierFilter ?? this.accountIdentifierFilter),
@@ -275,6 +282,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         to: state.toDate != null ? formatDate(state.toDate!) : null,
         categoryId: state.categoryFilter,
         bank: state.bankFilter,
+        bankAccountId: state.bankAccountIdFilter,
         accountIdentifier: state.accountIdentifierFilter,
         sourceType: state.sourceTypeFilter,
         isTransfer: state.isTransferFilter,
@@ -292,6 +300,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
   void setFilters({
     int? categoryId,
     String? bank,
+    int? bankAccountId,
     String? accountIdentifier,
     String? sourceType,
     bool? isTransfer,
@@ -299,6 +308,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     String? search,
     bool clearCategory = false,
     bool clearBank = false,
+    bool clearBankAccountId = false,
     bool clearAccountIdentifier = false,
     bool clearSourceType = false,
     bool clearIsTransfer = false,
@@ -317,6 +327,9 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         categoryFilter:
             clearCategory ? null : (categoryId ?? state.categoryFilter),
         bankFilter: clearBank ? null : (bank ?? state.bankFilter),
+        bankAccountIdFilter: clearBankAccountId
+          ? null
+          : (bankAccountId ?? state.bankAccountIdFilter),
         accountIdentifierFilter: clearAccountIdentifier
             ? null
             : (accountIdentifier ?? state.accountIdentifierFilter),
@@ -331,6 +344,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       state = state.copyWith(
         categoryFilter: categoryId,
         bankFilter: bank,
+        bankAccountIdFilter: bankAccountId,
         accountIdentifierFilter: accountIdentifier,
         sourceTypeFilter: sourceType,
         isTransferFilter: isTransfer,
@@ -338,6 +352,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         searchQuery: search,
         clearCategoryFilter: clearCategory,
         clearBankFilter: clearBank,
+        clearBankAccountIdFilter: clearBankAccountId,
         clearAccountIdentifierFilter: clearAccountIdentifier,
         clearSourceTypeFilter: clearSourceType,
         clearIsTransferFilter: clearIsTransfer,
@@ -358,6 +373,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       preset: preset,
       categoryFilter: state.categoryFilter,
       bankFilter: state.bankFilter,
+      bankAccountIdFilter: state.bankAccountIdFilter,
       accountIdentifierFilter: state.accountIdentifierFilter,
       sourceTypeFilter: state.sourceTypeFilter,
       isTransferFilter: state.isTransferFilter,

@@ -330,10 +330,12 @@ class _AccountCard extends ConsumerWidget {
           // Fix #2: use 'all' preset so date range doesn't silently limit results
           // Fix #3: set sourceType to match the account type
           ref.read(unifiedTransactionsProvider.notifier).setFilters(
-            accountIdentifier: account.identifier,
+            bankAccountId: account.id,
+            accountIdentifier: account.identifier.isNotEmpty ? account.identifier : null,
             sourceType: account.type,
             clearCategory: true,
             clearBank: true,
+            clearBankAccountId: account.id == null,
             clearIsTransfer: true,
             clearType: true,
             clearSearch: true,

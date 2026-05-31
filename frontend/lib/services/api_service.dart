@@ -96,11 +96,13 @@ class ApiService {
 
   static Future<List<UnifiedTransaction>> getUnifiedTransactions({
     String? from, String? to, int? categoryId, String? bank,
+    int? bankAccountId,
     String? accountIdentifier, String? sourceType, bool? isTransfer, String? type,
     String? search, double? minAmount, double? maxAmount,
     int limit = 100, int offset = 0,
   }) => TransactionApi.getUnifiedTransactions(
     from: from, to: to, categoryId: categoryId, bank: bank,
+    bankAccountId: bankAccountId,
     accountIdentifier: accountIdentifier, sourceType: sourceType, isTransfer: isTransfer, type: type,
     search: search, minAmount: minAmount, maxAmount: maxAmount,
     limit: limit, offset: offset,

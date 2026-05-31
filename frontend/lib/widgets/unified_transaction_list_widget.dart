@@ -301,11 +301,15 @@ class _UnifiedTransactionListWidgetState
                         .applyPreset(DateRangePreset.all),
                     child: const Text('Try All time'),
                   ),
-                if (state.accountIdentifierFilter != null)
+                if (state.accountIdentifierFilter != null ||
+                    state.bankAccountIdFilter != null)
                   OutlinedButton(
                     onPressed: () => ref
                         .read(unifiedTransactionsProvider.notifier)
-                        .setFilters(clearAccountIdentifier: true),
+                        .setFilters(
+                          clearAccountIdentifier: true,
+                          clearBankAccountId: true,
+                        ),
                     child: const Text('Show all accounts'),
                   ),
                 if (state.categoryFilter != null || state.isTransferFilter == true)

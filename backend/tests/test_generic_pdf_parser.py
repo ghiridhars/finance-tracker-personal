@@ -199,6 +199,47 @@ class TestParseTxnLine:
         assert result["date"] == date(2024, 1, 15)
 
 
+# ── _parse_table_rows ────────────────────────────────────────
+
+class TestParseTableRows:
+    @pytest.mark.parametrize(
+        "description",
+        ["SAVINGS ACCOUNT", "PPF ACCOUNT", "TERM DEPOSIT ACCOUNT"],
+    )
+    def test_skips_account_summary_rows(self, parser, description):
+        rows = [
+            ["01/05/2026", description, "", "1", "", "5000"],
+            [
+                "15/10/2018",
+                "UPI/828719363445/19:15:21/UPI/211701011000262@vij",
+                "",
+                "30",
+                "",
+                "4970",
+            ],
+        ]
+        col_map = {
+            "date": 0,
+            "description": 1,
+            "reference": 2,
+            "debit": 3,
+            "credit": 4,
+            "amount": None,
+            "balance": 5,
+        }
+
+        transactions = parser._parse_table_rows(
+            rows,
+            col_map,
+            StatementType.SAVINGS,
+        )
+
+        assert len(transactions) == 1
+        assert transactions[0]["date"] == date(2018, 10, 15)
+        assert transactions[0]["description"].startswith("UPI/")
+        assert transactions[0]["debit"] == Decimal("30")
+
+
 # ── extract_metadata ──────────────────────────────────────────
 
 class TestExtractMetadata:
@@ -223,6 +264,21 @@ class TestExtractMetadata:
         text = "A/C No. 9876 5432 1098"
         meta = GenericPdfParser.extract_metadata(text)
         assert "account_number" in meta
+
+    def test_account_number_ignores_word_only_placeholder(self):
+        text = "Account Number: NOMINEE"
+        meta = GenericPdfParser.extract_metadata(text)
+        assert "account_number" not in meta
+
+    def test_account_number_extracts_digits_before_trailing_words(self):
+        text = "A/C No. 0557201810135605460437 NOMINEE REGISTERED"
+        meta = GenericPdfParser.extract_metadata(text)
+        assert meta["account_number"] == "0557201810135605460437"
+
+    def test_account_number_ignores_joint_placeholder(self):
+        text = "Account No: Joint"
+        meta = GenericPdfParser.extract_metadata(text)
+        assert "account_number" not in meta
 
     def test_card_number_masked(self):
         text = "Card Number: 4632 02XX XXXX 4418"

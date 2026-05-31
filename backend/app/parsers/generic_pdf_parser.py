@@ -237,6 +237,9 @@ class GenericPdfParser:
             desc = get_cell(row, col_map["description"])
             desc = desc.replace("\n", " ").strip() if desc else ""
 
+            if self._is_table_metadata_row(desc):
+                continue
+
             ref = get_cell(row, col_map["reference"])
             ref = ref.replace("\n", " ").strip() if ref else None
 
@@ -269,6 +272,24 @@ class GenericPdfParser:
             })
 
         return transactions
+
+    @staticmethod
+    def _is_table_metadata_row(description: str) -> bool:
+        """Reject account-summary labels that table extraction can misread as transactions."""
+        if not description:
+            return False
+
+        normalized = re.sub(r"\s+", " ", description).strip()
+        if _NOISE.match(normalized):
+            return True
+
+        return bool(
+            re.fullmatch(
+                r"(?:ppf|savings|salary|current|term\s+deposit|fixed\s+deposit|recurring\s+deposit)\s+account",
+                normalized,
+                re.IGNORECASE,
+            )
+        )
 
     # ── Strategy 2: Text-based line parsing ───────────────────
 
@@ -954,9 +975,8 @@ class GenericPdfParser:
 
         # Account number patterns (savings)
         acct_patterns = [
-            r"account\s*(?:number|no\.?)[:\s]*(\d[\d\s]{5,}\d)",
-            r"a/c\s*(?:number|no\.?)[:\s]*(\d[\d\s]{5,}\d)",
-            r"account\s*(?:number|no\.?)[:\s]*(\w+)",
+            r"account\s*(?:number|no\.?)[:\s]*([\dXx*][\dXx*\s-]{5,}[\dXx*])",
+            r"a/c\s*(?:number|no\.?)[:\s]*([\dXx*][\dXx*\s-]{5,}[\dXx*])",
         ]
         for pat in acct_patterns:
             acct = re.search(pat, text, re.IGNORECASE)

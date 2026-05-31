@@ -2,6 +2,7 @@
 import 'converters.dart';
 
 class Account {
+  final int? id;
   final String type; // SAVINGS or CREDIT_CARD
   final String identifier; // account_number or card_number
   final String? holderName;
@@ -14,6 +15,7 @@ class Account {
   final double? availableCredit;
 
   Account({
+    this.id,
     required this.type,
     required this.identifier,
     this.holderName,
@@ -36,6 +38,7 @@ class Account {
 
   factory Account.fromJson(Map<String, dynamic> json) {
     return Account(
+      id: json['id'],
       type: json['type'] ?? '',
       identifier: json['identifier'] ?? '',
       holderName: json['holder_name'],

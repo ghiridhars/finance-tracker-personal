@@ -2,8 +2,9 @@
 Account resolution — find-or-create a BankAccount during statement import.
 """
 import logging
+import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.bank_account import BankAccount
@@ -12,7 +13,37 @@ logger = logging.getLogger(__name__)
 
 
 class AccountResolutionService:
-    """Resolve a BankAccount by (bank_name, account_type, account_number)."""
+    """Resolve a BankAccount by normalized bank/type/account identity."""
+
+    @staticmethod
+    def _normalize_account_number(
+        account_number: str | None,
+        account_type: str | None = None,
+    ) -> str | None:
+        """Collapse formatting so spaced and compact masked identifiers match."""
+        if not account_number:
+            return None
+
+        normalized = re.sub(r"[\s-]+", "", account_number.strip().upper())
+        normalized = normalized.replace("*", "X")
+
+        # Savings accounts should not use word-only placeholders like OPEN or JOINT.
+        if account_type == "SAVINGS" and not any(ch.isdigit() for ch in normalized):
+            return None
+
+        return normalized
+
+    @staticmethod
+    def _normalized_account_number_expr():
+        return func.replace(
+            func.replace(
+                func.replace(func.upper(BankAccount.account_number), " ", ""),
+                "-",
+                "",
+            ),
+            "*",
+            "X",
+        )
 
     @staticmethod
     def resolve_or_create(
@@ -41,12 +72,25 @@ class AccountResolutionService:
         BankAccount
             Existing or newly created account (flushed, has an id).
         """
+        normalized_account_number = AccountResolutionService._normalize_account_number(
+            account_number,
+            account_type=account_type,
+        )
+
         stmt = select(BankAccount).where(
             BankAccount.bank_name == bank_name,
             BankAccount.account_type == account_type,
-            BankAccount.account_number == account_number,
         )
-        account = db.scalars(stmt).first()
+
+        if normalized_account_number is None:
+            stmt = stmt.where(BankAccount.account_number.is_(None))
+        else:
+            stmt = stmt.where(
+                AccountResolutionService._normalized_account_number_expr()
+                == normalized_account_number
+            )
+
+        account = db.scalars(stmt.order_by(BankAccount.id)).first()
 
         if account is not None:
             # Update holder_name if we now have one and didn't before
@@ -58,14 +102,21 @@ class AccountResolutionService:
         # Auto-generate a friendly name
         bank_label = bank_name.replace("_", " ").title()
         type_label = "Savings" if account_type == "SAVINGS" else "Credit Card"
-        suffix = f" ••{account_number[-4:]}" if account_number and len(account_number) >= 4 else ""
+        stored_account_number = normalized_account_number
+        if stored_account_number is None and account_type != "SAVINGS":
+            stored_account_number = account_number
+        suffix = (
+            f" ••{stored_account_number[-4:]}"
+            if stored_account_number and len(stored_account_number) >= 4
+            else ""
+        )
         friendly_name = f"{bank_label} {type_label}{suffix}"
 
         account = BankAccount(
             name=friendly_name,
             bank_name=bank_name,
             account_type=account_type,
-            account_number=account_number,
+            account_number=stored_account_number,
             holder_name=holder_name,
         )
         db.add(account)

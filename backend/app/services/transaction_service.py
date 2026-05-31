@@ -116,6 +116,7 @@ class UnifiedTransactionService:
         to_date: date | None = None,
         category_id: int | None = None,
         bank: str | None = None,
+        bank_account_id: int | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
@@ -133,6 +134,8 @@ class UnifiedTransactionService:
             q = q.filter(UnifiedTransaction.category_id == category_id)
         if bank:
             q = q.filter(UnifiedTransaction.bank == bank)
+        if bank_account_id is not None:
+            q = q.filter(UnifiedTransaction.bank_account_id == bank_account_id)
         if account_identifier:
             q = q.filter(UnifiedTransaction.account_identifier == account_identifier)
         if source_type:
@@ -165,6 +168,7 @@ class UnifiedTransactionService:
         to_date: date | None = None,
         category_id: int | None = None,
         bank: str | None = None,
+        bank_account_id: int | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
@@ -179,6 +183,7 @@ class UnifiedTransactionService:
             db.query(UnifiedTransaction),
             from_date=from_date, to_date=to_date,
             category_id=category_id, bank=bank,
+            bank_account_id=bank_account_id,
             account_identifier=account_identifier,
             source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
             search=search, min_amount=min_amount, max_amount=max_amount,
@@ -194,6 +199,7 @@ class UnifiedTransactionService:
         to_date: date | None = None,
         category_id: int | None = None,
         bank: str | None = None,
+        bank_account_id: int | None = None,
         account_identifier: str | None = None,
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
@@ -207,6 +213,7 @@ class UnifiedTransactionService:
             db.query(UnifiedTransaction),
             from_date=from_date, to_date=to_date,
             category_id=category_id, bank=bank,
+            bank_account_id=bank_account_id,
             account_identifier=account_identifier,
             source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
             search=search, min_amount=min_amount, max_amount=max_amount,
