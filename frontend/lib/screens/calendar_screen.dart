@@ -155,69 +155,70 @@ class _SpendingCalendar extends StatelessWidget {
               lastDay: DateTime(2030, 12, 31),
               focusedDay: focusedMonth,
               calendarFormat: CalendarFormat.month,
-            availableCalendarFormats: const {CalendarFormat.month: 'Month'},
-            headerStyle: HeaderStyle(
-              formatButtonVisible: false,
-              titleCentered: true,
-              titleTextStyle: Theme.of(context)
-                  .textTheme
-                  .titleMedium!
-                  .copyWith(fontWeight: FontWeight.w600),
-              leftChevronIcon:
-                  Icon(Icons.chevron_left, color: cs.primary),
-              rightChevronIcon:
-                  Icon(Icons.chevron_right, color: cs.primary),
-            ),
-            daysOfWeekStyle: DaysOfWeekStyle(
-              weekdayStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: cs.onSurface.withValues(alpha: 0.7),
+              availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+              headerStyle: HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: Theme.of(context)
+                    .textTheme
+                    .titleMedium!
+                    .copyWith(fontWeight: FontWeight.w600),
+                leftChevronIcon:
+                    Icon(Icons.chevron_left, color: cs.primary),
+                rightChevronIcon:
+                    Icon(Icons.chevron_right, color: cs.primary),
               ),
-              weekendStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: cs.error.withValues(alpha: 0.7),
+              daysOfWeekHeight: 28,
+              daysOfWeekStyle: DaysOfWeekStyle(
+                weekdayStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface.withValues(alpha: 0.7),
+                ),
+                weekendStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: cs.error.withValues(alpha: 0.7),
+                ),
               ),
-            ),
-            onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
-            calendarBuilders: CalendarBuilders(
-              defaultBuilder: (context, day, focusedDay) {
-                final key = DateTime(day.year, day.month, day.day);
-                return _CalendarCell(
-                  day: day,
-                  spending: spendingByDay[key] ?? 0,
-                  accounts: accountsByDay[key] ?? const [],
-                  maxSpending: maxSpending,
-                  isToday: false,
-                );
-              },
-              todayBuilder: (context, day, focusedDay) {
-                final key = DateTime(day.year, day.month, day.day);
-                return _CalendarCell(
-                  day: day,
-                  spending: spendingByDay[key] ?? 0,
-                  accounts: accountsByDay[key] ?? const [],
-                  maxSpending: maxSpending,
-                  isToday: true,
-                );
-              },
-              outsideBuilder: (context, day, focusedDay) {
-                return Center(
-                  child: Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: cs.onSurface.withValues(alpha: 0.2),
+              onPageChanged: (focusedDay) => onMonthChanged(focusedDay),
+              calendarBuilders: CalendarBuilders(
+                defaultBuilder: (context, day, focusedDay) {
+                  final key = DateTime(day.year, day.month, day.day);
+                  return _CalendarCell(
+                    day: day,
+                    spending: spendingByDay[key] ?? 0,
+                    accounts: accountsByDay[key] ?? const [],
+                    maxSpending: maxSpending,
+                    isToday: false,
+                  );
+                },
+                todayBuilder: (context, day, focusedDay) {
+                  final key = DateTime(day.year, day.month, day.day);
+                  return _CalendarCell(
+                    day: day,
+                    spending: spendingByDay[key] ?? 0,
+                    accounts: accountsByDay[key] ?? const [],
+                    maxSpending: maxSpending,
+                    isToday: true,
+                  );
+                },
+                outsideBuilder: (context, day, focusedDay) {
+                  return Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: cs.onSurface.withValues(alpha: 0.2),
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-            calendarStyle: const CalendarStyle(
-              cellMargin: EdgeInsets.all(4),
-              outsideDaysVisible: true,
-            ),
+                  );
+                },
+              ),
+              calendarStyle: const CalendarStyle(
+                cellMargin: EdgeInsets.all(4),
+                outsideDaysVisible: true,
+              ),
             ),
           ),
           // Bank legend — only show banks present in this month

@@ -14,8 +14,14 @@ CSV_EXTENSIONS = {".csv", ".txt", ".tsv", ".xlsx", ".xls"}
 SUPPORTED_EXTENSIONS = {".pdf"} | CSV_EXTENSIONS
 
 
-def review_status_from_parser(parser_used: str) -> str:
-    """Return the ReviewStatus value based on which parser handled the file."""
+def review_status_from_parser(
+    parser_used: str,
+    *,
+    trusted: bool | None = None,
+) -> str:
+    """Return the ReviewStatus value for persisted transactions."""
+    if trusted is False:
+        return ReviewStatus.NEEDS_REVIEW.value
     if "llm" in parser_used.lower():
         return ReviewStatus.LLM_PARSED.value
     return ReviewStatus.AUTO_PARSED.value

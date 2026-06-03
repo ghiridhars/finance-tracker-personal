@@ -3,11 +3,11 @@ from pathlib import Path
 
 from app.models.enums import BankType, StatementType, TransactionType
 from app.parsers.base_parser import ParseResult
+from app.parsing.service import ParserService, apply_account_identity
 from app.schemas.savings_account import (
     SavingsAccountStatementSchema,
     SavingsAccountTransactionSchema,
 )
-from app.services.parser_service import ParserService
 
 
 def _make_statement(
@@ -43,6 +43,32 @@ def _write_dummy_pdf(tmp_path: Path) -> Path:
 
 
 class TestParserService:
+    def test_applies_account_identity_from_shared_metadata(self):
+        statement = SavingsAccountStatementSchema(transactions=[])
+
+        apply_account_identity(
+            statement,
+            BankType.BOB,
+            StatementType.SAVINGS,
+            "Account Number: 1234567890123",
+        )
+
+        assert statement.account_holder_name == "Bob"
+        assert statement.account_number == "1234567890123"
+
+    def test_applies_card_identity_from_shared_metadata(self):
+        statement = type("CardStatement", (), {"card_holder_name": None, "card_number": None})()
+
+        apply_account_identity(
+            statement,
+            BankType.HDFC,
+            StatementType.CREDIT_CARD,
+            "Card Number: 4632 02XX XXXX 4418",
+        )
+
+        assert statement.card_holder_name == "Hdfc"
+        assert statement.card_number == "4632 02XX XXXX 4418"
+
     def test_reports_generic_and_llm_failure_details(self, monkeypatch, tmp_path):
         pdf_path = _write_dummy_pdf(tmp_path)
 
@@ -58,17 +84,16 @@ class TestParserService:
                 return ParseResult.failure("Could not extract transactions from PDF")
 
         monkeypatch.setattr(
-            "app.services.parser_service.GenericPdfParser",
+            "app.parsing.service.parser_service.GenericPdfParser",
             FakeGenericPdfParser,
         )
         monkeypatch.setattr(
-            "app.services.parser_service.settings.llm_provider",
+            "app.parsing.service.parser_service.settings.llm_provider",
             "ollama",
         )
         monkeypatch.setattr(
-            ParserService,
-            "_save_temp_file",
-            lambda self, file_content, prefix: str(pdf_path),
+            "app.parsing.service.parser_service.save_temp_file",
+            lambda file_content, prefix: str(pdf_path),
         )
         monkeypatch.setattr(
             "app.parsers.llm_parser.parse_with_llm_generic",
@@ -104,17 +129,16 @@ class TestParserService:
                 return ParseResult.ok(incomplete_statement, strategy="table")
 
         monkeypatch.setattr(
-            "app.services.parser_service.GenericPdfParser",
+            "app.parsing.service.parser_service.GenericPdfParser",
             FakeGenericPdfParser,
         )
         monkeypatch.setattr(
-            "app.services.parser_service.settings.llm_provider",
+            "app.parsing.service.parser_service.settings.llm_provider",
             "none",
         )
         monkeypatch.setattr(
-            ParserService,
-            "_save_temp_file",
-            lambda self, file_content, prefix: str(pdf_path),
+            "app.parsing.service.parser_service.save_temp_file",
+            lambda file_content, prefix: str(pdf_path),
         )
 
         result = _run_parse_statement(
@@ -149,17 +173,16 @@ class TestParserService:
                 return ParseResult.ok(valid_statement, strategy="table")
 
         monkeypatch.setattr(
-            "app.services.parser_service.GenericPdfParser",
+            "app.parsing.service.parser_service.GenericPdfParser",
             FakeGenericPdfParser,
         )
         monkeypatch.setattr(
-            "app.services.parser_service.settings.llm_provider",
+            "app.parsing.service.parser_service.settings.llm_provider",
             "none",
         )
         monkeypatch.setattr(
-            ParserService,
-            "_save_temp_file",
-            lambda self, file_content, prefix: str(pdf_path),
+            "app.parsing.service.parser_service.save_temp_file",
+            lambda file_content, prefix: str(pdf_path),
         )
 
         result = _run_parse_statement(

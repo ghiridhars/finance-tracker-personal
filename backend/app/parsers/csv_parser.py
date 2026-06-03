@@ -27,7 +27,7 @@ import pandas as pd
 
 from app.models.enums import BankType, StatementType, TransactionType
 from app.parsers.base_parser import ParseResult
-from app.parsers.patterns import (
+from app.parsing.patterns import (
     parse_date,
     parse_amount,
     map_columns,

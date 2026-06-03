@@ -10,13 +10,15 @@ New endpoints:
 import logging
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query, Depends
+from fastapi.responses import JSONResponse
 from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.enums import BankType, StatementType
+from app.parsing.service import ParserService
+from app.parsing.diagnostics import annotate_parse_failure_message, extract_parse_failure
 from app.parsers.parser_registry import get_registered_banks
-from app.services.parser_service import ParserService
 from app.services.account_resolution_service import AccountResolutionService
 from app.services.statement_audit_service import StatementAuditService
 from app.utils.file_utils import review_status_from_parser
@@ -135,7 +137,11 @@ async def upload_statement_v2(
         )
 
         if not result.get("success"):
-            error_detail = result.get("error", "Failed to parse statement")
+            parse_failure = extract_parse_failure(result if isinstance(result, dict) else None)
+            error_detail = annotate_parse_failure_message(
+                result.get("error", "Failed to parse statement"),
+                parse_failure,
+            )
             logger.warning(f"Statement parse failed [{bank_type.value}/{statement_type.value}]: {error_detail}")
             # Record failed audit
             StatementAuditService.record(
@@ -146,13 +152,19 @@ async def upload_statement_v2(
                 statement_type=statement_type.value,
                 status="FAILED",
                 error_message=error_detail,
+                parse_trace=result.get("trace") if isinstance(result, dict) else None,
                 source="upload",
             )
             db.commit()
-            raise HTTPException(
-                status_code=400,
-                detail=error_detail,
-            )
+            if parse_failure is not None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "detail": error_detail,
+                        "parse_failure": parse_failure,
+                    },
+                )
+            raise HTTPException(status_code=400, detail=error_detail)
 
         statement = result.get("statement")
         if statement is None:
@@ -162,7 +174,10 @@ async def upload_statement_v2(
         if save:
             # Determine review_status from parser used
             parser_used = result.get("parser", "unknown")
-            review_status = review_status_from_parser(parser_used)
+            review_status = review_status_from_parser(
+                parser_used,
+                trusted=result.get("trusted"),
+            )
 
             # Resolve or create bank account
             account_number = _get_account_number(statement, statement_type)
@@ -184,6 +199,7 @@ async def upload_statement_v2(
                 file_name=file.filename or "upload.pdf",
                 file_content=content,
                 parser_strategy=result.get("strategy"),
+                parse_trace=result.get("trace") if isinstance(result, dict) else None,
                 review_status=review_status,
                 source="upload",
             )

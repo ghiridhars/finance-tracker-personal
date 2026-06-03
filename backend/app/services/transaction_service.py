@@ -121,6 +121,7 @@ class UnifiedTransactionService:
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
+        review_status: ReviewStatus | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
         max_amount: Decimal | None = None,
@@ -144,6 +145,8 @@ class UnifiedTransactionService:
             q = q.filter(UnifiedTransaction.is_transfer == is_transfer)
         if tx_type:
             q = q.filter(UnifiedTransaction.type == tx_type)
+        if review_status:
+            q = q.filter(UnifiedTransaction.review_status == review_status.value)
         if search:
             pattern = f"%{search}%"
             q = q.filter(
@@ -173,6 +176,7 @@ class UnifiedTransactionService:
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
+        review_status: ReviewStatus | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
         max_amount: Decimal | None = None,
@@ -186,6 +190,7 @@ class UnifiedTransactionService:
             bank_account_id=bank_account_id,
             account_identifier=account_identifier,
             source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
+            review_status=review_status,
             search=search, min_amount=min_amount, max_amount=max_amount,
         )
         q = q.order_by(UnifiedTransaction.date.desc(), UnifiedTransaction.id.desc())
@@ -204,6 +209,7 @@ class UnifiedTransactionService:
         source_type: SourceType | None = None,
         is_transfer: bool | None = None,
         tx_type: TransactionType | None = None,
+        review_status: ReviewStatus | None = None,
         search: str | None = None,
         min_amount: Decimal | None = None,
         max_amount: Decimal | None = None,
@@ -216,6 +222,7 @@ class UnifiedTransactionService:
             bank_account_id=bank_account_id,
             account_identifier=account_identifier,
             source_type=source_type, is_transfer=is_transfer, tx_type=tx_type,
+            review_status=review_status,
             search=search, min_amount=min_amount, max_amount=max_amount,
         )
         return q.count()

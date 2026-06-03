@@ -1,9 +1,5 @@
-"""
-Shared column/header patterns and utility functions for statement parsers.
+"""Shared parsing patterns and utility functions used across parsing flows."""
 
-Centralizes regex patterns, date parsing, and amount parsing used by
-both csv_parser.py and generic_pdf_parser.py.
-"""
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -11,9 +7,7 @@ from typing import Optional
 
 from dateutil import parser as dateutil_parser
 
-MAX_REASONABLE_AMOUNT = Decimal("10000000000")  # 10 billion
-
-# ── Column header patterns (case-insensitive) ──────────────────
+MAX_REASONABLE_AMOUNT = Decimal("10000000000")
 
 DATE_PATTERNS = [
     r"^date$", r"txn\s*date", r"transaction\s*date", r"value\s*date",
@@ -50,8 +44,6 @@ REFERENCE_PATTERNS = [
     r"reference", r"ref\s*no", r"txn\s*ref", r"chq.*ref",
     r"utr", r"tran\s*id", r"transaction\s*id",
 ]
-
-# ── Lines to skip (headers, footers, noise) ─────────────────────
 
 NOISE_PATTERN = re.compile(
     r"^("
@@ -92,26 +84,16 @@ NOISE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Leading date regex — optional serial number + date
 LEADING_DATE_RE = re.compile(
-    r"^(?:\d{1,4}\s+)?"  # optional serial number
-    r"(\d{2}[/-]\d{2}[/-]\d{2,4})"  # date
+    r"^(?:\d{1,4}\s+)?"
+    r"(\d{2}[/-]\d{2}[/-]\d{2,4})"
 )
 
-# Amount with decimals (Indian or Western comma format)
 DECIMAL_AMOUNT_RE = re.compile(r"^[\d,]+\.\d{2}$")
-
-# Plain integer amount
 INTEGER_AMOUNT_RE = re.compile(r"^\d[\d,]*$")
 
 
-# ── Date parsing ───────────────────────────────────────────────
-
 def parse_date(value: str) -> Optional[date]:
-    """
-    Parse a date string using python-dateutil for robust format handling.
-    Uses dayfirst=True since Indian bank statements use DD/MM/YYYY.
-    """
     if not value or not value.strip():
         return None
     try:
@@ -120,10 +102,7 @@ def parse_date(value: str) -> Optional[date]:
         return None
 
 
-# ── Amount parsing ─────────────────────────────────────────────
-
 def parse_amount(value: str | None) -> Optional[Decimal]:
-    """Parse an amount string, stripping currency symbols and commas."""
     if not value or not value.strip():
         return None
     cleaned = re.sub(r"[₹$€£\s]", "", value.strip())
@@ -143,13 +122,7 @@ def parse_amount(value: str | None) -> Optional[Decimal]:
         return None
 
 
-# ── Column mapping ─────────────────────────────────────────────
-
 def map_columns(headers: list[str], include_value_date: bool = False) -> dict[str, Optional[int]]:
-    """
-    Map header names to column indices using pattern matching.
-    Works for both CSV headers and PDF table headers.
-    """
     mapping: dict[str, Optional[int]] = {
         "date": None,
         "description": None,
@@ -177,15 +150,15 @@ def map_columns(headers: list[str], include_value_date: bool = False) -> dict[st
     for idx, header in enumerate(headers):
         if not header:
             continue
-        h = header.replace("\n", " ").strip().lower()
-        if not h:
+        normalized_header = header.replace("\n", " ").strip().lower()
+        if not normalized_header:
             continue
 
         for field, patterns in pattern_map.items():
             if mapping[field] is not None:
                 continue
-            for p in patterns:
-                if re.search(p, h):
+            for pattern in patterns:
+                if re.search(pattern, normalized_header):
                     mapping[field] = idx
                     break
 
@@ -193,33 +166,26 @@ def map_columns(headers: list[str], include_value_date: bool = False) -> dict[st
 
 
 def is_table_header(row: list[str | None]) -> bool:
-    """Check if a row looks like a table header (has date + desc/amount columns)."""
     if not row:
         return False
-    cells = [(c or "").replace("\n", " ").strip().lower() for c in row]
-    has_date = any(
-        re.search(p, cell) for cell in cells for p in DATE_PATTERNS
-    )
-    has_desc = any(
-        re.search(p, cell) for cell in cells for p in DESCRIPTION_PATTERNS
-    )
+    cells = [(cell or "").replace("\n", " ").strip().lower() for cell in row]
+    has_date = any(re.search(pattern, cell) for cell in cells for pattern in DATE_PATTERNS)
+    has_desc = any(re.search(pattern, cell) for cell in cells for pattern in DESCRIPTION_PATTERNS)
     has_amount = any(
-        re.search(p, cell)
+        re.search(pattern, cell)
         for cell in cells
-        for p in DEBIT_PATTERNS + CREDIT_PATTERNS + AMOUNT_PATTERNS + BALANCE_PATTERNS
+        for pattern in DEBIT_PATTERNS + CREDIT_PATTERNS + AMOUNT_PATTERNS + BALANCE_PATTERNS
     )
     return has_date and (has_desc or has_amount)
 
 
 def get_cell(row: list[str | None], idx: int | None) -> str:
-    """Safely get a cell value by index."""
     if idx is None or idx >= len(row):
         return ""
     return (row[idx] or "").strip()
 
 
 def detect_encoding(content: bytes) -> str:
-    """Detect the encoding of byte content using charset-normalizer."""
     from charset_normalizer import from_bytes
 
     result = from_bytes(content).best()

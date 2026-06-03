@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.enums import TransactionType, SourceType
+from app.models.enums import TransactionType, SourceType, ReviewStatus
 from app.services.transaction_service import UnifiedTransactionService
 from app.services.accounts_service import StatementManagementService
 from app.schemas.transaction import UnifiedTransactionSchema, TransactionUpdateSchema
@@ -31,6 +31,7 @@ def list_transactions(
     source_type: Optional[SourceType] = Query(None),
     is_transfer: Optional[bool] = Query(None),
     tx_type: Optional[TransactionType] = Query(None, alias="type"),
+    review_status: Optional[ReviewStatus] = Query(None),
     search: Optional[str] = Query(None),
     min_amount: Optional[Decimal] = Query(None),
     max_amount: Optional[Decimal] = Query(None),
@@ -53,6 +54,7 @@ def list_transactions(
         source_type=source_type,
         is_transfer=is_transfer,
         tx_type=tx_type,
+        review_status=review_status,
         search=search,
         min_amount=min_amount,
         max_amount=max_amount,
@@ -73,6 +75,7 @@ def count_transactions(
     source_type: Optional[SourceType] = Query(None),
     is_transfer: Optional[bool] = Query(None),
     tx_type: Optional[TransactionType] = Query(None, alias="type"),
+    review_status: Optional[ReviewStatus] = Query(None),
     search: Optional[str] = Query(None),
     min_amount: Optional[Decimal] = Query(None),
     max_amount: Optional[Decimal] = Query(None),
@@ -90,6 +93,7 @@ def count_transactions(
         source_type=source_type,
         is_transfer=is_transfer,
         tx_type=tx_type,
+        review_status=review_status,
         search=search,
         min_amount=min_amount,
         max_amount=max_amount,

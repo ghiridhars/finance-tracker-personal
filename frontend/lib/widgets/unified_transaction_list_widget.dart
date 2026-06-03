@@ -23,6 +23,7 @@ class _UnifiedTransactionListWidgetState
   static const int _allCategoriesMenuValue = -1;
   static const String _allSourcesMenuValue = '__ALL_SOURCES__';
   static const String _transfersOnlyMenuValue = '__TRANSFERS_ONLY__';
+  static const String _allReviewStatusesMenuValue = '__ALL_REVIEW_STATUSES__';
 
   final TextEditingController _searchController = TextEditingController();
   bool _initialized = false;
@@ -206,6 +207,48 @@ class _UnifiedTransactionListWidgetState
             ],
           ),
 
+          PopupMenuButton<String>(
+            icon: Badge(
+              isLabelVisible: txState.reviewStatusFilter != null,
+              child: const Icon(Icons.flag_outlined),
+            ),
+            tooltip: 'Filter by review status',
+            onSelected: (value) {
+              if (value == _allReviewStatusesMenuValue) {
+                ref
+                    .read(unifiedTransactionsProvider.notifier)
+                    .setFilters(clearReviewStatus: true);
+              } else {
+                ref
+                    .read(unifiedTransactionsProvider.notifier)
+                    .setFilters(reviewStatus: value);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: _allReviewStatusesMenuValue,
+                child: Text('All Statuses'),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'NEEDS_REVIEW',
+                child: Text('Needs Review'),
+              ),
+              PopupMenuItem<String>(
+                value: 'AUTO_PARSED',
+                child: Text('Auto Parsed'),
+              ),
+              PopupMenuItem<String>(
+                value: 'LLM_PARSED',
+                child: Text('LLM Parsed'),
+              ),
+              PopupMenuItem<String>(
+                value: 'REVIEWED',
+                child: Text('Reviewed'),
+              ),
+            ],
+          ),
+
           // Export button
           IconButton(
             icon: const Icon(Icons.download),
@@ -318,6 +361,13 @@ class _UnifiedTransactionListWidgetState
                         .read(unifiedTransactionsProvider.notifier)
                         .setFilters(clearCategory: true, clearIsTransfer: true),
                     child: const Text('Clear category filter'),
+                  ),
+                if (state.reviewStatusFilter != null)
+                  OutlinedButton(
+                    onPressed: () => ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(clearReviewStatus: true),
+                    child: const Text('Clear status filter'),
                   ),
               ],
             ),
@@ -548,6 +598,10 @@ class _TransactionTile extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (transaction.needsReview) ...[
+                  const SizedBox(width: 6),
+                  _reviewChip(),
+                ],
                 if (transaction.isTransfer) ...[
                   const SizedBox(width: 6),
                   Container(
@@ -649,6 +703,28 @@ class _TransactionTile extends StatelessWidget {
       child: Text(
         category.name,
         style: TextStyle(fontSize: 10, color: color),
+      ),
+    );
+  }
+
+  Widget _reviewChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.amber.shade400),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 10, color: Colors.amber.shade800),
+          const SizedBox(width: 2),
+          Text(
+            'Needs review',
+            style: TextStyle(fontSize: 10, color: Colors.amber.shade800),
+          ),
+        ],
       ),
     );
   }

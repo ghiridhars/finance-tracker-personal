@@ -11,7 +11,13 @@ from types import SimpleNamespace
 import pytest
 
 from app.parsers.base_parser import ParseException
-from app.utils.file_utils import infer_file_type, is_supported_file, is_csv_file
+from app.models.enums import ReviewStatus
+from app.utils.file_utils import (
+    infer_file_type,
+    is_supported_file,
+    is_csv_file,
+    review_status_from_parser,
+)
 
 
 # ── infer_file_type ─────────────────────────────────────────────
@@ -160,6 +166,14 @@ class TestIsCsvFile:
 
     def test_txt_is_csv(self):
         assert is_csv_file("raw.txt") is True
+
+
+class TestReviewStatusFromParser:
+    def test_untrusted_parse_requires_review(self):
+        assert review_status_from_parser("generic", trusted=False) == ReviewStatus.NEEDS_REVIEW.value
+
+    def test_trusted_llm_parse_keeps_llm_status(self):
+        assert review_status_from_parser("llm", trusted=True) == ReviewStatus.LLM_PARSED.value
 
 
 # ── list_local_files (with temp directory) ──────────────────────
@@ -474,7 +488,7 @@ class TestScanAndImportPasswords:
                     "strategy": "table",
                 }
 
-        monkeypatch.setattr("app.services.parser_service.ParserService", FakeParserService)
+        monkeypatch.setattr("app.parsing.service.ParserService", FakeParserService)
         monkeypatch.setattr(
             "app.services.account_resolution_service.AccountResolutionService.resolve_or_create",
             lambda *args, **kwargs: SimpleNamespace(id=1),
@@ -505,6 +519,66 @@ class TestScanAndImportPasswords:
         assert len(saved_statements) == 1
 
     @pytest.mark.asyncio
+    async def test_marks_untrusted_successful_parse_as_needs_review(
+        self, tmp_path, monkeypatch
+    ):
+        from app.services import local_sync_service as svc
+
+        filepath = tmp_path / "bob-statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        statement = SimpleNamespace(
+            account_number="1234567890",
+            account_holder_name="Bob",
+            transactions=[SimpleNamespace()],
+        )
+
+        class FakeParserService:
+            async def parse_statement(
+                self,
+                file_content,
+                filename,
+                bank,
+                statement_type,
+                password=None,
+            ):
+                return {
+                    "success": True,
+                    "statement": statement,
+                    "parser": "generic",
+                    "strategy": "table",
+                    "trusted": False,
+                }
+
+        monkeypatch.setattr("app.parsing.service.ParserService", FakeParserService)
+        monkeypatch.setattr(
+            "app.services.account_resolution_service.AccountResolutionService.resolve_or_create",
+            lambda *args, **kwargs: SimpleNamespace(id=1),
+        )
+
+        saved_statements: list[dict] = []
+        monkeypatch.setattr(
+            "app.services.statement_audit_service.StatementAuditService.save_statement",
+            lambda *args, **kwargs: saved_statements.append(kwargs),
+        )
+
+        result = await svc.scan_and_import(
+            db=_FakeDbSession(),
+            files=[
+                {
+                    "filepath": str(filepath),
+                    "bank": "BOB",
+                    "type": "SAVINGS",
+                }
+            ],
+        )
+
+        assert result["processed"] == 1
+        assert result["failed"] == 0
+        assert len(saved_statements) == 1
+        assert saved_statements[0]["review_status"] == ReviewStatus.NEEDS_REVIEW.value
+
+    @pytest.mark.asyncio
     async def test_reports_clear_error_when_all_password_candidates_fail(
         self, tmp_path, monkeypatch
     ):
@@ -527,7 +601,7 @@ class TestScanAndImportPasswords:
                 attempts.append(password)
                 raise ParseException("Incorrect PDF password.")
 
-        monkeypatch.setattr("app.services.parser_service.ParserService", FakeParserService)
+        monkeypatch.setattr("app.parsing.service.ParserService", FakeParserService)
         monkeypatch.setattr(
             "app.services.statement_audit_service.StatementAuditService.record",
             lambda *args, **kwargs: None,
@@ -550,3 +624,76 @@ class TestScanAndImportPasswords:
         assert result["failed"] == 1
         assert result["details"][0]["status"] == "failed"
         assert result["details"][0]["error"] == "Incorrect PDF password."
+
+    @pytest.mark.asyncio
+    async def test_failed_parse_detail_includes_parse_failure_summary(
+        self, tmp_path, monkeypatch
+    ):
+        from app.services import local_sync_service as svc
+
+        filepath = tmp_path / "bob-statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        class FakeParserService:
+            async def parse_statement(
+                self,
+                file_content,
+                filename,
+                bank,
+                statement_type,
+                password=None,
+            ):
+                return {
+                    "success": False,
+                    "error": "Generic parser failed: no rows",
+                    "parser": "none",
+                    "generic_error": "no rows",
+                    "llm_status": "skipped_provider_none",
+                    "llm_error": "LLM fallback skipped because llm_provider is set to none.",
+                    "trace": {
+                        "failure": {
+                            "stage": "generic_parse",
+                            "code": "parser.generic_parse_failed",
+                            "owner": "app.parsers.generic_pdf_parser",
+                            "message": "Generic parser failed: no rows",
+                        }
+                    },
+                }
+
+        monkeypatch.setattr("app.parsing.service.ParserService", FakeParserService)
+
+        recorded_failures: list[dict] = []
+        monkeypatch.setattr(
+            "app.services.statement_audit_service.StatementAuditService.record",
+            lambda *args, **kwargs: recorded_failures.append(kwargs),
+        )
+
+        result = await svc.scan_and_import(
+            db=_FakeDbSession(),
+            files=[
+                {
+                    "filepath": str(filepath),
+                    "bank": "BOB",
+                    "type": "SAVINGS",
+                }
+            ],
+        )
+
+        assert result["processed"] == 0
+        assert result["failed"] == 1
+        assert result["details"][0]["status"] == "failed"
+        assert result["details"][0]["error"] == (
+            "Generic parser failed: no rows "
+            "(stage: generic_parse, code: parser.generic_parse_failed)"
+        )
+        assert result["details"][0]["parse_failure"] == {
+            "stage": "generic_parse",
+            "code": "parser.generic_parse_failed",
+            "owner": "app.parsers.generic_pdf_parser",
+            "message": "Generic parser failed: no rows",
+            "parser": "none",
+            "generic_error": "no rows",
+            "llm_status": "skipped_provider_none",
+            "llm_error": "LLM fallback skipped because llm_provider is set to none.",
+        }
+        assert recorded_failures[0]["error_message"] == result["details"][0]["error"]

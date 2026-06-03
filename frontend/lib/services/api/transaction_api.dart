@@ -58,6 +58,7 @@ class TransactionApi {
     String? sourceType,
     bool? isTransfer,
     String? type,
+    String? reviewStatus,
     String? search,
     double? minAmount,
     double? maxAmount,
@@ -74,6 +75,7 @@ class TransactionApi {
     if (sourceType != null) params['source_type'] = sourceType;
     if (isTransfer != null) params['is_transfer'] = isTransfer.toString();
     if (type != null) params['type'] = type;
+    if (reviewStatus != null) params['review_status'] = reviewStatus;
     if (search != null) params['search'] = search;
     if (minAmount != null) params['min_amount'] = minAmount.toString();
     if (maxAmount != null) params['max_amount'] = maxAmount.toString();

@@ -186,6 +186,7 @@ class UnifiedTransactionsState {
   final String? sourceTypeFilter;
   final bool? isTransferFilter;
   final String? typeFilter;
+  final String? reviewStatusFilter;
   final String? searchQuery;
 
   const UnifiedTransactionsState({
@@ -202,6 +203,7 @@ class UnifiedTransactionsState {
     this.sourceTypeFilter,
     this.isTransferFilter,
     this.typeFilter,
+    this.reviewStatusFilter,
     this.searchQuery,
   });
 
@@ -219,6 +221,7 @@ class UnifiedTransactionsState {
     String? sourceTypeFilter,
     bool? isTransferFilter,
     String? typeFilter,
+    String? reviewStatusFilter,
     String? searchQuery,
     bool clearError = false,
     bool clearCategoryFilter = false,
@@ -228,6 +231,7 @@ class UnifiedTransactionsState {
     bool clearSourceTypeFilter = false,
     bool clearIsTransferFilter = false,
     bool clearTypeFilter = false,
+    bool clearReviewStatusFilter = false,
     bool clearSearch = false,
   }) {
     return UnifiedTransactionsState(
@@ -249,10 +253,13 @@ class UnifiedTransactionsState {
       sourceTypeFilter: clearSourceTypeFilter
           ? null
           : (sourceTypeFilter ?? this.sourceTypeFilter),
-        isTransferFilter: clearIsTransferFilter
+      isTransferFilter: clearIsTransferFilter
           ? null
           : (isTransferFilter ?? this.isTransferFilter),
       typeFilter: clearTypeFilter ? null : (typeFilter ?? this.typeFilter),
+      reviewStatusFilter: clearReviewStatusFilter
+          ? null
+          : (reviewStatusFilter ?? this.reviewStatusFilter),
       searchQuery: clearSearch ? null : (searchQuery ?? this.searchQuery),
     );
   }
@@ -287,6 +294,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         sourceType: state.sourceTypeFilter,
         isTransfer: state.isTransferFilter,
         type: state.typeFilter,
+        reviewStatus: state.reviewStatusFilter,
         search: state.searchQuery,
       );
       if (requestId != _requestId) return;
@@ -305,6 +313,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     String? sourceType,
     bool? isTransfer,
     String? type,
+    String? reviewStatus,
     String? search,
     bool clearCategory = false,
     bool clearBank = false,
@@ -313,6 +322,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
     bool clearSourceType = false,
     bool clearIsTransfer = false,
     bool clearType = false,
+    bool clearReviewStatus = false,
     bool clearSearch = false,
     DateRangePreset? preset,
   }) {
@@ -338,6 +348,9 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         isTransferFilter:
             clearIsTransfer ? null : (isTransfer ?? state.isTransferFilter),
         typeFilter: clearType ? null : (type ?? state.typeFilter),
+        reviewStatusFilter: clearReviewStatus
+          ? null
+          : (reviewStatus ?? state.reviewStatusFilter),
         searchQuery: clearSearch ? null : (search ?? state.searchQuery),
       );
     } else {
@@ -349,6 +362,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         sourceTypeFilter: sourceType,
         isTransferFilter: isTransfer,
         typeFilter: type,
+        reviewStatusFilter: reviewStatus,
         searchQuery: search,
         clearCategoryFilter: clearCategory,
         clearBankFilter: clearBank,
@@ -357,6 +371,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
         clearSourceTypeFilter: clearSourceType,
         clearIsTransferFilter: clearIsTransfer,
         clearTypeFilter: clearType,
+        clearReviewStatusFilter: clearReviewStatus,
         clearSearch: clearSearch,
       );
     }
@@ -378,6 +393,7 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       sourceTypeFilter: state.sourceTypeFilter,
       isTransferFilter: state.isTransferFilter,
       typeFilter: state.typeFilter,
+      reviewStatusFilter: state.reviewStatusFilter,
       searchQuery: state.searchQuery,
     );
     loadTransactions();

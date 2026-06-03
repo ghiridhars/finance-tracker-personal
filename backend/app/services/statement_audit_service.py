@@ -8,6 +8,7 @@ Responsibilities:
      account, delete old transactions on re-import, create unified transactions.
 """
 import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -39,6 +40,7 @@ class StatementAuditService:
         transaction_count: int = 0,
         status: str,
         error_message: str | None = None,
+        parse_trace: dict | str | None = None,
         source: str = "upload",
         # Statement metadata (nullable for failures)
         period_start=None,
@@ -83,6 +85,7 @@ class StatementAuditService:
             transaction_count=transaction_count,
             status=status,
             error_message=error_message,
+            parse_trace=_serialize_parse_trace(parse_trace),
             source=source,
             # Statement metadata
             period_start=period_start,
@@ -117,6 +120,7 @@ class StatementAuditService:
         file_name: str,
         file_content: bytes | None = None,
         parser_strategy: str | None = None,
+        parse_trace: dict | str | None = None,
         review_status: str = "AUTO_PARSED",
         source: str = "upload",
     ) -> StatementAudit:
@@ -170,6 +174,7 @@ class StatementAuditService:
             existing.file_name = file_name
             existing.parser_strategy = parser_strategy
             existing.transaction_count = txn_count
+            existing.parse_trace = _serialize_parse_trace(parse_trace)
             existing.imported_at = datetime.now(timezone.utc)
             if file_content is not None:
                 existing.file_hash = hashlib.sha256(file_content).hexdigest()
@@ -188,6 +193,7 @@ class StatementAuditService:
                 parser_strategy=parser_strategy,
                 transaction_count=txn_count,
                 status="SUCCESS",
+                parse_trace=parse_trace,
                 source=source,
                 period_start=period_start,
                 period_end=period_end,
@@ -238,6 +244,14 @@ def _get_closing(dto, is_cc: bool):
     if is_cc:
         return getattr(dto, "total_dues", None)
     return getattr(dto, "closing_balance", None)
+
+
+def _serialize_parse_trace(parse_trace: dict | str | None) -> str | None:
+    if parse_trace is None:
+        return None
+    if isinstance(parse_trace, str):
+        return parse_trace
+    return json.dumps(parse_trace, sort_keys=True)
 
 
 def _apply_metadata(audit: StatementAudit, dto, is_cc: bool) -> None:

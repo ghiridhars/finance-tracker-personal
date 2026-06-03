@@ -1,18 +1,27 @@
-"""
-Unit tests for GenericPdfParser internal methods.
-
-Tests key parsing functions without requiring actual PDF files by calling
-the parser's internal methods directly on text/token inputs.
-"""
+"""Unit tests for GenericPdfParser orchestration and strategy behavior."""
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 
-from app.models.enums import StatementType, TransactionType
+from app.models.enums import BankType, StatementType, TransactionType
 from app.parsers.base_parser import ParseException
 from app.parsers.generic_pdf_parser import GenericPdfParser
+from app.parsers.base_parser import ParseResult
+from app.parsing.classifiers import classify_template
+from app.parsing.extraction.artifacts import ExtractedPageTables, ExtractedTextDocument
+from app.parsing.generic_pdf import run_strategy
+from app.parsing.routing import StrategyRoute, resolve_strategy_route
+from app.parsing.profiles import strategy_order_for_profile
+from app.parsing.strategies.multiline_strategy import (
+    try_cc_multiline_strategy,
+    try_cc_simple_multiline_strategy,
+    try_multiline_strategy,
+)
+from app.parsing.strategies.single_line_strategy import try_single_line_strategy
+from app.parsing.strategies.table_strategy import try_table_strategy
 
 
 @pytest.fixture
@@ -29,253 +38,36 @@ class TestPasswordErrors:
             raise PDFPasswordIncorrect()
 
         monkeypatch.setattr(
-            "app.parsers.generic_pdf_parser.pdfplumber.open",
-            raise_incorrect_password,
+            "app.parsing.generic_pdf.extract_pdf_tables",
+            lambda file_path, password=None: (_ for _ in ()).throw(ParseException("Incorrect PDF password.")),
         )
 
         with pytest.raises(ParseException, match="Incorrect PDF password."):
             parser.parse(filepath, StatementType.SAVINGS, password="wrong-password")
 
 
-# ── _parse_amount_or_dash ──────────────────────────────────────
-
-class TestParseAmountOrDash:
-    def test_dash_returns_none(self, parser):
-        assert parser._parse_amount_or_dash("-") is None
-
-    def test_valid_decimal_amount(self, parser):
-        assert parser._parse_amount_or_dash("1,234.56") == Decimal("1234.56")
-
-    def test_valid_integer_amount(self, parser):
-        assert parser._parse_amount_or_dash("5000") == Decimal("5000")
-
-    def test_whitespace_padded_dash(self, parser):
-        assert parser._parse_amount_or_dash("  -  ") is None
-
-    def test_whitespace_padded_amount(self, parser):
-        assert parser._parse_amount_or_dash("  42.50  ") == Decimal("42.50")
-
-    def test_empty_string(self, parser):
-        assert parser._parse_amount_or_dash("") is None
-
-    def test_indian_format_amount(self, parser):
-        assert parser._parse_amount_or_dash("1,12,206.68") == Decimal("112206.68")
-
-    def test_currency_symbol_amount(self, parser):
-        assert parser._parse_amount_or_dash("₹500.00") == Decimal("500.00")
-
-    def test_amount_with_cr_suffix(self, parser):
-        assert parser._parse_amount_or_dash("4006.44 Cr") == Decimal("4006.44")
-
-
-# ── _classify_amounts ──────────────────────────────────────────
-
-class TestClassifyAmounts:
-    def test_three_tokens_debit(self, parser):
-        # [debit, credit(zero/dash), balance]
-        debit, credit, balance = parser._classify_amounts(["5000.00", "-", "45000.00"])
-        assert debit == Decimal("5000.00")
-        assert credit is None
-        assert balance == Decimal("45000.00")
-
-    def test_three_tokens_credit(self, parser):
-        # [debit(zero/dash), credit, balance]
-        debit, credit, balance = parser._classify_amounts(["-", "10000.00", "55000.00"])
-        assert debit is None
-        assert credit == Decimal("10000.00")
-        assert balance == Decimal("55000.00")
-
-    def test_three_tokens_both_zero(self, parser):
-        debit, credit, balance = parser._classify_amounts(["0", "0", "50000.00"])
-        assert debit is None
-        assert credit is None
-        assert balance == Decimal("50000.00")
-
-    def test_two_tokens(self, parser):
-        # [amount, balance] — defaults to debit
-        debit, credit, balance = parser._classify_amounts(["3000.00", "47000.00"])
-        assert debit == Decimal("3000.00")
-        assert credit is None
-        assert balance == Decimal("47000.00")
-
-    def test_one_token(self, parser):
-        debit, credit, balance = parser._classify_amounts(["7500.00"])
-        assert debit == Decimal("7500.00")
-        assert credit is None
-        assert balance is None
-
-    def test_empty_tokens(self, parser):
-        assert parser._classify_amounts([]) == (None, None, None)
-
-    def test_three_tokens_with_commas(self, parser):
-        debit, credit, balance = parser._classify_amounts(["1,500.00", "-", "48,500.00"])
-        assert debit == Decimal("1500.00")
-        assert credit is None
-        assert balance == Decimal("48500.00")
-
-
-# ── _try_opening_balance ───────────────────────────────────────
-
-class TestTryOpeningBalance:
-    def test_standard_opening_balance(self, parser):
-        result = parser._try_opening_balance("Opening Balance 50,000.00")
-        assert result == Decimal("50000.00")
-
-    def test_opening_balance_with_cr(self, parser):
-        result = parser._try_opening_balance("Opening Balance 1,23,456.78 CR")
-        assert result == Decimal("123456.78")
-
-    def test_opening_balance_with_dr(self, parser):
-        result = parser._try_opening_balance("Opening Balance 500.00 DR")
-        assert result == Decimal("500.00")
-
-    def test_no_opening_balance(self, parser):
-        result = parser._try_opening_balance("Some random transaction line 500.00")
-        assert result is None
-
-    def test_case_insensitive(self, parser):
-        result = parser._try_opening_balance("OPENING BALANCE 25000.00")
-        assert result == Decimal("25000.00")
-
-    def test_opening_balance_no_amount(self, parser):
-        result = parser._try_opening_balance("Opening Balance")
-        assert result is None
-
-
-# ── _parse_txn_line ────────────────────────────────────────────
-
-class TestParseTxnLine:
-    def test_savings_three_amounts(self, parser):
-        """Savings line with debit, credit(dash), balance"""
-        line = "15/01/2024 UPI-PAYMENT 5,000.00 - 45,000.00"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["date"] == date(2024, 1, 15)
-        assert result["description"] == "UPI-PAYMENT"
-        assert result["debit"] == Decimal("5000.00")
-        assert result["balance"] == Decimal("45000.00")
-        assert result["type"] == TransactionType.DEBIT
-
-    def test_savings_credit_transaction(self, parser):
-        """Savings line with dash for debit, credit amount, balance"""
-        line = "20/01/2024 NEFT-SALARY - 50,000.00 95,000.00"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["date"] == date(2024, 1, 20)
-        assert result["credit"] == Decimal("50000.00")
-        assert result["type"] == TransactionType.CREDIT
-
-    def test_credit_card_single_amount(self, parser):
-        """Credit card line with just one amount"""
-        line = "05/02/2024 AMAZON PURCHASE 1,234.56"
-        result = parser._parse_txn_line(line, StatementType.CREDIT_CARD)
-        assert result is not None
-        assert result["date"] == date(2024, 2, 5)
-        assert "AMAZON PURCHASE" in result["description"]
-        assert result["debit"] == Decimal("1234.56")
-
-    def test_with_serial_number(self, parser):
-        """Line starting with serial number before date"""
-        line = "001 15/01/2024 ATM WITHDRAWAL 2,000.00 - 43,000.00"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["date"] == date(2024, 1, 15)
-
-    def test_with_value_date(self, parser):
-        """Line with two dates (txn date + value date)"""
-        line = "15/01/2024 16/01/2024 NEFT TRANSFER 10,000.00 - 35,000.00"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["date"] == date(2024, 1, 15)
-        assert result["debit"] == Decimal("10000.00")
-
-    def test_cr_dr_suffix_stripped(self, parser):
-        """Trailing CR/DR indicators should be stripped"""
-        line = "15/01/2024 NEFT TRANSFER 10,000.00 - 35,000.00 CR"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["balance"] == Decimal("35000.00")
-
-    def test_no_date_returns_none(self, parser):
-        """Non-transaction lines should return None"""
-        assert parser._parse_txn_line("Page 1 of 5", StatementType.SAVINGS) is None
-        assert parser._parse_txn_line("Account Statement", StatementType.SAVINGS) is None
-        assert parser._parse_txn_line("", StatementType.SAVINGS) is None
-
-    def test_date_only_no_amounts_returns_none(self, parser):
-        """A line with just a date and text but no amounts"""
-        result = parser._parse_txn_line("15/01/2024 Some description text only", StatementType.SAVINGS)
-        assert result is None
-
-    def test_two_digit_year(self, parser):
-        """Dates with 2-digit year"""
-        line = "15/01/24 PURCHASE 500.00 49,500.00"
-        result = parser._parse_txn_line(line, StatementType.CREDIT_CARD)
-        assert result is not None
-        assert result["date"].year == 2024
-
-    def test_dash_separated_date(self, parser):
-        """Dates with dash separators"""
-        line = "15-01-2024 TRANSFER 1,000.00 - 49,000.00"
-        result = parser._parse_txn_line(line, StatementType.SAVINGS)
-        assert result is not None
-        assert result["date"] == date(2024, 1, 15)
-
-
-# ── _parse_table_rows ────────────────────────────────────────
-
-class TestParseTableRows:
-    @pytest.mark.parametrize(
-        "description",
-        ["SAVINGS ACCOUNT", "PPF ACCOUNT", "TERM DEPOSIT ACCOUNT"],
-    )
-    def test_skips_account_summary_rows(self, parser, description):
-        rows = [
-            ["01/05/2026", description, "", "1", "", "5000"],
-            [
-                "15/10/2018",
-                "UPI/828719363445/19:15:21/UPI/211701011000262@vij",
-                "",
-                "30",
-                "",
-                "4970",
-            ],
+class TestStrategyDispatch:
+    def test_runs_table_strategy(self):
+        header_table = [
+            ["DATE", "NARRATION", "CHQ.NO.", "WITHDRAWAL (DR)", "DEPOSIT (CR)", "BALANCE"],
+            ["10-08-2021", "UPI/123", "", "", "2000.00", "4006.44 Cr"],
         ]
-        col_map = {
-            "date": 0,
-            "description": 1,
-            "reference": 2,
-            "debit": 3,
-            "credit": 4,
-            "amount": None,
-            "balance": 5,
-        }
+        extracted_pages = [ExtractedPageTables(page_number=1, tables=[header_table])]
 
-        transactions = parser._parse_table_rows(
-            rows,
-            col_map,
-            StatementType.SAVINGS,
+        result = run_strategy(
+            "table",
+            page_tables=extracted_pages,
+            text_document=ExtractedTextDocument.from_text("ignored"),
+            statement_type=StatementType.SAVINGS,
         )
 
-        assert len(transactions) == 1
-        assert transactions[0]["date"] == date(2018, 10, 15)
-        assert transactions[0]["description"].startswith("UPI/")
-        assert transactions[0]["debit"] == Decimal("30")
+        assert result is not None
+        assert result.success
+        assert len(result.result.transactions) == 1
 
 
 class TestTableStrategy:
-    def test_collects_single_row_continuation_tables(self, parser):
-        class FakePage:
-            def __init__(self, tables):
-                self._tables = tables
-
-            def extract_tables(self):
-                return self._tables
-
-        class FakePdf:
-            def __init__(self, pages):
-                self.pages = pages
-
+    def test_collects_single_row_continuation_tables(self):
         header_table = [
             ["GHIRIDHAR S", None, None, "SAVINGS ACCOUNT - 05570100013649", None, None],
             ["DATE", "NARRATION", "CHQ.NO.", "WITHDRAWAL (DR)", "DEPOSIT (CR)", "BALANCE"],
@@ -290,14 +82,12 @@ class TestTableStrategy:
             ["SR.NO.", "ACCOUNT TYPE", "ACCOUNT NUMBER", "NOMINEE NAME(S)", None],
             ["1", "SAVINGS ACCOUNT", "05570100013649", "1)", "V SREENIVAS"],
         ]
-        fake_pdf = FakePdf(
-            [
-                FakePage([header_table, *fragmented_txn_tables]),
-                FakePage([nominee_table]),
-            ]
-        )
+        extracted_pages = [
+            ExtractedPageTables(page_number=1, tables=[header_table, *fragmented_txn_tables]),
+            ExtractedPageTables(page_number=2, tables=[nominee_table]),
+        ]
 
-        result = parser._try_table_strategy(fake_pdf, StatementType.SAVINGS)
+        result = try_table_strategy(extracted_pages, StatementType.SAVINGS)
 
         assert result is not None
         assert result.success
@@ -309,7 +99,7 @@ class TestTableStrategy:
 
 
 class TestMultilineStrategy:
-    def test_parses_single_amount_balance_blocks(self, parser):
+    def test_parses_single_amount_balance_blocks(self):
         text = """
 01-08-2021
 Opening Balance
@@ -334,7 +124,7 @@ Closing Balance
 2006.44 Cr
 """.strip()
 
-        result = parser._try_multiline_strategy(text, StatementType.SAVINGS)
+        result = try_multiline_strategy(text, StatementType.SAVINGS)
 
         assert result is not None
         assert result.success
@@ -344,151 +134,228 @@ Closing Balance
         assert result.result.transactions[1].deposit_amount == Decimal("2000.00")
         assert result.result.transactions[2].withdrawal_amount == Decimal("2000.00")
 
+    def test_parses_credit_card_multiline_blocks(self):
+        text = """
+18/01/2026 | 14:34
+AMAZON PURCHASE (Ref# REF123)
+C 245.00
+IN
+19/01/2026 | 08:00
+PAYMENT RECEIVED
++ C 1,000.00
+OK
+""".strip()
 
-# ── extract_metadata ──────────────────────────────────────────
+        result = try_cc_multiline_strategy(text)
 
-class TestExtractMetadata:
-    def test_period_extraction(self):
-        text = "Statement from 01/01/2024 to 31/01/2024"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["period_from"] == "01/01/2024"
-        assert meta["period_to"] == "31/01/2024"
+        assert result is not None
+        assert result.success
+        assert len(result.result.transactions) == 2
+        assert result.result.transactions[0].amount == Decimal("245.00")
+        assert result.result.transactions[0].reference_number == "REF123"
+        assert result.result.transactions[1].amount == Decimal("1000.00")
+        assert result.result.transactions[1].type == TransactionType.CREDIT
 
-    def test_period_with_keyword(self):
-        text = "Period: 01-01-2024 to 31-01-2024"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["period_from"] == "01-01-2024"
-        assert meta["period_to"] == "31-01-2024"
+    def test_parses_credit_card_simple_multiline_blocks(self):
+        text = """
+01/02/2026
+COFFEE SHOP (Ref# SIMP1)
+948.00
+02/02/2026
+CASHBACK CREDIT
+8,779.00 Cr
+03/02/2026
+important information
+""".strip()
 
-    def test_account_number(self):
-        text = "Account Number: 1234567890123"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["account_number"] == "1234567890123"
+        result = try_cc_simple_multiline_strategy(text)
 
-    def test_account_number_alternate(self):
-        text = "A/C No. 9876 5432 1098"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert "account_number" in meta
+        assert result is not None
+        assert result.success
+        assert len(result.result.transactions) == 2
+        assert result.result.transactions[0].amount == Decimal("948.00")
+        assert result.result.transactions[0].reference_number == "SIMP1"
+        assert result.result.transactions[1].amount == Decimal("8779.00")
+        assert result.result.transactions[1].type == TransactionType.CREDIT
 
-    def test_account_number_ignores_word_only_placeholder(self):
-        text = "Account Number: NOMINEE"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert "account_number" not in meta
 
-    def test_account_number_extracts_digits_before_trailing_words(self):
-        text = "A/C No. 0557201810135605460437 NOMINEE REGISTERED"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["account_number"] == "0557201810135605460437"
+class TestSingleLineStrategy:
+    def test_collects_continuation_lines_and_opening_balance(self):
+        text = """
+Opening Balance 5,000.00
+15/01/2024 UPI PAYMENT 1,000.00 - 4,000.00
+Ref 12345 continuation details
+20/01/2024 NEFT SALARY - 10,000.00 14,000.00
+""".strip()
 
-    def test_account_number_ignores_joint_placeholder(self):
-        text = "Account No: Joint"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert "account_number" not in meta
+        result = try_single_line_strategy(text, StatementType.SAVINGS)
 
-    def test_card_number_masked(self):
-        text = "Card Number: 4632 02XX XXXX 4418"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["card_number"] == "4632 02XX XXXX 4418"
+        assert result is not None
+        assert result.success
+        assert result.result.opening_balance == Decimal("5000.00")
+        assert len(result.result.transactions) == 2
+        assert "continuation details" in result.result.transactions[0].description
 
-    def test_card_number_contiguous(self):
-        text = "463202XXXXXX4418"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta["card_number"] == "463202XXXXXX4418"
 
-    def test_no_metadata(self):
-        text = "Some random text without any recognizable patterns"
-        meta = GenericPdfParser.extract_metadata(text)
-        assert meta == {}
-
-    def test_mixed_metadata(self):
-        text = (
-            "Account Number: 50100123456789\n"
-            "Statement from 01/04/2024 to 30/04/2024\n"
+class TestStrategyProfiles:
+    def test_resolves_initial_phase5_profiles(self):
+        bob_classification = classify_template(
+            "Statement of transactions in Savings Account\nWITHDRAWAL (DR)",
+            StatementType.SAVINGS,
         )
-        meta = GenericPdfParser.extract_metadata(text)
-        assert "account_number" in meta
-        assert "period_from" in meta
-        assert "period_to" in meta
+        hdfc_classification = classify_template(
+            "HDFC BANK CREDIT CARD STATEMENT",
+            StatementType.CREDIT_CARD,
+        )
+        icici_classification = classify_template(
+            "ICICI Bank account statement",
+            StatementType.SAVINGS,
+        )
+
+        assert bob_classification is not None
+        assert bob_classification.profile_id == "bob_savings_v1"
+        assert strategy_order_for_profile(bob_classification.profile, StatementType.SAVINGS)[:3] == (
+            "multiline",
+            "table",
+            "single_line",
+        )
+
+        assert hdfc_classification is not None
+        assert hdfc_classification.profile_id == "hdfc_credit_card_v1"
+        assert strategy_order_for_profile(hdfc_classification.profile, StatementType.CREDIT_CARD)[:4] == (
+            "table",
+            "cc_multiline",
+            "cc_simple_multiline",
+            "single_line",
+        )
+
+        assert icici_classification is not None
+        assert icici_classification.profile_id == "icici_savings_v1"
+
+    def test_declared_bank_prevents_wrong_profile_match(self):
+        route = resolve_strategy_route(
+            "HDFC BANK CREDIT CARD STATEMENT",
+            StatementType.CREDIT_CARD,
+            bank=None,
+        )
+
+        assert route.profile_id == "hdfc_credit_card_v1"
+
+        mismatched_route = resolve_strategy_route(
+            "HDFC BANK CREDIT CARD STATEMENT",
+            StatementType.CREDIT_CARD,
+            bank=BankType.BOB,
+        )
+
+        assert mismatched_route.profile_id is None
+        assert mismatched_route.source == "default"
+        assert mismatched_route.strategy_order[:3] == ("table", "single_line", "cc_multiline")
+
+    def test_parser_consumes_external_strategy_route(
+        self,
+        parser,
+        tmp_path,
+        monkeypatch,
+    ):
+        filepath = tmp_path / "statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_pdf_tables",
+            lambda file_path, password=None: [ExtractedPageTables(page_number=1, tables=[])],
+        )
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_text_document",
+            lambda file_path, password=None: ExtractedTextDocument.from_text("ignored"),
+        )
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.resolve_strategy_route",
+            lambda raw_text, statement_type, bank=None: StrategyRoute(
+                statement_type=statement_type,
+                strategy_order=("multiline", "table", "single_line"),
+            ),
+        )
+
+        call_order: list[str] = []
+
+        def fake_run_strategy(strategy_name: str, **kwargs):
+            call_order.append(strategy_name)
+            return ParseResult.ok(SimpleNamespace(transactions=[object()]))
+
+        monkeypatch.setattr("app.parsing.generic_pdf.run_strategy", fake_run_strategy)
+
+        result = parser.parse(filepath, StatementType.SAVINGS)
+
+        assert result.success is True
+        assert call_order == ["multiline", "table", "single_line"]
+        assert result.strategy == "multiline"
+
+    def test_profile_order_changes_parse_tie_break_for_bob_savings(
+        self,
+        parser,
+        tmp_path,
+        monkeypatch,
+    ):
+        filepath = tmp_path / "statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_pdf_tables",
+            lambda file_path, password=None: [ExtractedPageTables(page_number=1, tables=[])],
+        )
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_text_document",
+            lambda file_path, password=None: ExtractedTextDocument.from_text(
+                "Statement of transactions in Savings Account"
+            ),
+        )
+
+        call_order: list[str] = []
+
+        def fake_run_strategy(strategy_name: str, **kwargs):
+            call_order.append(strategy_name)
+            return ParseResult.ok(SimpleNamespace(transactions=[object()]))
+
+        monkeypatch.setattr("app.parsing.generic_pdf.run_strategy", fake_run_strategy)
+
+        result = parser.parse(filepath, StatementType.SAVINGS)
+
+        assert result.success is True
+        assert call_order == ["multiline", "table", "single_line"]
+        assert result.strategy == "multiline"
+
+    def test_default_strategy_order_remains_when_no_profile_matches(
+        self,
+        parser,
+        tmp_path,
+        monkeypatch,
+    ):
+        filepath = tmp_path / "statement.pdf"
+        filepath.write_bytes(b"%PDF-1.4 test")
+
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_pdf_tables",
+            lambda file_path, password=None: [ExtractedPageTables(page_number=1, tables=[])],
+        )
+        monkeypatch.setattr(
+            "app.parsing.generic_pdf.extract_text_document",
+            lambda file_path, password=None: ExtractedTextDocument.from_text(
+                "Unclassified savings statement"
+            ),
+        )
+
+        call_order: list[str] = []
+
+        def fake_run_strategy(strategy_name: str, **kwargs):
+            call_order.append(strategy_name)
+            return ParseResult.ok(SimpleNamespace(transactions=[object()]))
+
+        monkeypatch.setattr("app.parsing.generic_pdf.run_strategy", fake_run_strategy)
+
+        result = parser.parse(filepath, StatementType.SAVINGS)
+
+        assert result.success is True
+        assert call_order == ["table", "single_line", "multiline"]
+        assert result.strategy == "table"
 
 
-# ── _build_savings_result / _build_credit_card_result ─────────
-
-class TestBuildResults:
-    def test_build_savings_with_opening_balance(self, parser):
-        txns = [
-            {
-                "date": date(2024, 1, 15),
-                "description": "ATM",
-                "reference": None,
-                "debit": Decimal("2000"),
-                "credit": None,
-                "balance": Decimal("48000"),
-                "type": TransactionType.DEBIT,
-            },
-            {
-                "date": date(2024, 1, 20),
-                "description": "SALARY",
-                "reference": None,
-                "debit": None,
-                "credit": Decimal("50000"),
-                "balance": Decimal("98000"),
-                "type": TransactionType.CREDIT,
-            },
-        ]
-        result = parser._build_savings_result(txns, opening_balance=Decimal("50000"))
-        assert result.success
-        stmt = result.result
-        assert stmt.opening_balance == Decimal("50000")
-        assert len(stmt.transactions) == 2
-        assert stmt.from_date == date(2024, 1, 15)
-        assert stmt.to_date == date(2024, 1, 20)
-
-    def test_build_savings_infers_opening_balance(self, parser):
-        """When no opening_balance provided, infer from first txn"""
-        txns = [
-            {
-                "date": date(2024, 1, 15),
-                "description": "DEBIT",
-                "reference": None,
-                "debit": Decimal("2000"),
-                "credit": None,
-                "balance": Decimal("48000"),
-                "type": TransactionType.DEBIT,
-            },
-        ]
-        result = parser._build_savings_result(txns)
-        assert result.success
-        # opening = first_balance + debit = 48000 + 2000 = 50000
-        assert result.result.opening_balance == Decimal("50000")
-
-    def test_build_credit_card(self, parser):
-        txns = [
-            {
-                "date": date(2024, 2, 5),
-                "description": "AMAZON",
-                "reference": "REF123",
-                "debit": Decimal("1500"),
-                "credit": None,
-                "balance": None,
-                "type": TransactionType.DEBIT,
-            },
-            {
-                "date": date(2024, 2, 10),
-                "description": "PAYMENT",
-                "reference": None,
-                "debit": None,
-                "credit": Decimal("5000"),
-                "balance": None,
-                "type": TransactionType.CREDIT,
-            },
-        ]
-        result = parser._build_credit_card_result(txns)
-        assert result.success
-        stmt = result.result
-        assert len(stmt.transactions) == 2
-        assert stmt.statement_date == date(2024, 2, 10)
-
-    def test_build_empty_transactions(self, parser):
-        result = parser._build_result([], StatementType.SAVINGS)
-        assert not result.success
-        assert "No transactions" in result.error_message

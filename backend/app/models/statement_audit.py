@@ -63,6 +63,7 @@ class StatementAudit(Base):
     transaction_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parse_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Import source and timestamp
     source: Mapped[str] = mapped_column(String(20), nullable=False)  # upload / local_sync / gdrive

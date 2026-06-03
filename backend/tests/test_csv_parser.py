@@ -10,7 +10,7 @@ from decimal import Decimal
 
 from app.models.enums import BankType, StatementType, TransactionType
 from app.parsers.csv_parser import parse_csv, _read_to_dataframe, _find_header_row_in_df
-from app.parsers.patterns import (
+from app.parsing.patterns import (
     parse_date,
     parse_amount,
     map_columns,

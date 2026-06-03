@@ -46,11 +46,22 @@ class _DatabaseManagerScreenState
     final notifier = ref.read(adminProvider.notifier);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final canAddRow = adminState.selectedTable != null &&
+        adminState.schema != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Database Manager'),
         actions: [
+          if (canAddRow)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: FilledButton.icon(
+                onPressed: () => _showRowDialog(context, ref),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Row'),
+              ),
+            ),
           if (adminState.selectedTable != null)
             IconButton(
               icon: const Icon(Icons.refresh),
@@ -61,14 +72,6 @@ class _DatabaseManagerScreenState
             ),
         ],
       ),
-      floatingActionButton: adminState.selectedTable != null &&
-              adminState.schema != null
-          ? FloatingActionButton.extended(
-              onPressed: () => _showRowDialog(context, ref),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Row'),
-            )
-          : null,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

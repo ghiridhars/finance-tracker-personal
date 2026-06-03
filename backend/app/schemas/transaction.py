@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import TransactionType, SourceType, TransferType
+from app.models.enums import TransactionType, SourceType, TransferType, ReviewStatus
 from app.schemas.category import CategorySchema
 from app.schemas.tag import TagSchema
 
@@ -31,6 +31,7 @@ class UnifiedTransactionSchema(BaseModel):
     is_transfer: bool = False
     transfer_group_id: Optional[str] = None
     transfer_type: Optional[TransferType] = None
+    review_status: Optional[ReviewStatus] = None
     tags: list[TagSchema] = []
     created_at: Optional[datetime.datetime] = None
 
@@ -55,6 +56,7 @@ class TransactionQueryParams(BaseModel):
     account_identifier: Optional[str] = None
     source_type: Optional[SourceType] = None
     type: Optional[TransactionType] = None
+    review_status: Optional[ReviewStatus] = None
     search: Optional[str] = None
     min_amount: Optional[Decimal] = Field(default=None, ge=0)
     max_amount: Optional[Decimal] = Field(default=None, ge=0)

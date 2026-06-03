@@ -140,11 +140,16 @@ class StatementManagementService:
         *,
         statement_type: str | None = None,
         bank_account_id: int | None = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[StatementAudit], int]:
-        """List successful statement audits, with optional filters."""
-        q = db.query(StatementAudit).filter(StatementAudit.status == "SUCCESS")
+        """List statement audits, defaulting to successful imports only."""
+        q = db.query(StatementAudit)
+        if status:
+            q = q.filter(StatementAudit.status == status)
+        else:
+            q = q.filter(StatementAudit.status == "SUCCESS")
         if statement_type:
             q = q.filter(StatementAudit.statement_type == statement_type)
         if bank_account_id:

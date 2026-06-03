@@ -20,6 +20,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from io import BytesIO
 
 from app.config import settings
+from app.parsing.diagnostics import annotate_parse_failure_message, extract_parse_failure
 from app.utils.file_utils import infer_file_type, is_csv_file, review_status_from_parser
 
 logger = logging.getLogger(__name__)
@@ -393,7 +394,7 @@ async def download_and_import(
 ) -> dict:
     """Background task that downloads selected files from Drive and parses them."""
     from app.models.enums import BankType, StatementType
-    from app.services.parser_service import ParserService
+    from app.parsing.service import ParserService
     from app.parsers.csv_parser import parse_csv
     from app.services.account_resolution_service import AccountResolutionService
     from app.services.statement_audit_service import StatementAuditService
@@ -486,7 +487,10 @@ async def download_and_import(
                 error = result.get("error") if not success else None
                 
             if success and statement:
-                review_status = review_status_from_parser(parser_used)
+                review_status = review_status_from_parser(
+                    parser_used,
+                    trusted=result.get("trusted") if isinstance(result, dict) else None,
+                )
                 
                 # Resolve bank account
                 if statement_type == StatementType.CREDIT_CARD:
@@ -515,6 +519,7 @@ async def download_and_import(
                     file_name=filename,
                     file_content=content,
                     parser_strategy=strategy,
+                    parse_trace=result.get("trace") if isinstance(result, dict) else None,
                     review_status=review_status,
                     source="gdrive_oauth"
                 )
@@ -537,6 +542,11 @@ async def download_and_import(
                     "parser": parser_used,
                 })
             else:
+                parse_failure = extract_parse_failure(result if isinstance(result, dict) else None)
+                error_message = annotate_parse_failure_message(
+                    error or "Parse returned no data",
+                    parse_failure,
+                )
                 StatementAuditService.record(
                     db,
                     file_name=filename,
@@ -544,17 +554,21 @@ async def download_and_import(
                     bank_name=bank_type.value,
                     statement_type=statement_type.value,
                     status="FAILED",
-                    error_message=error or "Parse returned no data",
+                    error_message=error_message,
+                    parse_trace=result.get("trace") if isinstance(result, dict) else None,
                     source="gdrive_oauth",
                 )
                 db.commit()
                 results["failed"] += 1
-                results["details"].append({
+                detail = {
                     "filepath": file_id,
                     "file": filename,
                     "status": "failed",
-                    "error": error or "Parse returned no data",
-                })
+                    "error": error_message,
+                }
+                if parse_failure is not None:
+                    detail["parse_failure"] = parse_failure
+                results["details"].append(detail)
                 
         except Exception as e:
             if db:

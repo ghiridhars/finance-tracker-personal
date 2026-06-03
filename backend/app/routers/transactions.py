@@ -77,4 +77,5 @@ def _tx_to_dict(tx: UnifiedTransaction) -> dict:
         "account_identifier": tx.account_identifier,
         "reference_number": tx.reference_number,
         "source_type": tx.source_type,
+        "review_status": tx.review_status,
     }
