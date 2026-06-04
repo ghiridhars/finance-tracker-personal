@@ -138,20 +138,20 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 
 | File | Lines | Issues |
 |------|-------|--------|
-| `backend/app/parsers/generic_pdf_parser.py` | 959 | 5+ parsing strategies, regex patterns, strategy classes all in one file |
+| `backend/app/parsers/generic_pdf_parser.py` | — | ✅ **Resolved** — Split into modular package `app/parsing/` with strategy, routing, profiles, and extraction directories. |
 | `backend/app/services/analytics_service.py` | 518 | All static methods on one class |
 | `backend/app/services/local_sync_service.py` | 508 | Path security, state mgmt, file scanning, import logic, job tracking mixed |
 | `backend/app/routers/admin.py` | 392 | Generic CRUD admin panel touching raw DB via SQLAlchemy Core |
-| `frontend/.../dashboard_widget.dart` | 681 | Dashboard screen, edit toolbar, tile wrapper, controls, date range — all in one file |
+| `frontend/.../dashboard_widget.dart` | — | ✅ **Resolved** — Screen remains, but complex widgets and charts extracted into separate files in `widgets/charts/` under Phase 10. |
 | `frontend/.../transactions_provider.dart` | 393 | 3 notifier classes in one file with duplicated code |
-| `frontend/.../api_service.dart` | 304 | Barrel export + 50+ static methods — redundant dual API surface |
+| `frontend/.../api_service.dart` | — | ✅ **Resolved** — Decomposed into domain-specific API clients in `services/api/` folder under Phase 10. |
 
 ### Complex Functions
 
 | Function | Lines | Problems |
 |----------|-------|----------|
-| `generic_pdf_parser.py::_parse_txn_line` | 711-791 (80 lines) | Right-to-left amount token extraction, multi-conditional branching |
-| `generic_pdf_parser.py::_try_multiline_strategy` + `_try_parse_multiline_block` | 312-461 (150 lines) | Complex multi-line reassembly logic |
+| `generic_pdf_parser.py::_parse_txn_line` | — | ✅ **Resolved** — Cleaned up and moved to `app/parsing/strategies/single_line_strategy.py`. |
+| `generic_pdf_parser.py::_try_multiline_strategy` + `_try_parse_multiline_block` | — | ✅ **Resolved** — Extracted to modular parser functions in `app/parsing/strategies/multiline_strategy.py`. |
 | `local_sync_service.py::scan_and_import` | 223-465 (242 lines) | Deeply nested try/except, mixed concerns |
 
 ### Inconsistent Patterns

@@ -124,13 +124,21 @@ backend/
 │   │   ├── budget.py           # Budget, Goal, Reminder, Recurring DTOs
 │   │   ├── upi.py              # UPI ID DTOs (create, update, response)
 │   │   └── admin.py            # Admin / Database Manager DTOs
-│   ├── parsers/
-│   │   ├── base_parser.py      # ABC + pdfplumber integration
-│   │   ├── generic_pdf_parser.py # Bank-agnostic PDF parser (table + text)
-│   │   ├── csv_parser.py       # Generic CSV with column auto-detection
-│   │   ├── llm_parser.py       # Gemini/Ollama LLM fallback
-│   │   ├── parser_registry.py  # (BankType, StatementType) → parser dispatch
-│   │   └── patterns.py         # Parser pattern utilities
+│   ├── parsing/                 # Refactored modular parsing engine
+│   │   ├── generic_pdf.py       # Generic PDF parsing orchestration
+│   │   ├── engine.py            # Parsing engine abstractions
+│   │   ├── routing.py           # Strategy route resolution & profiles
+│   │   ├── validation.py        # Statement verification (balance, dates)
+│   │   ├── result_selection.py  # Candidate selection strategy
+│   │   ├── patterns.py          # Unified regex/column header patterns
+│   │   ├── classifiers/         # Classification heuristics
+│   │   ├── profiles/            # Routing configuration manifests
+│   │   └── strategies/          # Modular parsing strategies (table, text, multiline)
+│   ├── parsers/                 # Legacy compatibility shims
+│   │   ├── csv_parser.py        # Generic CSV with column auto-detection
+│   │   ├── llm_parser.py        # Gemini/Ollama LLM fallback
+│   │   ├── parser_registry.py   # Registry dispatch shim
+│   │   └── base_parser.py       # Base schemas / classes
 │   ├── services/
 │   │   ├── parser_service.py           # Unified parse orchestration
 │   │   ├── transaction_service.py      # UnifiedTransaction CRUD
@@ -675,18 +683,13 @@ The system uses a registry pattern: `(BankType, StatementType)` → parser class
 
 ### Generic PDF Parser
 
-Bank-agnostic parser with two extraction strategies (tried in order):
+A bank-agnostic PDF parser that uses template classification and routing to try multiple heuristic parsing strategies in sequence. Successful strategy parses are evaluated, and the best-fitting parse result (typically the one with the highest transaction count) is selected.
 
-**Strategy 1 — Table extraction:**
-- Uses pdfplumber `extract_tables()` to detect structured tables in PDFs
-- Auto-detects column headers (Date, Description/Narration/Particulars, Debit/Withdrawal, Credit/Deposit, Balance, Reference/Tran ID)
-- Works for banks with clean table formatting (e.g., Federal Bank)
-
-**Strategy 2 — Text-based line parsing:**
-- Detects transaction lines by finding leading dates and trailing amounts
-- Classifies amounts into debit, credit, and balance columns
-- Handles continuation lines (multi-line descriptions)
-- Works for banks where table extraction produces merged columns (e.g., Bank of Baroda)
+*   **Strategy 1 — Table Extraction:** Uses bounding-box coordinate math from `pdfplumber` to extract structured grids. Best for clean tabular PDFs (e.g., Federal Bank).
+*   **Strategy 2 — Single-Line Text Parsing:** Processes lines sequentially to find leading dates and trailing amounts. Best for simple one-transaction-per-line layouts.
+*   **Strategy 3a — Credit Card Multi-Line:** Matches date-time headers and collects multi-line descriptions until a currency-prefixed amount is found. Target: Modern HDFC Credit Cards.
+*   **Strategy 3b — Credit Card Simple Multi-Line:** Buffers lines following a date until a bare numeric amount is matched. Target: Older HDFC Credit Cards and UPI Credit Cards.
+*   **Strategy 4 — Generic Multi-Line Text:** Reassembles vertically wrapped transaction blocks (serial, date, description, debit, credit, balance on separate lines). Target: Bank of Baroda.
 
 ### LLM Fallback Parser (optional)
 
