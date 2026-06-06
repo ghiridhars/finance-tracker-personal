@@ -109,11 +109,25 @@ class AccountUpiSection extends ConsumerWidget {
 // Full UPI Management Panel (for Settings / dedicated screen)
 // ──────────────────────────────────────────────────────────────
 
-class UpiManagementPanel extends ConsumerWidget {
+class UpiManagementPanel extends ConsumerStatefulWidget {
   const UpiManagementPanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UpiManagementPanel> createState() => _UpiManagementPanelState();
+}
+
+class _UpiManagementPanelState extends ConsumerState<UpiManagementPanel> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final upiState = ref.watch(upiProvider);
     final cs = Theme.of(context).colorScheme;
 
@@ -145,17 +159,47 @@ class UpiManagementPanel extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Link UPI IDs to your accounts (for transfer detection) or to categories '
-          '(for auto-categorization).',
+          'Map UPI handles to accounts/categories for auto-categorization and transfer detection.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.outline),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Search UPI handles or labels...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : null,
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onChanged: (val) =>
+              setState(() => _searchQuery = val.trim().toLowerCase()),
         ),
         const SizedBox(height: 12),
 
         // Rescan button
         OutlinedButton.icon(
           onPressed: upiState.isLoading ? null : () => _rescan(context, ref),
-          icon: const Icon(Icons.refresh, size: 18),
-          label: const Text('Re-scan transactions with UPI rules'),
+          icon: upiState.isLoading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh, size: 18),
+          label: Text(upiState.isLoading
+              ? 'Scanning...'
+              : 'Re-scan transactions with UPI rules'),
         ),
         const SizedBox(height: 16),
 
@@ -180,29 +224,50 @@ class UpiManagementPanel extends ConsumerWidget {
               ),
             ),
           )
-        else ...[
-          // Own UPIs section
-          if (upiState.ownUpiIds.isNotEmpty) ...[
-            _UpiSectionHeader(
-              title: 'My UPI IDs',
-              subtitle: 'Linked to your accounts — transactions matching these are flagged as transfers',
-              count: upiState.ownUpiIds.length,
-            ),
-            const SizedBox(height: 8),
-            ...upiState.ownUpiIds.map((upi) => _UpiListTile(upi: upi)),
-            const SizedBox(height: 16),
-          ],
-          // Third-party UPIs section
-          if (upiState.thirdPartyUpiIds.isNotEmpty) ...[
-            _UpiSectionHeader(
-              title: 'Third-party UPI IDs',
-              subtitle: 'Mapped to categories for auto-categorization',
-              count: upiState.thirdPartyUpiIds.length,
-            ),
-            const SizedBox(height: 8),
-            ...upiState.thirdPartyUpiIds.map((upi) => _UpiListTile(upi: upi)),
-          ],
-        ],
+        else ...(() {
+          final ownUpis = upiState.ownUpiIds.where((u) => 
+            u.upiHandle.toLowerCase().contains(_searchQuery) || 
+            (u.label?.toLowerCase().contains(_searchQuery) ?? false)
+          ).toList();
+          
+          final thirdPartyUpis = upiState.thirdPartyUpiIds.where((u) => 
+            u.upiHandle.toLowerCase().contains(_searchQuery) || 
+            (u.label?.toLowerCase().contains(_searchQuery) ?? false)
+          ).toList();
+
+          if (ownUpis.isEmpty && thirdPartyUpis.isEmpty && _searchQuery.isNotEmpty) {
+            return [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(child: Text('No UPI IDs match your search.')),
+              )
+            ];
+          }
+
+          return [
+            // Own UPIs section
+            if (ownUpis.isNotEmpty) ...[
+              _UpiSectionHeader(
+                title: 'My UPI IDs',
+                subtitle: 'Linked to your accounts — transactions matching these are flagged as transfers',
+                count: ownUpis.length,
+              ),
+              const SizedBox(height: 8),
+              ...ownUpis.map((upi) => _UpiListTile(upi: upi)),
+              const SizedBox(height: 16),
+            ],
+            // Third-party UPIs section
+            if (thirdPartyUpis.isNotEmpty) ...[
+              _UpiSectionHeader(
+                title: 'Third-party UPI IDs',
+                subtitle: 'Mapped to categories for auto-categorization',
+                count: thirdPartyUpis.length,
+              ),
+              const SizedBox(height: 8),
+              ...thirdPartyUpis.map((upi) => _UpiListTile(upi: upi)),
+            ],
+          ];
+        }()),
       ],
     );
   }

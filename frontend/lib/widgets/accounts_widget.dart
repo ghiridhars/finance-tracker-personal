@@ -7,15 +7,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../models/account_models.dart';
 import '../providers/accounts_provider.dart';
 import '../services/api_service.dart';
 import 'skeleton_widgets.dart';
 import 'unified_transaction_list_widget.dart';
 import '../providers/transactions_provider.dart';
+import '../providers/app_settings_provider.dart';
 import 'upi_management_widget.dart';
-
-final _currencyFormat = NumberFormat.currency(symbol: '\u20B9', decimalDigits: 2);
 
 class AccountsWidget extends ConsumerStatefulWidget {
   const AccountsWidget({super.key});
@@ -140,6 +140,12 @@ class _AccountsListView extends ConsumerWidget {
             const SizedBox(height: 8),
             Text('Upload a bank statement to get started',
                 style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => context.go('/import'),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload a statement \u2192'),
+            ),
           ],
         ),
       );
@@ -319,6 +325,8 @@ class _AccountCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currencySymbol = ref.watch(appSettingsProvider).currency;
+    final currencyFormat = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 2);
     final cs = Theme.of(context).colorScheme;
 
     return Card(
@@ -433,12 +441,12 @@ class _AccountCard extends ConsumerWidget {
                   const Spacer(),
                   if (account.balance != null)
                     Text(
-                      _currencyFormat.format(account.balance),
+                      currencyFormat.format(account.balance),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: account.isSavings
-                                ? Colors.green.shade700
-                                : Colors.red.shade700,
+                                ? (Theme.of(context).brightness == Brightness.dark ? Colors.green.shade400 : Colors.green.shade700)
+                                : Theme.of(context).colorScheme.error,
                           ),
                     ),
                 ],
@@ -450,7 +458,7 @@ class _AccountCard extends ConsumerWidget {
                   children: [
                     Text('Credit Limit: ',
                         style: Theme.of(context).textTheme.bodySmall),
-                    Text(_currencyFormat.format(account.creditLimit),
+                    Text(currencyFormat.format(account.creditLimit),
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
@@ -459,7 +467,7 @@ class _AccountCard extends ConsumerWidget {
                     Text('Available: ',
                         style: Theme.of(context).textTheme.bodySmall),
                     Text(
-                      _currencyFormat.format(account.availableCredit ?? 0),
+                      currencyFormat.format(account.availableCredit ?? 0),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: Colors.green.shade700),

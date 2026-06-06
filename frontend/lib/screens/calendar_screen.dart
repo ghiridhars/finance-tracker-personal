@@ -8,9 +8,9 @@ import '../models/analytics_models.dart';
 import '../models/category_models.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/categories_provider.dart';
+import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
-
-final _currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+import '../utils/color_utils.dart';
 
 /// Fixed color palette for each bank.
 const Map<String, Color> _bankColors = {
@@ -151,8 +151,8 @@ class _SpendingCalendar extends StatelessWidget {
           Expanded(
             child: TableCalendar<void>(
               shouldFillViewport: true,
-              firstDay: DateTime(2020),
-              lastDay: DateTime(2030, 12, 31),
+              firstDay: DateTime(DateTime.now().year - 10),
+              lastDay: DateTime(DateTime.now().year + 10, 12, 31),
               focusedDay: focusedMonth,
               calendarFormat: CalendarFormat.month,
               availableCalendarFormats: const {CalendarFormat.month: 'Month'},
@@ -214,6 +214,51 @@ class _SpendingCalendar extends StatelessWidget {
                     ),
                   );
                 },
+                headerTitleBuilder: (context, date) {
+                  final months = [
+                    'January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'
+                  ];
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      DropdownButton<int>(
+                        value: date.month,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down, size: 20),
+                        items: List.generate(12, (index) {
+                          return DropdownMenuItem(
+                            value: index + 1,
+                            child: Text(months[index], style: const TextStyle(fontWeight: FontWeight.w600)),
+                          );
+                        }),
+                        onChanged: (month) {
+                          if (month != null) {
+                            onMonthChanged(DateTime(date.year, month));
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<int>(
+                        value: date.year,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.arrow_drop_down, size: 20),
+                        items: List.generate(21, (index) {
+                          final year = DateTime.now().year - 10 + index;
+                          return DropdownMenuItem(
+                            value: year,
+                            child: Text(year.toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          );
+                        }),
+                        onChanged: (year) {
+                          if (year != null) {
+                            onMonthChanged(DateTime(year, date.month));
+                          }
+                        },
+                      ),
+                    ],
+                  );
+                },
               ),
               calendarStyle: const CalendarStyle(
                 cellMargin: EdgeInsets.all(4),
@@ -267,7 +312,7 @@ class _BankLegendItem extends StatelessWidget {
   }
 }
 
-class _CalendarCell extends StatelessWidget {
+class _CalendarCell extends ConsumerWidget {
   final DateTime day;
   final double spending;
   final List<AccountSpending> accounts;
@@ -283,7 +328,9 @@ class _CalendarCell extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currencySymbol = ref.watch(appSettingsProvider).currency;
+    final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: currencySymbol, decimalDigits: 0);
     final cs = Theme.of(context).colorScheme;
     final intensity =
         maxSpending > 0 ? (spending / maxSpending).clamp(0.0, 1.0) : 0.0;
@@ -293,10 +340,10 @@ class _CalendarCell extends StatelessWidget {
     String tooltipText;
     if (spending > 0) {
       final buf = StringBuffer(
-          '${DateFormat.MMMd().format(day)}\nTotal: ${_currencyFmt.format(spending)}\n(Click to view details)');
+          '${DateFormat.MMMd().format(day)}\nTotal: ${currencyFmt.format(spending)}\n(Click to view details)');
       if (accounts.isNotEmpty) {
         for (final a in accounts) {
-          buf.write('\n${a.bank.replaceAll("_", " ")}: ${_currencyFmt.format(a.spending)}');
+          buf.write('\n${a.bank.replaceAll("_", " ")}: ${currencyFmt.format(a.spending)}');
         }
       }
       tooltipText = buf.toString();
@@ -480,7 +527,7 @@ class _DailyTransactionsPopupState
   }
 
   Widget _categoryDot(Category c) {
-    final color = c.color != null ? _parseHexColor(c.color!) : Colors.grey;
+    final color = c.color != null ? parseHexColor(c.color!) : Colors.grey;
     return Container(
       width: 12,
       height: 12,
@@ -488,14 +535,10 @@ class _DailyTransactionsPopupState
     );
   }
 
-  Color _parseHexColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
-
   @override
   Widget build(BuildContext context) {
+    final currencySymbol = ref.watch(appSettingsProvider).currency;
+    final currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: currencySymbol, decimalDigits: 0);
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -652,7 +695,7 @@ class _DailyTransactionsPopupState
                           ),
                         ),
                         trailing: Text(
-                          _currencyFmt.format(txn.amount ?? 0),
+                          currencyFmt.format(txn.amount ?? 0),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -673,7 +716,7 @@ class _DailyTransactionsPopupState
 
   Widget _buildCategoryChip(BuildContext context, Category category) {
     final color = category.color != null
-        ? _parseHexColor(category.color!)
+        ? parseHexColor(category.color!)
         : Colors.grey;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),

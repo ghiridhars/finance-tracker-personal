@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/upi_management_widget.dart';
 import 'database_manager_screen.dart';
 
@@ -31,6 +32,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isSyncing = false;
   bool _isLoadingDrive = false;
   String? _syncResult;
+  String _appVersion = 'Loading...';
 
   @override
   void initState() {
@@ -40,7 +42,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final settings = ref.read(appSettingsProvider);
       _urlController.text = settings.baseUrl;
       _loadDriveStatus();
+      _loadAppVersion();
     });
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = 'Finance Tracker v${info.version}';
+      });
+    }
   }
 
   @override
@@ -68,7 +80,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.warning_amber, size: 48, color: Colors.red),
+        icon: Icon(Icons.warning_amber, size: 48, color: Theme.of(ctx).colorScheme.error),
         title: const Text('Clear All Data'),
         content: const Text(
           'This will permanently delete ALL transactions, statements, accounts, '
@@ -81,7 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete Everything'),
           ),
@@ -94,21 +106,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Double confirm
     final reallyConfirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Final Confirmation'),
-        content: const Text('Type DELETE to confirm.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm Delete'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        String enteredText = '';
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Final Confirmation'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Type DELETE to confirm.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'DELETE',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      setState(() {
+                        enteredText = val;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: enteredText == 'DELETE' ? Theme.of(context).colorScheme.error : Colors.grey,
+                  ),
+                  onPressed: enteredText == 'DELETE'
+                      ? () => Navigator.pop(ctx, true)
+                      : null,
+                  child: const Text('Confirm Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
     if (reallyConfirmed != true || !mounted) return;
@@ -678,7 +720,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _AboutRow(label: 'App', value: 'Finance Tracker v2'),
+                      _AboutRow(label: 'App', value: _appVersion),
                       _AboutRow(label: 'Stack', value: 'Flutter + FastAPI'),
                       _AboutRow(
                           label: 'Backend',

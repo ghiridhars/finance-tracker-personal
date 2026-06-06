@@ -14,7 +14,6 @@ import 'screens/calendar_screen.dart';
 import 'widgets/dashboard_widget.dart';
 import 'screens/import_screen.dart';
 import 'widgets/accounts_widget.dart';
-import 'widgets/budget_goals_widget.dart';
 import 'screens/settings_screen.dart';
 
 /// Route path constants for type-safe navigation.
@@ -24,7 +23,6 @@ class AppRoutes {
   static const upload = '/upload';
   static const import_ = '/import';
   static const accounts = '/accounts';
-  static const budget = '/budget';
   static const settings = '/settings';
 }
 
@@ -70,12 +68,6 @@ const List<NavDestination> navDestinations = [
     path: AppRoutes.accounts,
   ),
   NavDestination(
-    label: 'Budget & Goals',
-    icon: Icons.savings_outlined,
-    selectedIcon: Icons.savings,
-    path: AppRoutes.budget,
-  ),
-  NavDestination(
     label: 'Settings',
     icon: Icons.settings_outlined,
     selectedIcon: Icons.settings,
@@ -117,12 +109,6 @@ final GoRouter router = GoRouter(
           path: AppRoutes.accounts,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: AccountsWidget(),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.budget,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: BudgetGoalsWidget(),
           ),
         ),
         GoRoute(

@@ -11,7 +11,6 @@ export 'api/transaction_api.dart';
 export 'api/upload_api.dart';
 export 'api/analytics_api.dart';
 export 'api/account_api.dart';
-export 'api/budget_api.dart';
 export 'api/export_api.dart';
 export 'api/transfers_api.dart';
 export 'api/upi_api.dart';
@@ -23,7 +22,6 @@ import 'api/transaction_api.dart';
 import 'api/upload_api.dart';
 import 'api/analytics_api.dart';
 import 'api/account_api.dart';
-import 'api/budget_api.dart';
 import 'api/export_api.dart';
 import 'api/transfers_api.dart';
 import 'api/upi_api.dart';
@@ -35,7 +33,6 @@ import '../models/category_models.dart';
 import '../models/unified_transaction_models.dart';
 import '../models/analytics_models.dart';
 import '../models/account_models.dart';
-import '../models/budget_models.dart';
 import '../models/upi_models.dart';
 
 /// Backward-compatible facade. All methods delegate to domain-specific API classes.
@@ -157,72 +154,7 @@ class ApiService {
     required String accountType, required String identifier, required String name,
   }) => AccountApi.renameAccount(accountType: accountType, identifier: identifier, name: name);
 
-  // ── Budgets ───────────────────────────────────────────────
 
-  static Future<List<BudgetProgress>> getBudgetProgress({int? year, int? month}) =>
-      BudgetApi.getBudgetProgress(year: year, month: month);
-  static Future<BudgetSummary> getBudgetSummary({int? year, int? month}) =>
-      BudgetApi.getBudgetSummary(year: year, month: month);
-  static Future<Budget> createBudget({
-    required int categoryId, required int year, required int month,
-    required double amount, bool rollover = false, String? notes,
-  }) => BudgetApi.createBudget(
-    categoryId: categoryId, year: year, month: month,
-    amount: amount, rollover: rollover, notes: notes,
-  );
-  static Future<List<Budget>> copyBudgets({
-    required int fromYear, required int fromMonth,
-    required int toYear, required int toMonth,
-  }) => BudgetApi.copyBudgets(
-    fromYear: fromYear, fromMonth: fromMonth, toYear: toYear, toMonth: toMonth,
-  );
-  static Future<Budget> updateBudget(int budgetId, {
-    double? amount, bool? rollover, String? notes,
-  }) => BudgetApi.updateBudget(budgetId, amount: amount, rollover: rollover, notes: notes);
-  static Future<void> deleteBudget(int budgetId) => BudgetApi.deleteBudget(budgetId);
-
-  // ── Goals ─────────────────────────────────────────────────
-
-  static Future<List<SavingsGoal>> getGoals({bool includeCompleted = false}) =>
-      BudgetApi.getGoals(includeCompleted: includeCompleted);
-  static Future<SavingsGoal> createGoal({
-    required String name, required double targetAmount,
-    double currentAmount = 0, String? deadline, String? icon, String? color, String? notes,
-  }) => BudgetApi.createGoal(
-    name: name, targetAmount: targetAmount, currentAmount: currentAmount,
-    deadline: deadline, icon: icon, color: color, notes: notes,
-  );
-  static Future<SavingsGoal> contributeToGoal(int goalId, double amount) =>
-      BudgetApi.contributeToGoal(goalId, amount);
-  static Future<void> deleteGoal(int goalId) => BudgetApi.deleteGoal(goalId);
-
-  // ── Reminders ─────────────────────────────────────────────
-
-  static Future<List<BillReminder>> getReminders({
-    bool includePaid = false, int? upcomingDays,
-  }) => BudgetApi.getReminders(includePaid: includePaid, upcomingDays: upcomingDays);
-  static Future<BillReminder> createReminder({
-    required String name, double? amount, int? categoryId,
-    bool isRecurring = true, String? frequency, int? dayOfMonth,
-    String? nextDueDate, String? notes,
-  }) => BudgetApi.createReminder(
-    name: name, amount: amount, categoryId: categoryId,
-    isRecurring: isRecurring, frequency: frequency, dayOfMonth: dayOfMonth,
-    nextDueDate: nextDueDate, notes: notes,
-  );
-  static Future<BillReminder> markReminderPaid(int reminderId) =>
-      BudgetApi.markReminderPaid(reminderId);
-  static Future<void> deleteReminder(int reminderId) => BudgetApi.deleteReminder(reminderId);
-  static Future<List<BillReminder>> autoDetectReminders() => BudgetApi.autoDetectReminders();
-
-  // ── Recurring ─────────────────────────────────────────────
-
-  static Future<List<RecurringTransaction>> getRecurring({bool activeOnly = true}) =>
-      BudgetApi.getRecurring(activeOnly: activeOnly);
-  static Future<List<RecurringTransaction>> detectRecurring() => BudgetApi.detectRecurring();
-  static Future<RecurringTransaction> toggleSubscription(int recurringId, bool isSubscription) =>
-      BudgetApi.toggleSubscription(recurringId, isSubscription);
-  static Future<void> deleteRecurring(int recurringId) => BudgetApi.deleteRecurring(recurringId);
 
   // ── Export & Data Management ──────────────────────────────
 

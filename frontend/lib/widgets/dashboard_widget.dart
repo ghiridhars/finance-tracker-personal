@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/dashboard_layout_provider.dart';
 import '../models/analytics_models.dart';
@@ -138,16 +139,49 @@ class DashboardScreen extends ConsumerWidget {
                             padding: EdgeInsets.only(bottom: 8),
                             child: LinearProgressIndicator(),
                           ),
-                        ..._buildGridRows(
-                          tiles: visibleTiles,
-                          totalWidth: totalWidth,
-                          tier: tier,
-                          gap: gap,
-                          editing: editing,
-                          dash: dash,
-                          ref: ref,
-                          context: context,
-                        ),
+                        if (visibleTiles.isEmpty && !editing && !dash.isLoading)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 64),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.query_stats, size: 64, color: Theme.of(context).colorScheme.primaryContainer),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Nothing to see here yet',
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Import a bank statement to see your financial overview.',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  FilledButton.icon(
+                                    onPressed: () => context.go('/import'),
+                                    icon: const Icon(Icons.upload_file),
+                                    label: const Text('Upload your first statement \u2192'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else ...[
+                          ..._buildGridRows(
+                            tiles: visibleTiles,
+                            totalWidth: totalWidth,
+                            tier: tier,
+                            gap: gap,
+                            editing: editing,
+                            dash: dash,
+                            ref: ref,
+                            context: context,
+                          ),
+                        ],
                         const SizedBox(height: 60),
                       ],
                     );
@@ -162,12 +196,13 @@ class DashboardScreen extends ConsumerWidget {
           Positioned(
             bottom: 16,
             right: 16,
-            child: FloatingActionButton.small(
+            child: FloatingActionButton.extended(
               onPressed: () => ref
                   .read(dashboardLayoutProvider.notifier)
                   .toggleEditMode(),
               tooltip: 'Customize dashboard',
-              child: const Icon(Icons.dashboard_customize),
+              icon: const Icon(Icons.dashboard_customize),
+              label: const Text('Customize'),
             ),
           ),
       ],
@@ -384,6 +419,17 @@ class _EditableTileWrapper extends ConsumerWidget {
     required this.child,
   });
 
+  String _getFriendlySizeLabel(int colSpan, double height) {
+    final widthStr = switch (colSpan) {
+      12 => 'Full Width',
+      >= 8 => 'Large',
+      >= 6 => 'Medium',
+      _ => 'Small',
+    };
+    final heightStr = height > 400 ? 'Tall' : (height > 250 ? 'Regular' : 'Short');
+    return '$widthStr \u00B7 $heightStr';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
@@ -469,11 +515,11 @@ class _EditableTileWrapper extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        '${tile.colSpan}col · ${tile.height.round()}px',
+                        _getFriendlySizeLabel(tile.colSpan, tile.height),
                         style: TextStyle(
                           color: cs.onPrimary,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

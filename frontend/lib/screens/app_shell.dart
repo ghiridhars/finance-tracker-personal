@@ -11,12 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/accounts_provider.dart';
-import '../providers/budget_provider.dart';
 import '../providers/categories_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/transfers_provider.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/upi_provider.dart';
+import '../services/auth_service.dart';
 import '../router.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -29,6 +29,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   bool _isRefreshing = false;
+  bool _isSidebarExpanded = true;
 
   /// Determine which nav index is active based on the current route.
   int _currentIndex(BuildContext context) {
@@ -50,7 +51,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       await Future.wait([
         ref.read(dashboardProvider.notifier).loadDashboard(),
         ref.read(accountsProvider.notifier).loadAccounts(),
-        ref.read(budgetProvider.notifier).loadAll(),
         ref.read(categoriesProvider.notifier).loadCategories(),
         ref.read(upiProvider.notifier).loadUpiIds(),
         ref.read(transfersProvider.notifier).loadAll(),
@@ -78,13 +78,13 @@ class _AppShellState extends ConsumerState<AppShell> {
         final width = constraints.maxWidth;
         final currentIdx = _currentIndex(context);
 
-        // ── Desktop: expanded rail (sidebar with labels) ──
+        // ── Desktop: expanded/collapsible rail ──
         if (width >= 900) {
           return Scaffold(
             body: Row(
               children: [
                 NavigationRail(
-                  extended: true,
+                  extended: _isSidebarExpanded,
                   minExtendedWidth: 220,
                   selectedIndex: currentIdx,
                   onDestinationSelected: (i) =>
@@ -92,9 +92,61 @@ class _AppShellState extends ConsumerState<AppShell> {
                   leading: _RailHeader(
                     settings: settings,
                     ref: ref,
-                    extended: true,
+                    extended: _isSidebarExpanded,
                     isRefreshing: _isRefreshing,
                     onRefresh: _refreshAll,
+                  ),
+                  trailing: Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            PopupMenuButton<String>(
+                              offset: const Offset(40, -40),
+                              tooltip: 'Account',
+                              onSelected: (val) {
+                                if (val == 'logout') {
+                                  ref.read(authProvider.notifier).logout();
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                const PopupMenuItem(
+                                  value: 'logout',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.logout, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('Sign Out'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              child: CircleAvatar(
+                                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                child: Icon(Icons.person, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            IconButton(
+                              icon: Icon(_isSidebarExpanded
+                                  ? Icons.chevron_left
+                                  : Icons.chevron_right),
+                              onPressed: () {
+                                setState(() {
+                                  _isSidebarExpanded = !_isSidebarExpanded;
+                                });
+                              },
+                              tooltip: _isSidebarExpanded
+                                  ? 'Collapse Sidebar'
+                                  : 'Expand Sidebar',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   destinations: navDestinations
                       .map((d) => NavigationRailDestination(
@@ -105,7 +157,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                       .toList(),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: widget.child),
+                Expanded(
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Text(navDestinations[currentIdx].label),
+                      elevation: 0,
+                      backgroundColor: Colors.transparent,
+                    ),
+                    body: widget.child,
+                  ),
+                ),
               ],
             ),
           );
@@ -128,6 +189,39 @@ class _AppShellState extends ConsumerState<AppShell> {
                     isRefreshing: _isRefreshing,
                     onRefresh: _refreshAll,
                   ),
+                  trailing: Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: PopupMenuButton<String>(
+                          offset: const Offset(40, -40),
+                          tooltip: 'Account',
+                          onSelected: (val) {
+                            if (val == 'logout') {
+                              ref.read(authProvider.notifier).logout();
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(
+                              value: 'logout',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.logout, size: 18),
+                                  SizedBox(width: 8),
+                                  Text('Sign Out'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          child: CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                            child: Icon(Icons.person, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   destinations: navDestinations
                       .map((d) => NavigationRailDestination(
                             icon: Icon(d.icon),
@@ -137,7 +231,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                       .toList(),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: widget.child),
+                Expanded(
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Text(navDestinations[currentIdx].label),
+                      elevation: 0,
+                      backgroundColor: Colors.transparent,
+                    ),
+                    body: widget.child,
+                  ),
+                ),
               ],
             ),
           );

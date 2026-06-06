@@ -40,6 +40,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   final Map<String, String> _bankPasswords = {};
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+  bool _isPdfPasswordProtected = false;
 
   // ── GDrive auth polling ──
   Timer? _gdriveAuthPollTimer;
@@ -197,6 +198,41 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               const SizedBox(height: 16),
             ],
 
+            // Instruction card
+            if (_selectedFile == null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colorScheme.primaryContainer),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('How it works', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '1. Select your Bank and Statement Type.\n'
+                            '2. Enter your PDF password if the file is protected.\n'
+                            '3. Select and upload the file to automatically extract your transactions.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             // Bank dropdown
             DropdownButtonFormField<String>(
               value: _bank,
@@ -253,32 +289,48 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Password field — only shown for PDF files
+            // Password field — only shown for PDF files if toggled
             if (_selectedFile != null &&
                 _selectedFile!.name.toLowerCase().endsWith('.pdf')) ...[
-              TextField(
-                controller: _passwordController,
-                obscureText: !_passwordVisible,
-                onChanged: (val) => _bankPasswords[_bank] = val,
-                decoration: InputDecoration(
-                  labelText: 'PDF Password (optional)',
-                  hintText: 'Leave blank if not password-protected',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _passwordVisible
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+              SwitchListTile(
+                title: const Text('PDF is password-protected'),
+                value: _isPdfPasswordProtected,
+                onChanged: (val) {
+                  setState(() {
+                    _isPdfPasswordProtected = val;
+                    if (!val) {
+                      _passwordController.clear();
+                      _bankPasswords[_bank] = '';
+                    }
+                  });
+                },
+                secondary: const Icon(Icons.lock),
+              ),
+              if (_isPdfPasswordProtected) ...[
+                TextField(
+                  controller: _passwordController,
+                  obscureText: !_passwordVisible,
+                  onChanged: (val) => _bankPasswords[_bank] = val,
+                  decoration: InputDecoration(
+                    labelText: 'PDF Password',
+                    hintText: 'Enter document password',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _passwordVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setState(() => _passwordVisible = !_passwordVisible),
+                      tooltip:
+                          _passwordVisible ? 'Hide password' : 'Show password',
                     ),
-                    onPressed: () =>
-                        setState(() => _passwordVisible = !_passwordVisible),
-                    tooltip:
-                        _passwordVisible ? 'Hide password' : 'Show password',
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
             ],
 
             // Drop zone
@@ -1228,13 +1280,21 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade900
+                        : Colors.white,
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : Colors.black87,
                     elevation: 1,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.grey.shade300),
+                      side: BorderSide(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade300,
+                      ),
                     ),
                   ),
                   onPressed: () async {
@@ -1264,12 +1324,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       _showSnackBar('Authorization error: $e', isError: true);
                     }
                   },
-                  icon: Image.network(
-                    'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
-                    height: 18,
-                    width: 18,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.login, color: Colors.blue, size: 18),
-                  ),
+                  icon: const _GoogleLogo(size: 18),
                   label: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -2058,4 +2113,56 @@ class _BankPasswordFieldState extends State<_BankPasswordField> {
       ),
     );
   }
+}
+
+class _GoogleLogo extends StatelessWidget {
+  final double size;
+  const _GoogleLogo({this.size = 18});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _GoogleLogoPainter(),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.22
+      ..strokeCap = StrokeCap.butt;
+
+    final rect = Rect.fromLTWH(w * 0.11, h * 0.11, w * 0.78, h * 0.78);
+
+    // Red segment (top arc)
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, -1.9 - 0.2, 1.4 + 0.2, false, paint);
+
+    // Yellow segment (left arc)
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, -3.3 - 0.2, 1.4 + 0.2, false, paint);
+
+    // Green segment (bottom arc)
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, 0.9 - 0.2, 1.4 + 0.2, false, paint);
+
+    // Blue segment (right arc)
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, -0.5 - 0.2, 1.4 + 0.2, false, paint);
+    
+    // Horizontal bar of the "G"
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Rect.fromLTWH(w * 0.5, h * 0.39, w * 0.43, h * 0.22), barPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

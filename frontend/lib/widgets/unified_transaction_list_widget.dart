@@ -1,5 +1,6 @@
 /// Unified Transaction List — shows all transactions from all sources
 /// with category badges, search, filters, and CSV export.
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,7 +8,9 @@ import '../models/unified_transaction_models.dart';
 import '../models/category_models.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/categories_provider.dart';
+import '../providers/app_settings_provider.dart';
 import '../services/api_service.dart';
+import '../utils/color_utils.dart';
 import 'skeleton_widgets.dart';
 
 class UnifiedTransactionListWidget extends ConsumerStatefulWidget {
@@ -26,6 +29,7 @@ class _UnifiedTransactionListWidgetState
   static const String _allReviewStatusesMenuValue = '__ALL_REVIEW_STATUSES__';
 
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
   bool _initialized = false;
 
   bool _isTransfersCategory(Category category) {
@@ -35,6 +39,7 @@ class _UnifiedTransactionListWidgetState
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -102,6 +107,20 @@ class _UnifiedTransactionListWidgetState
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8)),
               ),
+              onChanged: (value) {
+                if (_debounce?.isActive ?? false) _debounce!.cancel();
+                _debounce = Timer(const Duration(milliseconds: 300), () {
+                  if (value.trim().isEmpty) {
+                    ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(clearSearch: true);
+                  } else {
+                    ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .setFilters(search: value.trim());
+                  }
+                });
+              },
               onSubmitted: (value) {
                 if (value.trim().isEmpty) {
                   ref
@@ -236,11 +255,11 @@ class _UnifiedTransactionListWidgetState
               ),
               PopupMenuItem<String>(
                 value: 'AUTO_PARSED',
-                child: Text('Auto Parsed'),
+                child: Text('Auto-detected'),
               ),
               PopupMenuItem<String>(
                 value: 'LLM_PARSED',
-                child: Text('LLM Parsed'),
+                child: Text('AI-parsed'),
               ),
               PopupMenuItem<String>(
                 value: 'REVIEWED',
@@ -248,6 +267,24 @@ class _UnifiedTransactionListWidgetState
               ),
             ],
           ),
+
+          // Clear filters button
+          if (txState.categoryFilter != null ||
+              txState.sourceTypeFilter != null ||
+              txState.isTransferFilter == true ||
+              txState.reviewStatusFilter != null)
+            IconButton(
+              icon: const Icon(Icons.filter_alt_off),
+              tooltip: 'Clear filters',
+              onPressed: () {
+                ref.read(unifiedTransactionsProvider.notifier).setFilters(
+                      clearCategory: true,
+                      clearSourceType: true,
+                      clearIsTransfer: true,
+                      clearReviewStatus: true,
+                    );
+              },
+            ),
 
           // Export button
           IconButton(
@@ -397,43 +434,52 @@ class _UnifiedTransactionListWidgetState
               ),
               child: const Icon(Icons.delete, color: Colors.white),
             ),
-            confirmDismiss: (_) => showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Delete Transaction'),
-                content: const Text(
-                    'Are you sure you want to delete this transaction?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                    onPressed: () => Navigator.of(ctx).pop(true),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
-            ),
+            confirmDismiss: (_) async => true,
             onDismissed: (_) async {
-              try {
-                await ApiService.deleteTransaction(tx.id!);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Transaction deleted')),
-                  );
+              bool undone = false;
+              
+              // Optimistically remove from local state
+              ref
+                  .read(unifiedTransactionsProvider.notifier)
+                  .removeTransactionLocal(tx.id!);
+
+              final snackBar = SnackBar(
+                content: const Text('Transaction deleted'),
+                action: SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () {
+                    undone = true;
+                    // Reload to restore the transaction
+                    ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .loadTransactions();
+                  },
+                ),
+                duration: const Duration(seconds: 5),
+              );
+
+              final snackBarController = ScaffoldMessenger.of(context).showSnackBar(snackBar);
+              await snackBarController.closed.then((reason) async {
+                if (!undone) {
+                  try {
+                    await ApiService.deleteTransaction(tx.id!);
+                    // Reload to ensure final server state matches local
+                    ref
+                        .read(unifiedTransactionsProvider.notifier)
+                        .loadTransactions();
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Delete failed: $e')),
+                      );
+                      // Reload to restore state if deletion failed on server
+                      ref
+                          .read(unifiedTransactionsProvider.notifier)
+                          .loadTransactions();
+                    }
+                  }
                 }
-                ref
-                    .read(unifiedTransactionsProvider.notifier)
-                    .loadTransactions();
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Delete failed: $e')),
-                  );
-                }
-              }
+              });
             },
             child: _TransactionTile(
               transaction: tx,
@@ -508,7 +554,7 @@ class _UnifiedTransactionListWidgetState
 
   Widget _categoryDot(Category c) {
     final color =
-        c.color != null ? _parseHexColor(c.color!) : Colors.grey;
+        c.color != null ? parseHexColor(c.color!) : Colors.grey;
     return Container(
       width: 12,
       height: 12,
@@ -518,16 +564,10 @@ class _UnifiedTransactionListWidgetState
       ),
     );
   }
-
-  Color _parseHexColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
-  }
 }
 
 /// Individual transaction row with category badge.
-class _TransactionTile extends StatelessWidget {
+class _TransactionTile extends ConsumerWidget {
   final UnifiedTransaction transaction;
   final VoidCallback onCategoryTap;
 
@@ -537,7 +577,8 @@ class _TransactionTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currencySymbol = ref.watch(appSettingsProvider).currency;
     final isDebit = transaction.type?.value == 'DEBIT';
     final amountColor = isDebit
         ? Theme.of(context).colorScheme.error
@@ -663,7 +704,7 @@ class _TransactionTile extends StatelessWidget {
           ],
         ),
         trailing: Text(
-          '$amountPrefix₹$amount',
+          '$amountPrefix$currencySymbol$amount',
           style: TextStyle(
             color: amountColor,
             fontWeight: FontWeight.w600,
@@ -691,14 +732,14 @@ class _TransactionTile extends StatelessWidget {
 
   Widget _categoryChip(BuildContext context, Category category) {
     final color = category.color != null
-        ? _parseHexColor(category.color!)
+        ? parseHexColor(category.color!)
         : Colors.grey;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         category.name,
@@ -727,11 +768,5 @@ class _TransactionTile extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _parseHexColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
   }
 }

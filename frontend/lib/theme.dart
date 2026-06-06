@@ -40,9 +40,11 @@ final ThemeData lightTheme = ThemeData(
   dataTableTheme: const DataTableThemeData(
     headingTextStyle: TextStyle(fontWeight: FontWeight.w600),
   ),
-  navigationRailTheme: const NavigationRailThemeData(
+  navigationRailTheme: NavigationRailThemeData(
     labelType: NavigationRailLabelType.none,
     groupAlignment: -0.85,
+    selectedIconTheme: const IconThemeData(size: 28, opacity: 1.0, color: Colors.indigo),
+    unselectedIconTheme: const IconThemeData(size: 24, opacity: 0.6),
   ),
   navigationBarTheme: const NavigationBarThemeData(
     height: 65,
@@ -77,9 +79,11 @@ final ThemeData darkTheme = ThemeData(
   dataTableTheme: const DataTableThemeData(
     headingTextStyle: TextStyle(fontWeight: FontWeight.w600),
   ),
-  navigationRailTheme: const NavigationRailThemeData(
+  navigationRailTheme: NavigationRailThemeData(
     labelType: NavigationRailLabelType.none,
     groupAlignment: -0.85,
+    selectedIconTheme: IconThemeData(size: 28, opacity: 1.0, color: Colors.indigo.shade200),
+    unselectedIconTheme: const IconThemeData(size: 24, opacity: 0.6),
   ),
   navigationBarTheme: const NavigationBarThemeData(
     height: 65,

@@ -418,6 +418,12 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
       state = state.copyWith(error: e.toString());
     }
   }
+
+  void removeTransactionLocal(int id) {
+    final list = List<UnifiedTransaction>.from(state.transactions);
+    list.removeWhere((tx) => tx.id == id);
+    state = state.copyWith(transactions: list);
+  }
 }
 
 final unifiedTransactionsProvider =

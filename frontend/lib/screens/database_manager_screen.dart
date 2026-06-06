@@ -21,7 +21,8 @@ class DatabaseManagerScreen extends ConsumerStatefulWidget {
 class _DatabaseManagerScreenState
     extends ConsumerState<DatabaseManagerScreen> {
   final _searchController = TextEditingController();
-  final _tableScrollController = ScrollController();
+  final _verticalScrollController = ScrollController();
+  final _horizontalScrollController = ScrollController();
   Timer? _searchDebounceTimer;
 
   @override
@@ -35,7 +36,8 @@ class _DatabaseManagerScreenState
   @override
   void dispose() {
     _searchController.dispose();
-    _tableScrollController.dispose();
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
     _searchDebounceTimer?.cancel();
     super.dispose();
   }
@@ -233,64 +235,69 @@ class _DatabaseManagerScreenState
     }
 
     return Scrollbar(
-      controller: _tableScrollController,
+      controller: _horizontalScrollController,
+      thumbVisibility: true,
       child: SingleChildScrollView(
+        controller: _horizontalScrollController,
         scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          controller: _tableScrollController,
-          child: DataTable(
-            sortColumnIndex: adminState.sortColumn != null
-                ? schema.columns
-                    .indexWhere((c) => c.name == adminState.sortColumn)
-                : null,
-            sortAscending: adminState.sortOrder == 'asc',
-            headingRowColor: WidgetStateProperty.all(
-              colorScheme.surfaceContainerHighest.withAlpha(120),
+        child: Scrollbar(
+          controller: _verticalScrollController,
+          child: SingleChildScrollView(
+            controller: _verticalScrollController,
+            child: DataTable(
+              sortColumnIndex: adminState.sortColumn != null
+                  ? schema.columns
+                      .indexWhere((c) => c.name == adminState.sortColumn)
+                  : null,
+              sortAscending: adminState.sortOrder == 'asc',
+              headingRowColor: WidgetStateProperty.all(
+                colorScheme.surfaceContainerHighest.withAlpha(120),
+              ),
+              columns: [
+                // Data columns
+                ...schema.columns.map((col) => DataColumn(
+                      label: _buildColumnHeader(col),
+                      onSort: (_, __) => notifier.setSort(col.name),
+                      numeric: col.type == 'integer' || col.type == 'number',
+                    )),
+                // Actions column
+                const DataColumn(label: Text('Actions')),
+              ],
+              rows: adminState.rows.map((row) {
+                return DataRow(
+                  onSelectChanged: (_) =>
+                      _showRowDialog(context, ref, existingRow: row),
+                  cells: [
+                    ...schema.columns.map((col) {
+                      final value = row[col.name];
+                      return DataCell(
+                        _buildCellContent(col, value, adminState),
+                      );
+                    }),
+                    // Actions
+                    DataCell(Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined,
+                              size: 18, color: colorScheme.primary),
+                          tooltip: 'Edit',
+                          onPressed: () =>
+                              _showRowDialog(context, ref, existingRow: row),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline,
+                              size: 18, color: colorScheme.error),
+                          tooltip: 'Delete',
+                          onPressed: () =>
+                              _confirmDelete(context, ref, row),
+                        ),
+                      ],
+                    )),
+                  ],
+                );
+              }).toList(),
             ),
-            columns: [
-              // Data columns
-              ...schema.columns.map((col) => DataColumn(
-                    label: _buildColumnHeader(col),
-                    onSort: (_, __) => notifier.setSort(col.name),
-                    numeric: col.type == 'integer' || col.type == 'number',
-                  )),
-              // Actions column
-              const DataColumn(label: Text('Actions')),
-            ],
-            rows: adminState.rows.map((row) {
-              return DataRow(
-                onSelectChanged: (_) =>
-                    _showRowDialog(context, ref, existingRow: row),
-                cells: [
-                  ...schema.columns.map((col) {
-                    final value = row[col.name];
-                    return DataCell(
-                      _buildCellContent(col, value, adminState),
-                    );
-                  }),
-                  // Actions
-                  DataCell(Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit_outlined,
-                            size: 18, color: colorScheme.primary),
-                        tooltip: 'Edit',
-                        onPressed: () =>
-                            _showRowDialog(context, ref, existingRow: row),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline,
-                            size: 18, color: colorScheme.error),
-                        tooltip: 'Delete',
-                        onPressed: () =>
-                            _confirmDelete(context, ref, row),
-                      ),
-                    ],
-                  )),
-                ],
-              );
-            }).toList(),
           ),
         ),
       ),
