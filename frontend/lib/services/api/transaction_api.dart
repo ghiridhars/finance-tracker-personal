@@ -145,4 +145,38 @@ class TransactionApi {
       throw Exception('Failed to delete transaction: ${response.body}');
     }
   }
+
+  /// Bulk update transactions.
+  static Future<int> bulkUpdateTransactions(List<Map<String, dynamic>> updates) async {
+    final response = await http.post(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/bulk-update'),
+      headers: ApiClient.jsonHeaders,
+      body: jsonEncode({'updates': updates}),
+    ).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
+    if (response.statusCode != 200) {
+      final detail = ApiClient.extractErrorDetail(response.body);
+      throw Exception('Failed to bulk update transactions: $detail');
+    }
+    final data = jsonDecode(response.body);
+    return data['updated'] as int;
+  }
+
+  /// Count transactions.
+  static Future<int> countTransactions({
+    String? reviewStatus,
+  }) async {
+    final params = <String, String>{};
+    if (reviewStatus != null) params['review_status'] = reviewStatus;
+    
+    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/count')
+        .replace(queryParameters: params);
+    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
+    ApiClient.checkAuth(response);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to count transactions: ${response.body}');
+    }
+    final data = jsonDecode(response.body);
+    return data['total'] as int;
+  }
 }

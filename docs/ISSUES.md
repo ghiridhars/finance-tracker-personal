@@ -66,12 +66,12 @@ backend, frontend, infrastructure, and tooling.
 
 | Pattern | Files | Impact |
 |---------|-------|--------|
-| Parse-and-save logic (CSV vs PDF branching, state tracking) | `gdrive_sync_service.py:387-590` + `local_sync_service.py:336-434` | ~150 lines of near-identical branching duplicated |
+| Parse-and-save logic (CSV vs PDF branching, state tracking) | `gdrive_sync_service.py:472-543` + `local_sync_service.py:336-434` | ~70 lines of near-identical CSV/PDF parse branching duplicated (reduced from ~150 by refactoring) |
 | `_tx_to_dict` helper | `routers/transactions.py:69` + `routers/export.py:133` | Simple shared serializer would eliminate duplication |
-| `review_status` from parser name | `local_sync_service.py`, `gdrive_sync_service.py`, `routers/upload.py` | Duplicated 3 times (partially extracted to `utils/file_utils.py`) |
+| `review_status` from parser name | ~~`local_sync_service.py`, `gdrive_sync_service.py`, `routers/upload.py`~~ | ✅ **Resolved** — Extracted to shared `utils/file_utils.py:17` `review_status_from_parser()`, used by all three callers |
 | Notifier methods (`setDateRange`, `applyPreset`, `loadTransactions`) | `frontend/.../transactions_provider.dart:62-110` vs `:113-161` | Identical code duplicated across 3 notifier classes |
 | Statement save with dedup | `credit_card_service.py:50-83` + `savings_service.py:49-83` | Nearly identical save+dedup+create-unified flow |
-| `str(e)` in sync result details | `local_sync_service.py:444`, `gdrive_sync_service.py:315` | Exception message exposed verbatim in the JSON response body for both sync backends (matches existing `upload.py:201` issue) |
+| `str(e)` in sync result details | `gdrive_sync_service.py:578-582`, `local_sync_service.py` | Exception message exposed verbatim in GDrive sync response; local sync no longer exposes raw `str(e)` |
 
 ---
 
@@ -111,7 +111,7 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 
 ### Other
 
-- `generic_pdf_parser.py:139` reads entire PDF into memory as text — fine for
+- `app/parsing/extraction/pdf_text.py` reads entire PDF into memory as text — fine for
   statements but unbounded.
 
 ---
@@ -125,7 +125,7 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 | **`str(exc)` in 400 responses** | `main.py:120` — `value_error_handler` returns `str(exc)` to the client | Medium — file paths and internal error messages from `ValueError` raised anywhere in a service (e.g. "Path does not exist: /app/data/...") are leaked |
 | **In-memory rate limiter** | `auth.py:144-160` | Medium — resets on restart, doesn't work across workers |
 | **Error details leaked in responses** | `routers/upload.py:201` + `local_sync_service.py:444` + `gdrive_sync_service.py:315` — `str(e)` in response | Medium — may leak internals; upload, local-sync, and gdrive-sync all expose raw exception strings |
-| **PDF text dumped to disk in debug mode** | `generic_pdf_parser.py:88-94` — writes `last_parsed_text.txt` next to the parsed file when `settings.debug=True` | Low — full extracted text of a bank statement written to the data directory; sensitive in any environment where debug is left on |
+| **PDF text dumped to disk in debug mode** | `app/parsing/generic_pdf.py:90` — writes `last_parsed_text.txt` next to the parsed file when `settings.debug=True` | Low — full extracted text of a bank statement written to the data directory; sensitive in any environment where debug is left on |
 | **No CSV formula injection protection on upload** | `routers/upload.py:227-337` | Low — export side has `_sanitize_csv_field` but upload doesn't validate |
 | **LLM parser has no content size limit** | `llm_parser.py` | Low — unbounded text sent to external API |
 | **Credentials file read on every request** | `auth.py:132-139` reads `.credentials.json` on every authenticated call | Low — I/O per request, timing vector |
@@ -140,11 +140,11 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 |------|-------|--------|
 | `backend/app/parsers/generic_pdf_parser.py` | — | ✅ **Resolved** — Split into modular package `app/parsing/` with strategy, routing, profiles, and extraction directories. |
 | `backend/app/services/analytics_service.py` | 518 | All static methods on one class |
-| `backend/app/services/local_sync_service.py` | 508 | Path security, state mgmt, file scanning, import logic, job tracking mixed |
+| `backend/app/services/local_sync_service.py` | 584 | Path security, state mgmt, file scanning, import logic, job tracking mixed |
 | `backend/app/routers/admin.py` | 392 | Generic CRUD admin panel touching raw DB via SQLAlchemy Core |
-| `frontend/.../dashboard_widget.dart` | — | ✅ **Resolved** — Screen remains, but complex widgets and charts extracted into separate files in `widgets/charts/` under Phase 10. |
-| `frontend/.../transactions_provider.dart` | 393 | 3 notifier classes in one file with duplicated code |
-| `frontend/.../api_service.dart` | — | ✅ **Resolved** — Decomposed into domain-specific API clients in `services/api/` folder under Phase 10. |
+| `frontend/.../dashboard_widget.dart` | 727 | ✅ **Partially resolved** — Charts extracted to `widgets/charts/` (Phase 10), but the screen + edit toolbar + tile controls remain in one file; grew from 681→727 lines |
+| `frontend/.../transactions_provider.dart` | ~393 | 3 notifier classes in one file with duplicated code |
+| `frontend/.../api_service.dart` | 242 | ✅ **Partially resolved** — Decomposed into `services/api/` modules (Phase 10), but the 242-line barrel facade still exists as legacy compatibility layer (was 304) |
 
 ### Complex Functions
 
@@ -152,7 +152,8 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
 |----------|-------|----------|
 | `generic_pdf_parser.py::_parse_txn_line` | — | ✅ **Resolved** — Cleaned up and moved to `app/parsing/strategies/single_line_strategy.py`. |
 | `generic_pdf_parser.py::_try_multiline_strategy` + `_try_parse_multiline_block` | — | ✅ **Resolved** — Extracted to modular parser functions in `app/parsing/strategies/multiline_strategy.py`. |
-| `local_sync_service.py::scan_and_import` | 223-465 (242 lines) | Deeply nested try/except, mixed concerns |
+| `gdrive_sync_service.py::sync_from_drive` | ~200 lines | Similar to local sync — deeply nested try/except, file download, parse branching, state management, error handling mixed |
+| `local_sync_service.py::scan_and_import` | ~200 lines | Deeply nested try/except, mixed concerns |
 
 ### Inconsistent Patterns
 
@@ -164,26 +165,26 @@ Also missing on `statement_audit.period_start`, `period_end`, `statement_type`.
   avoid circular dependencies (`transaction_service.py:289`,
   `local_sync_service.py:241-245`, `llm_parser.py:103`, `export.py:154`),
   indicating a need for flatter module structure.
-- **Router auth applied via mutation**: `main.py:189` appends `get_current_user`
+- **Router auth applied via mutation**: `main.py:187` appends `get_current_user`
   to each router's dependency list in a loop. Fragile — any new router added
   to `app.include_router()` outside this loop would be silently unprotected.
   A dedicated `protected_prefix` router or explicit dependency per router
   would be safer.
-- **GDrive sync state not protected by async lock**: `gdrive_sync_service.py:321`
-  calls `_save_sync_state()` without an async lock, unlike `local_sync_service.py`
-  which uses `asyncio.Lock()`. Concurrent Drive sync requests could corrupt the
-  state file.
-- **In-memory job tracking**: `local_sync_service.py:30` `_jobs` dict is
-  module-level; job status is lost on server restart and not visible across
-  workers.
+- **GDrive sync state file not protected by async lock**: `gdrive_sync_service.py:586-588`
+  writes state to disk without an async lock. A `_jobs_lock` (line 36) was added to
+  protect the in-memory jobs dict, but the state file writes (`state_file.write_text`)
+  at lines 588 and 600 still lack protection — concurrent Drive sync requests
+  could corrupt the state file.
+- **In-memory job tracking (both sync services)**: `local_sync_service.py:33` `_jobs`
+  dict and `gdrive_sync_service.py:35` `_gdrive_jobs` dict are both module-level.
+  Job status is lost on server restart and not visible across workers.
 
 ### Other
 
 - No Alembic migrations — `database.py::migrate_schema()` is a hand-rolled
   auto-migration that can't handle renames, type changes, or rollbacks.
-- Hardcoded values: 10MB upload limit in `routers/upload.py:278` (ignores
-  `settings.max_upload_size_bytes`), 10,000-row export cap in
-  `routers/export.py:62`.
+- Hardcoded values: `routers/upload.py:298-300` has a second hardcoded 10MB check (`10 * 1024 * 1024`) in a different branch alongside the config-driven check at line 118.
+  10,000-row export cap in `routers/export.py:62`.
 
 ---
 
@@ -268,15 +269,15 @@ All deps appear current and reasonable. No critical issues.
 |---|------|--------|--------|
 | 1 | ~~Remove `credit_card_service.py` + `savings_service.py` (dead code)~~ | ✅ Done | — |
 | 2 | ~~Add `JWT_SECRET` to `docker-compose.yml`~~ | ✅ Done | — |
-| 3 | Add indexes on `unified_transactions.date`, `.type`, `.bank` | High | 30min |
-| 4 | Remove `|| true` from CI `backend.yml` | Medium | 5min |
+| 3 | ~~Add indexes on `unified_transactions.date`, `.type`, `.bank`~~ | ✅ Done | — |
+| 4 | ~~Remove `|| true` from CI `backend.yml`~~ | ✅ Done | — |
 | 5 | ~~Remove empty `schemas/common.py`~~ | ✅ Done | — |
-| 6 | ~~Extract duplicated `review_status` logic into shared helper~~ | ✅ Partially done (`utils/file_utils.py`) | — |
+| 6 | ~~Extract duplicated `review_status` logic into shared helper~~ | ✅ Done (`utils/file_utils.py:17`) | — |
 | 7 | Create `.dockerignore` files | Medium | 20min |
 | 8 | Pin all `>=` deps to exact versions | Low | 30min |
 | 9 | ~~Remove duplicate `bcrypt` and unnecessary `starlette` from `requirements.txt`; add `ruff` and `pytest-cov`~~ | ✅ Done | — |
-| 10 | Fix Flutter version pinning in CI `frontend.yml` (use `flutter-version` action input, not `git clone -b stable`) | Medium | 15min |
-| 11 | Add `asyncio.Lock()` around `_save_sync_state` in `gdrive_sync_service.py` | Medium | 10min |
+| 10 | ~~Fix Flutter version pinning in CI `frontend.yml`~~ | ✅ Done (uses `${{ env.FLUTTER_VERSION }}` now) | — |
+| 11 | Add async lock around state file writes in `gdrive_sync_service.py` (lines 588, 600) — in-memory jobs lock added but disk writes still unprotected | Medium | 15min |
 | 12 | Replace `SharedPreferences` JWT storage with `flutter_secure_storage` | High | 1h |
 | 13 | ~~Remove deprecated `version: "3.8"` from `docker-compose.yml`~~ | ✅ Done | — |
 | 14 | Migrate `getSavingsTransactions` / `getCreditCardTransactions` in `transaction_api.dart` to use the unified v2 endpoint | Medium | 30min |
@@ -287,14 +288,12 @@ All deps appear current and reasonable. No critical issues.
 
 ```
                     High Impact                  Low Impact
-Urgent       │  Add indexes                 │  Fix CI || true
-             │  Secure JWT storage (flutter) │  Create .dockerignore
+Urgent       │  Secure JWT storage (flutter) │  Add gdrive state file lock
+             │                              │  Create .dockerignore
 ─────────────┼───────────────────────────────┼────────────────────
 Important    │  Add tests (routers/services) │  Pin all deps
-             │  Fix N+1 in analytics         │  Remove empty files
-             │  Refactor 959-line parser     │  Extract shared helpers
-             │  Fix frontend Overlay login   │  Add pre-commit hooks
-             │  Add gdrive async state lock  │  Fix legacy API calls in flutter
+             │  Fix N+1 in analytics         │  Add pre-commit hooks
+             │  Fix frontend Overlay login   │  Fix legacy API calls in flutter
              │  Add global 401 interceptor   │
 ```
 

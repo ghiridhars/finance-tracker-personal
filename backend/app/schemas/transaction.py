@@ -32,6 +32,7 @@ class UnifiedTransactionSchema(BaseModel):
     transfer_group_id: Optional[str] = None
     transfer_type: Optional[TransferType] = None
     review_status: Optional[ReviewStatus] = None
+    review_reason: Optional[str] = None
     tags: list[TagSchema] = []
     created_at: Optional[datetime.datetime] = None
 
@@ -44,6 +45,19 @@ class TransactionUpdateSchema(BaseModel):
     merchant_name: Optional[str] = None
     notes: Optional[str] = None
     tag_ids: Optional[list[int]] = None
+    review_status: Optional[ReviewStatus] = None
+
+
+class BulkTransactionUpdateSchema(BaseModel):
+    """Schema for bulk updating transactions (e.g. from the review pane)."""
+    class UpdateItem(BaseModel):
+        id: int
+        category_id: Optional[int] = None
+        merchant_name: Optional[str] = None
+        notes: Optional[str] = None
+        review_status: Optional[ReviewStatus] = None
+
+    updates: list[UpdateItem]
 
 
 class TransactionQueryParams(BaseModel):

@@ -70,6 +70,7 @@ class UnifiedTransaction(Base):
     review_status: Mapped[Optional[str]] = mapped_column(
         String(20), default=ReviewStatus.AUTO_PARSED.value, nullable=True
     )
+    review_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(

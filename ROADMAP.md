@@ -406,7 +406,7 @@
 - [backend/app/services/upi_service.py](backend/app/services/upi_service.py) — UPI CRUD + rescan logic
 - [backend/app/models/upi.py](backend/app/models/upi.py) — `UpiId` SQLAlchemy model (`upi_ids` table)
 - [backend/app/schemas/upi.py](backend/app/schemas/upi.py) — UPI Pydantic DTOs (create, update, response)
-- [backend/app/parsers/patterns.py](backend/app/parsers/patterns.py) — Parser pattern utilities
+- [backend/app/parsing/patterns.py](backend/app/parsing/patterns.py) — Parser pattern utilities
 - [frontend/lib/models/upi_models.dart](frontend/lib/models/upi_models.dart) — UPI Dart models
 - [frontend/lib/providers/transfers_provider.dart](frontend/lib/providers/transfers_provider.dart) — Transfer state management
 - [frontend/lib/providers/upi_provider.dart](frontend/lib/providers/upi_provider.dart) — UPI state management
@@ -469,3 +469,27 @@
 - [backend/app/services/category_service.py](backend/app/services/category_service.py) — Added `seed_mcc_codes()` and `upgrade_keywords()` methods
 - [frontend/lib/router.dart](frontend/lib/router.dart) — Changed `/upload` to `/import` with legacy redirect
 
+---
+
+## Phase 12: UI Refactoring & Needs Review Pane — ✅ COMPLETED
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 12.1 | Needs Review API | ✅ Done | Added `POST /api/v2/transactions/bulk-update` to efficiently update multiple transactions at once. Enhanced `TransactionUpdateSchema` to support `review_status` modifications. |
+| 12.2 | Review Notification | ✅ Done | Added a bell icon badge in the AppShell that pulls `needsReviewCount` dynamically from the backend and prompts the user to resolve doubtful parsed transactions. |
+| 12.3 | Review Pane Screen | ✅ Done | Created a dedicated `/review` screen for batch processing doubtful transactions. Provides inline dropdowns for category assignment and text fields for merchant names, with a final "Submit Reviewed" bulk action. |
+| 12.4 | Glassmorphism Theme | ✅ Done | Applied Liquid Glass UI techniques to `theme.dart` (translucent surfaces, `BackdropFilter` blurs) to modernize the app's desktop experience. |
+| 12.5 | Review Reasons & Approvability | ✅ Done | Added `review_reason` (String) to `UnifiedTransaction` schema extracted from parse validation errors. Redesigned review UI with individual row approvals, fade animations, and inline notes editing. |
+
+**Files Created:**
+- [frontend/lib/screens/review_screen.dart](frontend/lib/screens/review_screen.dart) — Dedicated UI for reviewing doubtful transactions.
+
+**Files Modified:**
+- [backend/app/schemas/transaction.py](backend/app/schemas/transaction.py) — Added `review_status` to schemas.
+- [backend/app/services/transaction_service.py](backend/app/services/transaction_service.py) — Implemented `bulk_update()`.
+- [backend/app/routers/unified_transactions.py](backend/app/routers/unified_transactions.py) — Added bulk update endpoint.
+- [frontend/lib/services/api_service.dart](frontend/lib/services/api_service.dart) — Exported count and bulk update endpoints.
+- [frontend/lib/providers/transactions_provider.dart](frontend/lib/providers/transactions_provider.dart) — Added `NeedsReviewCountNotifier`.
+- [frontend/lib/screens/app_shell.dart](frontend/lib/screens/app_shell.dart) — Added `_NeedsReviewBadge`.
+- [frontend/lib/router.dart](frontend/lib/router.dart) — Registered `/review` route.
+- [frontend/lib/theme.dart](frontend/lib/theme.dart) — Implemented glassmorphic styling for cards and navigation bars.

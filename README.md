@@ -12,6 +12,8 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - 12-column responsive grid layout with per-tile resize, reorder, and visibility controls
 - Full-page spending calendar heatmap with per-bank color-coded breakdown and editable transaction categories
 - **Account-centric transactions** — Click any account to view its filtered transactions inline with editable categories
+- **Review Pane** — Dedicated screen to batch review and categorize doubtful transactions flagged during statement parsing, accessible via a notification badge
+- **Glassmorphic UI** — Modern, translucent design language tailored for desktop environments
 - **Transfer detection** — Auto-detect and manually link inter-account transfers and CC bill payments
 - **UPI ID management** — Map UPI handles to accounts/categories for auto-categorization and transfer flagging
 - Monthly budgets per category with progress tracking
@@ -106,19 +108,18 @@ finance-tracker-v2/
 │   │   ├── models/           # 15+ SQLAlchemy ORM models (6 enums)
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
-│   │   ├── services/         # Business logic layer (17 services)
+│   │   ├── services/         # Business logic layer (16 services)
 │   │   ├── routers/          # 18 API route modules (~122 endpoints)
 │   │   └── utils/            # Shared utilities (file_utils.py)
-│   ├── alembic/              # Database migrations
 │   └── requirements.txt
 ├── frontend/
 │   ├── lib/
 │   │   ├── main.dart         # App entry (MaterialApp.router)
-│   │   ├── router.dart       # GoRouter config (6 nav destinations)
+│   │   ├── router.dart       # GoRouter config (5 nav destinations)
 │   │   ├── theme.dart        # Light/dark theme
 │   │   ├── models/           # Dart data models
-│   │   ├── providers/        # Riverpod state management (14 providers)
-│   │   ├── screens/          # App shell, login, calendar, import, settings, database manager
+│   │   ├── providers/        # Riverpod state management (13+ providers)
+│   │   ├── screens/          # App shell, login, calendar, import, settings, database manager, review pane
 │   │   ├── services/         # API client + auth service + modular API layer
 │   │   └── widgets/          # Dashboard, accounts, UPI, charts/
 │   └── pubspec.yaml

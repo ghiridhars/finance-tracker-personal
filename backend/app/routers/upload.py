@@ -21,7 +21,7 @@ from app.parsing.diagnostics import annotate_parse_failure_message, extract_pars
 from app.parsers.parser_registry import get_registered_banks
 from app.services.account_resolution_service import AccountResolutionService
 from app.services.statement_audit_service import StatementAuditService
-from app.utils.file_utils import review_status_from_parser
+from app.utils.file_utils import review_status_from_parser, review_reason_from_result
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +178,7 @@ async def upload_statement_v2(
                 parser_used,
                 trusted=result.get("trusted"),
             )
+            review_reason = review_reason_from_result(result)
 
             # Resolve or create bank account
             account_number = _get_account_number(statement, statement_type)
@@ -201,6 +202,7 @@ async def upload_statement_v2(
                 parser_strategy=result.get("strategy"),
                 parse_trace=result.get("trace") if isinstance(result, dict) else None,
                 review_status=review_status,
+                review_reason=review_reason,
                 source="upload",
             )
 

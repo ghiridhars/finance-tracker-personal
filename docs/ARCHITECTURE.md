@@ -10,10 +10,10 @@ Visual architecture reference for the full-stack application.
 graph TB
     subgraph Client["Frontend — Flutter 3.x"]
         UI["Material Design 3 UI"]
-        Router["GoRouter<br/>(6 nav destinations)"]
-        Providers["Riverpod Providers<br/>(14 notifiers)"]
+        Router["GoRouter<br/>(5 nav destinations)"]
+        Providers["Riverpod Providers<br/>(12 notifiers)"]
         AuthSvc["Auth Service<br/>(JWT token mgmt)"]
-        ApiSvc["Modular API Layer<br/>(12 API modules)"]
+        ApiSvc["Modular API Layer<br/>(10 API modules)"]
 
         UI --> Router
         UI --> Providers
@@ -24,7 +24,7 @@ graph TB
     subgraph Server["Backend — FastAPI 0.115"]
         Auth["Auth Module<br/>(JWT + bcrypt)"]
         Routers["18 Router Modules<br/>(~122 endpoints)"]
-        Services["17 Service Classes<br/>(business logic)"]
+        Services["16 Service Classes<br/>(business logic)"]
         Parsers["Parser Registry<br/>(PDF/CSV/LLM)"]
         Models["SQLAlchemy Models<br/>(15+ tables, 6 enums)"]
 
@@ -444,7 +444,7 @@ graph TB
 
     subgraph Shell["App Shell"]
         AppShell["AppShell<br/>(responsive layout)"]
-        GoRouter["GoRouter<br/>(6 nav destinations)"]
+        GoRouter["GoRouter<br/>(5 nav destinations)"]
     end
 
     subgraph Screens["Screens & Widgets"]
@@ -452,7 +452,6 @@ graph TB
         Import["ImportScreen<br/>upload + local sync + Google Drive"]
         Calendar["CalendarScreen<br/>spending heatmap + editable transactions"]
         Accounts["AccountsWidget<br/>account cards + inline transaction list"]
-        Budget["BudgetGoalsWidget<br/>budgets + goals + reminders"]
         UpiMgmt["UpiManagementWidget<br/>UPI handle mappings"]
         Settings["SettingsScreen<br/>theme + currency + URL"]
         DbManager["DatabaseManagerScreen<br/>admin table browser"]
@@ -465,7 +464,6 @@ graph TB
         TxnProv["UnifiedTransactionsNotifier<br/>(filters, pagination)"]
         CatProv["CategoriesNotifier<br/>(categories + tags)"]
         AccProv["AccountsNotifier<br/>(accounts + statements)"]
-        BudProv["BudgetNotifier<br/>(budgets, goals, reminders)"]
         StmtProv["StatementsNotifier<br/>(upload state)"]
         XferProv["TransfersNotifier<br/>(transfer pairs)"]
         UpiProv["UpiNotifier<br/>(UPI mappings)"]
@@ -476,7 +474,7 @@ graph TB
 
     subgraph API["Modular API Layer"]
         ApiClient["api_client.dart"]
-        ApiModules["12 API modules<br/>(account, analytics, admin,<br/>budget, export, gdrive,<br/>local_sync, transaction,<br/>transfers, upload, upi)"]
+        ApiModules["10 API modules<br/>(account, analytics, admin,<br/>export, gdrive, local_sync,<br/>transaction, transfers,<br/>upload, upi)"]
     end
 
     Main --> AuthProv
@@ -497,7 +495,6 @@ graph TB
     Calendar --> CatProv
     Accounts --> AccProv
     Accounts --> TxnProv
-    Budget --> BudProv
     UpiMgmt --> UpiProv
     UpiMgmt --> CatProv
     Settings --> AppSettings

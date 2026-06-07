@@ -27,12 +27,17 @@ final ThemeData lightTheme = ThemeData(
     elevation: 0,
   ),
   cardTheme: CardThemeData(
-    elevation: 1,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    elevation: 0,
+    color: Colors.white.withOpacity(0.7),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: Colors.black.withOpacity(0.05)),
+    ),
   ),
   inputDecorationTheme: InputDecorationTheme(
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     filled: true,
+    fillColor: Colors.white.withOpacity(0.5),
   ),
   snackBarTheme: const SnackBarThemeData(
     behavior: SnackBarBehavior.floating,
@@ -43,11 +48,13 @@ final ThemeData lightTheme = ThemeData(
   navigationRailTheme: NavigationRailThemeData(
     labelType: NavigationRailLabelType.none,
     groupAlignment: -0.85,
+    backgroundColor: Colors.white.withOpacity(0.8),
     selectedIconTheme: const IconThemeData(size: 28, opacity: 1.0, color: Colors.indigo),
     unselectedIconTheme: const IconThemeData(size: 24, opacity: 0.6),
   ),
-  navigationBarTheme: const NavigationBarThemeData(
+  navigationBarTheme: NavigationBarThemeData(
     height: 65,
+    backgroundColor: Colors.white.withOpacity(0.8),
     labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
   ),
   pageTransitionsTheme: _pageTransitions,
@@ -66,12 +73,17 @@ final ThemeData darkTheme = ThemeData(
     elevation: 0,
   ),
   cardTheme: CardThemeData(
-    elevation: 1,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    elevation: 0,
+    color: Colors.black.withOpacity(0.4),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: Colors.white.withOpacity(0.1)),
+    ),
   ),
   inputDecorationTheme: InputDecorationTheme(
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     filled: true,
+    fillColor: Colors.black.withOpacity(0.3),
   ),
   snackBarTheme: const SnackBarThemeData(
     behavior: SnackBarBehavior.floating,
@@ -82,11 +94,13 @@ final ThemeData darkTheme = ThemeData(
   navigationRailTheme: NavigationRailThemeData(
     labelType: NavigationRailLabelType.none,
     groupAlignment: -0.85,
+    backgroundColor: const Color(0xFF1C1B1F).withOpacity(0.8),
     selectedIconTheme: IconThemeData(size: 28, opacity: 1.0, color: Colors.indigo.shade200),
     unselectedIconTheme: const IconThemeData(size: 24, opacity: 0.6),
   ),
-  navigationBarTheme: const NavigationBarThemeData(
+  navigationBarTheme: NavigationBarThemeData(
     height: 65,
+    backgroundColor: const Color(0xFF1C1B1F).withOpacity(0.8),
     labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
   ),
   pageTransitionsTheme: _pageTransitions,

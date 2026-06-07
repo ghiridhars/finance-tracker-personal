@@ -28,7 +28,7 @@ Complete technical specification: architecture, database schema, API details, an
 │        Flutter 3.x (Web / Windows Desktop)              │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐            │
 │  │ GoRouter  │  │ Riverpod │  │  Widgets   │            │
-│  │ (6 nav)   │  │ (State)  │  │ (Material 3)│           │
+│  │ (5 nav)   │  │ (State)  │  │ (Material 3)│           │
 │  └──────────┘  └──────────┘  └────────────┘            │
 │               ↕ HTTP (REST JSON)                        │
 ├─────────────────────────────────────────────────────────┤
@@ -65,13 +65,12 @@ Complete technical specification: architecture, database schema, API details, an
 | Framework | FastAPI | 0.115.0 |
 | ASGI Server | Uvicorn | 0.30.6 |
 | ORM | SQLAlchemy | 2.0.35 |
-| Migrations | Alembic | 1.13.1 |
+| Migrations | (hand-rolled `migrate_schema()`) | — |
 | Validation | Pydantic | 2.9.2 |
 | Settings | pydantic-settings | 2.5.2 |
 | PDF Parsing | pdfplumber | 0.11.4 |
 | LLM (Gemini) | google-genai | ≥1.0.0 |
 | LLM (Ollama) | ollama | ≥0.4.0 |
-| Logging | loguru | 0.7.2 |
 | Testing | pytest + httpx | 8.3.3 / 0.27.2 |
 
 ### Frontend
@@ -176,7 +175,6 @@ backend/
 │       ├── gdrive.py           # Google Drive OAuth (connect, browse, import)
 │       ├── admin.py            # Database admin panel (table CRUD)
 │       └── local_sync.py       # Local directory sync (scan, import, status)
-├── alembic/                    # Migration configs
 ├── data/                       # SQLite database files
 ├── requirements.txt
 └── Dockerfile
@@ -223,7 +221,7 @@ All settings are loaded from environment variables or `.env` file via `pydantic-
 ```
 frontend/lib/
 ├── main.dart                   # MaterialApp.router with ProviderScope
-├── router.dart                 # GoRouter: 6 nav destinations, ShellRoute, NavDestination
+├── router.dart                 # GoRouter: 5 nav destinations, ShellRoute, NavDestination
 ├── theme.dart                  # Light/dark ThemeData, page transitions
 ├── models/
 │   ├── credit_card_models.dart
@@ -233,7 +231,6 @@ frontend/lib/
 │   ├── category_models.dart
 │   ├── analytics_models.dart
 │   ├── account_models.dart
-│   ├── budget_models.dart
 │   ├── admin_models.dart
 │   ├── converters.dart
 │   └── upi_models.dart
@@ -245,7 +242,6 @@ frontend/lib/
 │   ├── dashboard_provider.dart         # Analytics state
 │   ├── dashboard_layout_provider.dart  # Customizable grid layout state (tile config, edit mode)
 │   ├── accounts_provider.dart          # Accounts + statements
-│   ├── budget_provider.dart            # Budgets, goals, reminders, recurring
 │   ├── transfers_provider.dart         # Transfer pair state
 │   ├── upi_provider.dart               # UPI ID state
 │   ├── gdrive_import_provider.dart    # Google Drive OAuth + import state
@@ -267,7 +263,6 @@ frontend/lib/
 │       ├── account_api.dart            # Account API methods
 │       ├── admin_api.dart              # Admin/database API
 │       ├── analytics_api.dart          # Analytics API methods
-│       ├── budget_api.dart             # Budget/goals/reminders API
 │       ├── export_api.dart             # Export/data API
 │       ├── gdrive_api.dart             # Google Drive OAuth API
 │       ├── local_sync_api.dart         # Local directory sync API
@@ -280,7 +275,6 @@ frontend/lib/
     ├── transaction_list_widget.dart     # Legacy savings/CC lists
     ├── unified_transaction_list_widget.dart  # Unified list with filters + editable categories
     ├── accounts_widget.dart            # Account cards → inline filtered transactions
-    ├── budget_goals_widget.dart        # Budgets, goals, reminders
     ├── upi_management_widget.dart      # UPI handle management UI
     ├── skeleton_widgets.dart           # Shimmer loading placeholders
     └── charts/                         # Extracted chart components
@@ -302,10 +296,9 @@ frontend/lib/
 | `/import` | ImportScreen | Import hub: file upload, local directory sync, Google Drive sync |
 | `/upload` | *(redirect)* | Legacy redirect to `/import` |
 | `/accounts` | AccountsWidget | Account cards → click to view filtered transactions inline |
-| `/budget` | BudgetGoalsWidget | Budgets, goals, reminders |
 | `/settings` | SettingsScreen | App preferences |
 
-> **Removed routes:** `/transactions`, `/savings`, `/credit-card` were removed from the navigation sidebar. Transactions are now accessed via Account cards or the Calendar popup. The `/transactions` route still exists internally for deep-linking.
+> **Removed routes:** `/transactions`, `/savings`, `/credit-card`, `/budget` were removed from the navigation sidebar. Transactions are now accessed via Account cards or the Calendar popup. Budgets/goals/reminders are managed via the admin panel.
 
 ### Responsive Breakpoints
 
@@ -497,9 +490,11 @@ Many-to-many: `tags` via `transaction_tags`
 
 | Column | Type | Nullable | Key | Notes |
 |--------|------|----------|-----|-------|
-| is_transfer | Boolean | **No** | | Default: false |
+| is_transfer | Boolean | No | | Default: false |
 | transfer_group_id | String(36) | Yes | IDX | UUID linking transfer pairs |
 | transfer_type | Enum(TransferType) | Yes | | INTERNAL_TRANSFER/CC_BILL_PAYMENT |
+| review_status | String(20) | Yes | | AUTO_PARSED/NEEDS_REVIEW/etc. |
+| review_reason | String(500) | Yes | | Reason why it needs review |
 
 #### categories
 
@@ -731,6 +726,7 @@ services:
     environment:
       DATABASE_URL: sqlite:///./data/finance_tracker.db
       CORS_ORIGINS: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:-CHANGE-ME-set-JWT_SECRET-env-var}
 
   frontend:
     build: ./frontend

@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models.enums import TransactionType, SourceType, ReviewStatus
 from app.services.transaction_service import UnifiedTransactionService
 from app.services.accounts_service import StatementManagementService
-from app.schemas.transaction import UnifiedTransactionSchema, TransactionUpdateSchema
+from app.schemas.transaction import UnifiedTransactionSchema, TransactionUpdateSchema, BulkTransactionUpdateSchema
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,8 @@ def update_transaction(
         kwargs["notes"] = data.notes
     if data.tag_ids is not None:
         kwargs["tag_ids"] = data.tag_ids
+    if data.review_status is not None:
+        kwargs["review_status"] = data.review_status
 
     tx = UnifiedTransactionService.update(db, transaction_id, **kwargs)
     if not tx:
@@ -177,4 +179,11 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
 def recategorize_all(db: Session = Depends(get_db)):
     """Re-run auto-categorization on all unified transactions (e.g. after adding keywords)."""
     count = UnifiedTransactionService.recategorize_all(db)
+    return {"updated": count}
+
+
+@router.post("/bulk-update")
+def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)):
+    """Bulk update transactions (e.g., from the needs review pane)."""
+    count = UnifiedTransactionService.bulk_update(db, data.updates)
     return {"updated": count}

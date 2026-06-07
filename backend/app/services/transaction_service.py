@@ -40,6 +40,7 @@ class UnifiedTransactionService:
         bank_account_id: int | None = None,
         account_identifier: str | None = None,
         review_status: str = ReviewStatus.AUTO_PARSED.value,
+        review_reason: str | None = None,
     ) -> list[UnifiedTransaction]:
         """
         Create unified transaction rows from a parsed statement DTO.
@@ -93,6 +94,7 @@ class UnifiedTransactionService:
                 reference_number=getattr(tx, "reference_number", None),
                 is_transfer=is_own_transfer,
                 review_status=review_status,
+                review_reason=review_reason,
             )
             db.add(unified)
             created.append(unified)
@@ -242,6 +244,7 @@ class UnifiedTransactionService:
         merchant_name: str | None = ...,
         notes: str | None = ...,
         tag_ids: list[int] | None = None,
+        review_status: ReviewStatus | None = ...,
     ) -> Optional[UnifiedTransaction]:
         """
         Update a unified transaction's metadata.
@@ -257,6 +260,8 @@ class UnifiedTransactionService:
             tx.merchant_name = merchant_name
         if notes is not ...:
             tx.notes = notes
+        if review_status is not ...:
+            tx.review_status = review_status.value if review_status else None
 
         if tag_ids is not None:
             # Replace tags
@@ -266,6 +271,36 @@ class UnifiedTransactionService:
         db.commit()
         db.refresh(tx)
         return tx
+
+    @staticmethod
+    def bulk_update(db: Session, updates: list) -> int:
+        """
+        Bulk update multiple transactions efficiently.
+        Expects a list of UpdateItem objects.
+        Returns the number of rows updated.
+        """
+        if not updates:
+            return 0
+            
+        updated_count = 0
+        for item in updates:
+            tx = db.query(UnifiedTransaction).filter(UnifiedTransaction.id == item.id).first()
+            if not tx:
+                continue
+                
+            if item.category_id is not None:
+                tx.category_id = item.category_id
+            if item.merchant_name is not None:
+                tx.merchant_name = item.merchant_name
+            if item.notes is not None:
+                tx.notes = item.notes
+            if item.review_status is not None:
+                tx.review_status = item.review_status.value
+            
+            updated_count += 1
+            
+        db.commit()
+        return updated_count
 
     @staticmethod
     def add_tag(db: Session, transaction_id: int, tag_id: int) -> Optional[UnifiedTransaction]:

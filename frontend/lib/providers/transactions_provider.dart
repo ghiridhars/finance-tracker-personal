@@ -429,3 +429,11 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
 final unifiedTransactionsProvider =
     NotifierProvider<UnifiedTransactionsNotifier, UnifiedTransactionsState>(
         UnifiedTransactionsNotifier.new);
+
+final needsReviewCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  try {
+    return await ApiService.countTransactions(reviewStatus: 'NEEDS_REVIEW');
+  } catch (e) {
+    return 0;
+  }
+});

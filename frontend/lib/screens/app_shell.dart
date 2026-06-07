@@ -48,7 +48,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
     try {
-      await Future.wait([
+      ref.invalidate(needsReviewCountProvider);
+      
+      await Future.wait<dynamic>([
         ref.read(dashboardProvider.notifier).loadDashboard(),
         ref.read(accountsProvider.notifier).loadAccounts(),
         ref.read(categoriesProvider.notifier).loadCategories(),
@@ -252,6 +254,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             title: Text(navDestinations[currentIdx].label),
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             actions: [
+              _NeedsReviewBadge(ref: ref),
               _RefreshButton(isRefreshing: _isRefreshing, onRefresh: _refreshAll),
               _ThemeToggleButton(settings: settings, ref: ref),
               const SizedBox(width: 8),
@@ -327,6 +330,7 @@ class _RailHeader extends StatelessWidget {
             ),
             const SizedBox(height: 4),
           ],
+          _NeedsReviewBadge(ref: ref),
           _ThemeToggleButton(settings: settings, ref: ref),
           _RefreshButton(isRefreshing: isRefreshing, onRefresh: onRefresh),
           const Divider(),
@@ -384,6 +388,34 @@ class _ThemeToggleButton extends StatelessWidget {
       icon: Icon(_icon(settings.themeMode)),
       tooltip: _tooltip(settings.themeMode),
       onPressed: () => ref.read(appSettingsProvider.notifier).toggleTheme(),
+    );
+  }
+}
+
+/// Needs review badge — navigates to review pane.
+class _NeedsReviewBadge extends StatelessWidget {
+  final WidgetRef ref;
+
+  const _NeedsReviewBadge({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final countAsync = ref.watch(needsReviewCountProvider);
+    
+    return countAsync.when(
+      data: (count) {
+        if (count == 0) return const SizedBox.shrink();
+        return IconButton(
+          icon: Badge(
+            label: Text(count.toString()),
+            child: const Icon(Icons.notifications),
+          ),
+          tooltip: '$count transactions need review',
+          onPressed: () => context.go('/review'),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

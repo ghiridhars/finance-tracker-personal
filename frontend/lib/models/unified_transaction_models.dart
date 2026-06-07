@@ -22,6 +22,7 @@ class UnifiedTransaction {
   final String? transferGroupId;
   final String? transferType;
   final String? reviewStatus;
+  final String? reviewReason;
   final List<Tag> tags;
   final String? createdAt;
 
@@ -44,6 +45,7 @@ class UnifiedTransaction {
     this.transferGroupId,
     this.transferType,
     this.reviewStatus,
+    this.reviewReason,
     this.tags = const [],
     this.createdAt,
   });
@@ -72,6 +74,7 @@ class UnifiedTransaction {
       transferGroupId: json['transfer_group_id'],
       transferType: json['transfer_type'],
       reviewStatus: json['review_status'],
+      reviewReason: json['review_reason'],
       tags: (json['tags'] as List<dynamic>?)
               ?.map((t) => Tag.fromJson(t))
               .toList() ??

@@ -27,6 +27,54 @@ def review_status_from_parser(
     return ReviewStatus.AUTO_PARSED.value
 
 
+def review_reason_from_result(result: dict | None) -> str | None:
+    """Extract a human-readable review reason from a parse result dict."""
+    if result is None or not isinstance(result, dict):
+        return None
+    
+    # Check review_fallback first (most descriptive)
+    review_fallback = result.get("review_fallback")
+    if review_fallback and isinstance(review_fallback, dict):
+        return review_fallback.get("message")
+    
+    # Check validation summary
+    validation = result.get("validation")
+    if validation and isinstance(validation, dict):
+        checks = validation.get("checks", [])
+        failed = [c for c in checks if c.get("status") == "failed"]
+        if failed:
+            messages = [c.get("message", c.get("name", "Unknown issue")) for c in failed]
+            return "; ".join(messages)
+    
+    # Fallback: parser type
+    parser = result.get("parser", "")
+    if "llm" in parser.lower():
+        return "Parsed using LLM fallback (lower confidence)"
+    
+    return None
+
+    # Check review_fallback first (most descriptive)
+    review_fallback = result.get("review_fallback")
+    if review_fallback and isinstance(review_fallback, dict):
+        return review_fallback.get("message")
+
+    # Check validation summary
+    validation = result.get("validation")
+    if validation and isinstance(validation, dict):
+        checks = validation.get("checks", [])
+        failed = [c for c in checks if c.get("status") == "failed"]
+        if failed:
+            messages = [c.get("message", c.get("name", "Unknown issue")) for c in failed]
+            return "; ".join(messages)
+
+    # Fallback: parser type
+    parser = result.get("parser", "")
+    if "llm" in parser.lower():
+        return "Parsed using LLM fallback (lower confidence)"
+
+    return None
+
+
 def infer_file_type(filename: str, relative_path: str = "") -> tuple[str, str]:
     """
     Infer bank and statement type from filename and path conventions.

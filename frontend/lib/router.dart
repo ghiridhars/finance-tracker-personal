@@ -5,7 +5,6 @@
 ///   /                    → Dashboard
 ///   /import              → Import Data (upload + directory)
 ///   /accounts            → Accounts & Statements
-///   /budget              → Budget & Goals
 ///   /settings            → Settings
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +14,7 @@ import 'widgets/dashboard_widget.dart';
 import 'screens/import_screen.dart';
 import 'widgets/accounts_widget.dart';
 import 'screens/settings_screen.dart';
+import 'screens/review_screen.dart';
 
 /// Route path constants for type-safe navigation.
 class AppRoutes {
@@ -24,6 +24,7 @@ class AppRoutes {
   static const import_ = '/import';
   static const accounts = '/accounts';
   static const settings = '/settings';
+  static const review = '/review';
 }
 
 /// Navigation destination metadata used by both the shell and router.
@@ -115,6 +116,12 @@ final GoRouter router = GoRouter(
           path: AppRoutes.settings,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: SettingsScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.review,
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: ReviewScreen(),
           ),
         ),
       ],

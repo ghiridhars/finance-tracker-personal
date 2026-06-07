@@ -116,6 +116,10 @@ class ApiService {
   static Future<int> recategorizeAll() => TransactionApi.recategorizeAll();
   static Future<void> deleteTransaction(int transactionId) =>
       TransactionApi.deleteTransaction(transactionId);
+  static Future<int> bulkUpdateTransactions(List<Map<String, dynamic>> updates) =>
+      TransactionApi.bulkUpdateTransactions(updates);
+  static Future<int> countTransactions({String? reviewStatus}) =>
+      TransactionApi.countTransactions(reviewStatus: reviewStatus);
 
   // ── V2 Analytics ──────────────────────────────────────────
 

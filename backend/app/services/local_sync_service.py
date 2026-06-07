@@ -19,7 +19,7 @@ from typing import Optional
 from app.config import settings
 from app.parsers.base_parser import ParseException
 from app.parsing.diagnostics import annotate_parse_failure_message, extract_parse_failure
-from app.utils.file_utils import infer_file_type, is_csv_file, is_supported_file, review_status_from_parser
+from app.utils.file_utils import infer_file_type, is_csv_file, is_supported_file, review_status_from_parser, review_reason_from_result
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +427,7 @@ async def scan_and_import(
                     parser_used,
                     trusted=result.get("trusted") if isinstance(result, dict) else None,
                 )
+                review_reason = review_reason_from_result(result)
 
                 # Resolve or create bank account
                 if statement_type == StatementType.CREDIT_CARD:
@@ -457,6 +458,7 @@ async def scan_and_import(
                     parser_strategy=strategy,
                     parse_trace=result.get("trace") if isinstance(result, dict) else None,
                     review_status=review_status,
+                    review_reason=review_reason,
                     source="local_sync",
                 )
 

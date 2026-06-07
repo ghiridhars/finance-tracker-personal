@@ -122,6 +122,7 @@ class StatementAuditService:
         parser_strategy: str | None = None,
         parse_trace: dict | str | None = None,
         review_status: str = "AUTO_PARSED",
+        review_reason: str | None = None,
         source: str = "upload",
     ) -> StatementAudit:
         """
@@ -226,6 +227,7 @@ class StatementAuditService:
                 else getattr(dto, "account_number", None)
             ),
             review_status=review_status,
+            review_reason=review_reason,
         )
 
         db.commit()
