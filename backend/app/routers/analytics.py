@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.analytics_service import AnalyticsService
+from app.schemas.analytics import InvestmentAnalyticsResponse
 
 router = APIRouter(prefix="/api/v2/analytics", tags=["Analytics"])
 
@@ -116,3 +117,11 @@ def spending_by_bank(
     return AnalyticsService.spending_by_bank(
         db, from_date=from_date, to_date=to_date
     )
+
+
+@router.get("/investments", response_model=InvestmentAnalyticsResponse)
+def get_investments(db: Session = Depends(get_db)):
+    """
+    Investment analytics.
+    """
+    return AnalyticsService.get_investment_analytics(db)

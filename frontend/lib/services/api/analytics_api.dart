@@ -117,4 +117,13 @@ class AnalyticsApi {
     final to = '$year-${month.toString().padLeft(2, '0')}-${lastDay.toString().padLeft(2, '0')}';
     return getSpendingTrends(from: from, to: to, granularity: 'daily');
   }
+  /// Investment analytics
+  static Future<InvestmentAnalytics> getInvestmentAnalytics() async {
+    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/analytics/investments');
+    final response = await http.get(uri, headers: ApiClient.headers);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch investments: ${response.body}');
+    }
+    return InvestmentAnalytics.fromJson(jsonDecode(response.body));
+  }
 }

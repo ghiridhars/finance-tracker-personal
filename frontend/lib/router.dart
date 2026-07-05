@@ -15,6 +15,7 @@ import 'screens/import_screen.dart';
 import 'widgets/accounts_widget.dart';
 import 'screens/settings_screen.dart';
 import 'screens/review_screen.dart';
+import 'screens/investments_screen.dart';
 
 /// Route path constants for type-safe navigation.
 class AppRoutes {
@@ -25,6 +26,7 @@ class AppRoutes {
   static const accounts = '/accounts';
   static const settings = '/settings';
   static const review = '/review';
+  static const investments = '/investments';
 }
 
 /// Navigation destination metadata used by both the shell and router.
@@ -55,6 +57,12 @@ const List<NavDestination> navDestinations = [
     icon: Icons.calendar_month_outlined,
     selectedIcon: Icons.calendar_month,
     path: AppRoutes.calendar,
+  ),
+  NavDestination(
+    label: 'Investments',
+    icon: Icons.stacked_line_chart_outlined,
+    selectedIcon: Icons.stacked_line_chart,
+    path: AppRoutes.investments,
   ),
   NavDestination(
     label: 'Import',
@@ -95,10 +103,17 @@ final GoRouter router = GoRouter(
             child: CalendarScreen(),
           ),
         ),
+
         GoRoute(
           path: AppRoutes.import_,
           pageBuilder: (context, state) => const NoTransitionPage(
             child: ImportScreen(),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.investments,
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: InvestmentsScreen(),
           ),
         ),
         // Legacy redirect: /upload → /import

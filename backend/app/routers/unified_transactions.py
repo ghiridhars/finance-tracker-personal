@@ -11,9 +11,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.enums import TransactionType, SourceType, ReviewStatus
+from app.models.transaction import UnifiedTransaction
 from app.services.transaction_service import UnifiedTransactionService
 from app.services.accounts_service import StatementManagementService
-from app.schemas.transaction import UnifiedTransactionSchema, TransactionUpdateSchema, BulkTransactionUpdateSchema
+from app.schemas.transaction import (
+    UnifiedTransactionSchema,
+    TransactionUpdateSchema,
+    BulkTransactionUpdateSchema,
+    BulkUpdateResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -182,8 +188,58 @@ def recategorize_all(db: Session = Depends(get_db)):
     return {"updated": count}
 
 
-@router.post("/bulk-update")
+@router.post("/bulk-update", response_model=BulkUpdateResponse)
 def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)):
-    """Bulk update transactions (e.g., from the needs review pane)."""
+    """
+    Bulk update transactions from the review pane.
+
+    Tier 1 — Self-improving: for every item where the category changed, the
+    UPI handle extracted from the description is persisted as a learned mapping
+    so future statements auto-categorise without triggering a review.
+
+    Tier 3 — Auto-propagation: after learning, any other NEEDS_REVIEW
+    transactions sharing the same UPI handles are resolved automatically,
+    reducing the remaining review queue without additional user action.
+    """
+    from app.services.categorization_service import learn_from_categorization, extract_upi_id
+
+    # Pre-fetch descriptions as plain strings before the bulk commit so we
+    # can drive the learning step regardless of SQLAlchemy session expiry.
+    ids = [item.id for item in data.updates]
+    desc_map: dict[int, str | None] = {}
+    if ids:
+        rows = (
+            db.query(UnifiedTransaction.id, UnifiedTransaction.description)
+            .filter(UnifiedTransaction.id.in_(ids))
+            .all()
+        )
+        desc_map = {row.id: row.description for row in rows}
+
+    # Perform the actual bulk update (commits inside).
     count = UnifiedTransactionService.bulk_update(db, data.updates)
-    return {"updated": count}
+
+    # ── Tier 1: learn UPI handle → category from each correction ──────────
+    learned_mappings: list[dict] = []
+    for item in data.updates:
+        if item.category_id is None:
+            continue
+        description = desc_map.get(item.id)
+        if not description:
+            continue
+        learn_from_categorization(db, description, item.category_id)
+        handle = extract_upi_id(description)
+        if handle:
+            learned_mappings.append({"handle": handle, "category_id": item.category_id})
+
+    if learned_mappings:
+        logger.info(
+            f"Learned {len(learned_mappings)} UPI mapping(s) from bulk review approval"
+        )
+
+    # ── Tier 3: auto-resolve other NEEDS_REVIEW txns with same handles ────
+    exclude_ids = set(ids)
+    auto_resolved = UnifiedTransactionService.auto_resolve_similar(
+        db, learned_mappings, exclude_ids
+    )
+
+    return BulkUpdateResponse(updated=count, auto_resolved=auto_resolved)

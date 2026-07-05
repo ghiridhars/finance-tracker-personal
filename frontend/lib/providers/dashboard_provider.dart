@@ -53,6 +53,7 @@ class DashboardState {
   final List<IncomeVsExpense> incomeVsExpense;
   final MonthOverMonth? monthOverMonth;
   final List<MerchantSpending> topMerchants;
+  final InvestmentAnalytics? investmentAnalytics;
   final List<SpendingTrend> calendarData;
   final DateTime calendarMonth;
 
@@ -66,6 +67,7 @@ class DashboardState {
     this.incomeVsExpense = const [],
     this.monthOverMonth,
     this.topMerchants = const [],
+    this.investmentAnalytics,
     this.calendarData = const [],
     DateTime? calendarMonth,
   }) : calendarMonth = calendarMonth ?? DateTime.now();
@@ -80,6 +82,7 @@ class DashboardState {
     List<IncomeVsExpense>? incomeVsExpense,
     MonthOverMonth? monthOverMonth,
     List<MerchantSpending>? topMerchants,
+    InvestmentAnalytics? investmentAnalytics,
     List<SpendingTrend>? calendarData,
     DateTime? calendarMonth,
   }) {
@@ -93,6 +96,7 @@ class DashboardState {
       incomeVsExpense: incomeVsExpense ?? this.incomeVsExpense,
       monthOverMonth: monthOverMonth ?? this.monthOverMonth,
       topMerchants: topMerchants ?? this.topMerchants,
+      investmentAnalytics: investmentAnalytics ?? this.investmentAnalytics,
       calendarData: calendarData ?? this.calendarData,
       calendarMonth: calendarMonth ?? this.calendarMonth,
     );
@@ -141,6 +145,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
         ApiService.getIncomeVsExpense(from: from, to: to),
         ApiService.getMonthOverMonth(),
         ApiService.getTopMerchants(from: from, to: to),
+        ApiService.getInvestmentAnalytics(),
       ]);
 
       state = state.copyWith(
@@ -151,6 +156,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
         incomeVsExpense: results[3] as List<IncomeVsExpense>,
         monthOverMonth: results[4] as MonthOverMonth,
         topMerchants: results[5] as List<MerchantSpending>,
+        investmentAnalytics: results[6] as InvestmentAnalytics,
       );
 
       // Also load calendar data for current calendar month

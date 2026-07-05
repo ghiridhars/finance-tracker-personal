@@ -523,6 +523,13 @@ class _UnifiedTransactionListWidgetState
 
     if (!context.mounted) return;
 
+    if (categories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No categories available to select. Please create some in settings.')),
+      );
+      return;
+    }
+
     final selected = await showDialog<int?>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -588,7 +595,10 @@ class _TransactionTile extends ConsumerWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
+        onTap: onCategoryTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         dense: true,
         leading: _sourceIcon(transaction.sourceType),
         title: Text(

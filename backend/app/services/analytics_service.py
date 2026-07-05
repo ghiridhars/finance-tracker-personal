@@ -516,3 +516,96 @@ class AnalyticsService:
             }
             for r in rows
         ]
+
+    # ── Investment Analytics ─────────────────────────────────
+
+    @staticmethod
+    def get_investment_analytics(db: Session) -> dict:
+        """
+        Investment analytics.
+        """
+        # Filter conditions
+        base_query = (
+            db.query(UnifiedTransaction)
+            .join(Category, UnifiedTransaction.category_id == Category.id)
+            .filter(
+                UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
+                Category.name.in_(["Investment", "Insurance"])
+            )
+        )
+
+        total_invested = (
+            base_query.with_entities(func.coalesce(func.sum(UnifiedTransaction.amount), 0))
+            .scalar()
+        )
+        total_invested = float(total_invested)
+
+        # Rules
+        from app.models.investment_rule import InvestmentRule
+        rules = db.query(InvestmentRule).all()
+
+        txs = base_query.all()
+        from collections import defaultdict
+        platform_totals = defaultdict(float)
+        asset_totals = defaultdict(float)
+
+        for tx in txs:
+            raw_string = tx.merchant_name or tx.description or 'Unknown'
+            resolved_platform = raw_string
+            resolved_asset_class = 'Uncategorized'
+            
+            raw_string_lower = raw_string.lower()
+            for rule in rules:
+                if rule.keywords:
+                    keywords = [k.strip().lower() for k in rule.keywords.split(',')]
+                    if any(k and k in raw_string_lower for k in keywords):
+                        resolved_platform = rule.platform_name
+                        resolved_asset_class = rule.asset_class
+                        break
+            
+            platform_totals[resolved_platform] += float(tx.amount)
+            asset_totals[resolved_asset_class] += float(tx.amount)
+
+        platforms = []
+        for p, amt in sorted(platform_totals.items(), key=lambda x: x[1], reverse=True):
+            platforms.append({
+                "platform": p,
+                "total_invested": amt,
+                "percentage": round(amt / total_invested * 100, 1) if total_invested > 0 else 0
+            })
+
+        asset_classes = []
+        for a, amt in sorted(asset_totals.items(), key=lambda x: x[1], reverse=True):
+            asset_classes.append({
+                "asset_class": a,
+                "total_invested": amt,
+                "percentage": round(amt / total_invested * 100, 1) if total_invested > 0 else 0
+            })
+
+        # Trends
+        period_expr = func.strftime("%Y-%m", UnifiedTransaction.date)
+        trend_rows = (
+            base_query.with_entities(
+                period_expr.label("period"),
+                func.sum(UnifiedTransaction.amount).label("amount")
+            )
+            .group_by(period_expr)
+            .order_by(period_expr)
+            .all()
+        )
+
+        trends = []
+        for r in trend_rows:
+            trends.append({
+                "period": r.period,
+                "amount": float(r.amount)
+            })
+
+        return {
+            "total_invested": total_invested,
+            "platforms": platforms,
+            "asset_classes": asset_classes,
+            "trends": trends
+        }
+

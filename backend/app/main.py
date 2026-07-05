@@ -36,6 +36,7 @@ from app.routers import (
     upi_router,
     admin_router,
     local_sync_router,
+    investment_rules_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -182,6 +183,7 @@ for protected_router in [
     upi_router,
     admin_router,
     local_sync_router,
+    investment_rules_router,
 ]:
     # Inject auth dependency into every route of each protected router
     protected_router.dependencies.append(Depends(get_current_user))

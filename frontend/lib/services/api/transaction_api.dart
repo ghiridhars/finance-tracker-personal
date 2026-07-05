@@ -1,10 +1,22 @@
-/// Transaction-related API calls.
+// Transaction-related API calls.
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/savings_models.dart';
 import '../../models/credit_card_models.dart';
 import '../../models/unified_transaction_models.dart';
 import 'api_client.dart';
+
+/// Result returned by [TransactionApi.bulkUpdateTransactions].
+class BulkUpdateResult {
+  /// Number of transactions directly updated by the caller's payload.
+  final int updated;
+
+  /// Number of additional NEEDS_REVIEW transactions auto-resolved because
+  /// they shared a UPI handle learned from this batch of corrections.
+  final int autoResolved;
+
+  const BulkUpdateResult({required this.updated, required this.autoResolved});
+}
 
 class TransactionApi {
   /// Get savings transactions (default: last 30 days).
@@ -147,7 +159,9 @@ class TransactionApi {
   }
 
   /// Bulk update transactions.
-  static Future<int> bulkUpdateTransactions(List<Map<String, dynamic>> updates) async {
+  /// Returns a [BulkUpdateResult] with both the direct update count and the
+  /// number of additional transactions auto-resolved via UPI handle learning.
+  static Future<BulkUpdateResult> bulkUpdateTransactions(List<Map<String, dynamic>> updates) async {
     final response = await http.post(
       Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/bulk-update'),
       headers: ApiClient.jsonHeaders,
@@ -159,7 +173,10 @@ class TransactionApi {
       throw Exception('Failed to bulk update transactions: $detail');
     }
     final data = jsonDecode(response.body);
-    return data['updated'] as int;
+    return BulkUpdateResult(
+      updated: data['updated'] as int,
+      autoResolved: (data['auto_resolved'] ?? 0) as int,
+    );
   }
 
   /// Count transactions.

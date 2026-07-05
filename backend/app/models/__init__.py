@@ -6,6 +6,7 @@ from app.models.transaction import UnifiedTransaction
 from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransaction
 from app.models.upi import UpiId
 from app.models.statement_audit import StatementAudit
+from app.models.investment_rule import InvestmentRule
 
 __all__ = [
     "TransactionType",
@@ -25,4 +26,5 @@ __all__ = [
     "RecurringTransaction",
     "UpiId",
     "StatementAudit",
+    "InvestmentRule",
 ]

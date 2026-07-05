@@ -303,6 +303,55 @@ class UnifiedTransactionService:
         return updated_count
 
     @staticmethod
+    def auto_resolve_similar(
+        db: Session,
+        learned_mappings: list[dict],
+        exclude_ids: set[int],
+    ) -> int:
+        """
+        After review approvals teach UPI mappings, scan remaining NEEDS_REVIEW
+        transactions for the same UPI handles and auto-resolve them.
+
+        Only updates category_id and review_status — merchant_name is left
+        as-is to preserve the parser-normalised value already on the record.
+
+        Returns the count of auto-resolved transactions.
+        """
+        if not learned_mappings:
+            return 0
+
+        resolved = 0
+        for mapping in learned_mappings:
+            handle = mapping.get("handle")
+            category_id = mapping.get("category_id")
+            if not handle or category_id is None:
+                continue
+
+            pending = (
+                db.query(UnifiedTransaction)
+                .filter(
+                    UnifiedTransaction.review_status == ReviewStatus.NEEDS_REVIEW.value,
+                    UnifiedTransaction.description.ilike(f"%{handle}%"),
+                )
+                .all()
+            )
+            for tx in pending:
+                if tx.id in exclude_ids:
+                    continue
+                tx.category_id = category_id
+                tx.review_status = ReviewStatus.REVIEWED.value
+                resolved += 1
+
+        if resolved:
+            db.commit()
+            logger.info(
+                f"Auto-resolved {resolved} similar NEEDS_REVIEW transaction(s) "
+                "after review approval"
+            )
+
+        return resolved
+
+    @staticmethod
     def add_tag(db: Session, transaction_id: int, tag_id: int) -> Optional[UnifiedTransaction]:
         tx = db.query(UnifiedTransaction).filter(UnifiedTransaction.id == transaction_id).first()
         tag = db.query(Tag).filter(Tag.id == tag_id).first()

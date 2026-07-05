@@ -1,9 +1,13 @@
 /// API service facade — backward-compatible wrapper.
 ///
 /// This file delegates all calls to domain-specific API modules in api/.
+library;
+
+import "api/investment_rule_api.dart";
+import "../models/investment_rule.dart";
+
 /// Existing imports of 'api_service.dart' continue to work without changes.
 /// New code should import from api/ directly.
-library;
 
 // Re-export all domain API modules for barrel-file compatibility
 export 'api/api_client.dart';
@@ -116,7 +120,7 @@ class ApiService {
   static Future<int> recategorizeAll() => TransactionApi.recategorizeAll();
   static Future<void> deleteTransaction(int transactionId) =>
       TransactionApi.deleteTransaction(transactionId);
-  static Future<int> bulkUpdateTransactions(List<Map<String, dynamic>> updates) =>
+  static Future<BulkUpdateResult> bulkUpdateTransactions(List<Map<String, dynamic>> updates) =>
       TransactionApi.bulkUpdateTransactions(updates);
   static Future<int> countTransactions({String? reviewStatus}) =>
       TransactionApi.countTransactions(reviewStatus: reviewStatus);
@@ -125,6 +129,8 @@ class ApiService {
 
   static Future<DashboardSummary> getDashboardSummary({String? from, String? to}) =>
       AnalyticsApi.getDashboardSummary(from: from, to: to);
+  static Future<InvestmentAnalytics> getInvestmentAnalytics() =>
+      AnalyticsApi.getInvestmentAnalytics();
   static Future<List<CategorySpending>> getSpendingByCategory({String? from, String? to}) =>
       AnalyticsApi.getSpendingByCategory(from: from, to: to);
   static Future<List<SpendingTrend>> getSpendingTrends({
@@ -243,4 +249,19 @@ class ApiService {
       LocalSyncApi.getScanStatus(jobId);
   static Future<Map<String, dynamic>> resetLocalSyncState({List<String>? filepaths}) =>
       LocalSyncApi.resetState(filepaths: filepaths);
+
+
+  // ── Investment Rules ──────────────────────────────────────
+
+  static Future<List<InvestmentRule>> getInvestmentRules() =>
+      InvestmentRuleApi.getInvestmentRules();
+
+  static Future<InvestmentRule> createInvestmentRule(String platformName, String assetClass, String keywords) =>
+      InvestmentRuleApi.createInvestmentRule(platformName, assetClass, keywords);
+
+  static Future<InvestmentRule> updateInvestmentRule(int id, {String? platformName, String? assetClass, String? keywords}) =>
+      InvestmentRuleApi.updateInvestmentRule(id, platformName: platformName, assetClass: assetClass, keywords: keywords);
+
+  static Future<void> deleteInvestmentRule(int id) =>
+      InvestmentRuleApi.deleteInvestmentRule(id);
 }

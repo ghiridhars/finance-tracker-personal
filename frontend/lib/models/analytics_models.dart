@@ -224,3 +224,92 @@ class MerchantSpending {
     );
   }
 }
+
+class InvestmentPlatform {
+  final String platform;
+  final double totalInvested;
+  final double percentage;
+
+  InvestmentPlatform({
+    required this.platform,
+    required this.totalInvested,
+    required this.percentage,
+  });
+
+  factory InvestmentPlatform.fromJson(Map<String, dynamic> json) {
+    return InvestmentPlatform(
+      platform: json['platform'] ?? 'Unknown',
+      totalInvested: toDouble(json['total_invested']) ?? 0,
+      percentage: toDouble(json['percentage']) ?? 0,
+    );
+  }
+}
+
+class InvestmentAsset {
+  final String assetClass;
+  final double totalInvested;
+  final double percentage;
+
+  InvestmentAsset({
+    required this.assetClass,
+    required this.totalInvested,
+    required this.percentage,
+  });
+
+  factory InvestmentAsset.fromJson(Map<String, dynamic> json) {
+    return InvestmentAsset(
+      assetClass: json['asset_class'] ?? 'Unknown',
+      totalInvested: toDouble(json['total_invested']) ?? 0,
+      percentage: toDouble(json['percentage']) ?? 0,
+    );
+  }
+}
+
+class InvestmentTrend {
+  final String period;
+  final double amount;
+
+  InvestmentTrend({
+    required this.period,
+    required this.amount,
+  });
+
+  factory InvestmentTrend.fromJson(Map<String, dynamic> json) {
+    return InvestmentTrend(
+      period: json['period'] ?? '',
+      amount: toDouble(json['amount']) ?? 0,
+    );
+  }
+}
+
+class InvestmentAnalytics {
+  final double totalInvested;
+  final List<InvestmentPlatform> platforms;
+  final List<InvestmentAsset> assetClasses;
+  final List<InvestmentTrend> trends;
+
+  InvestmentAnalytics({
+    required this.totalInvested,
+    this.platforms = const [],
+    this.assetClasses = const [],
+    this.trends = const [],
+  });
+
+  factory InvestmentAnalytics.fromJson(Map<String, dynamic> json) {
+    return InvestmentAnalytics(
+      totalInvested: toDouble(json['total_invested']) ?? 0,
+      platforms: (json['platforms'] as List<dynamic>?)
+              ?.map((e) => InvestmentPlatform.fromJson(e))
+              .toList() ??
+          [],
+      assetClasses: (json['asset_classes'] as List<dynamic>?)
+              ?.map((e) => InvestmentAsset.fromJson(e))
+              .toList() ??
+          [],
+      trends: (json['trends'] as List<dynamic>?)
+              ?.map((e) => InvestmentTrend.fromJson(e))
+              .toList() ??
+          [],
+    );
+  }
+}

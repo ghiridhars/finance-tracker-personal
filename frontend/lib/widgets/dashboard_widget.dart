@@ -15,6 +15,7 @@ import 'charts/category_pie_chart.dart';
 import 'charts/income_expense_chart.dart';
 import 'charts/month_over_month_card.dart';
 import 'charts/top_merchants_card.dart';
+import 'charts/investment_portfolio_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -27,10 +28,12 @@ class DashboardScreen extends ConsumerWidget {
         DashboardTileId.incomeExpense => dash.incomeVsExpense.isNotEmpty,
         DashboardTileId.monthOverMonth => dash.monthOverMonth != null,
         DashboardTileId.topMerchants => dash.topMerchants.isNotEmpty,
+        DashboardTileId.investments => dash.investmentAnalytics != null &&
+            dash.investmentAnalytics!.totalInvested > 0,
       };
 
   /// Build the raw content widget for a tile.
-  Widget _buildTile(DashboardTileId id, DashboardState dash, WidgetRef ref) {
+  Widget _buildTile(DashboardTileId id, DashboardState dash, WidgetRef ref, BuildContext context) {
     return switch (id) {
       DashboardTileId.summary => SummaryCards(summary: dash.summary!),
       DashboardTileId.trends =>
@@ -43,6 +46,10 @@ class DashboardScreen extends ConsumerWidget {
           MonthOverMonthCard(data: dash.monthOverMonth!),
       DashboardTileId.topMerchants =>
           TopMerchantsCard(data: dash.topMerchants),
+      DashboardTileId.investments => InvestmentPortfolioCard(
+          data: dash.investmentAnalytics!,
+          isDark: Theme.of(context).brightness == Brightness.dark,
+        ),
     };
   }
 
@@ -54,6 +61,7 @@ class DashboardScreen extends ConsumerWidget {
     DashboardTileId.incomeExpense: ('Income vs Expense', Icons.bar_chart),
     DashboardTileId.monthOverMonth: ('Month-over-Month', Icons.compare_arrows),
     DashboardTileId.topMerchants: ('Top Merchants', Icons.storefront),
+    DashboardTileId.investments: ('Investment Portfolio', Icons.stacked_line_chart),
   };
 
   @override
@@ -306,7 +314,13 @@ class DashboardScreen extends ConsumerWidget {
 
     Widget content;
     if (hasData) {
-      content = _buildTile(tile.id, dash, ref);
+      try {
+        content = _buildTile(tile.id, dash, ref, context);
+      } catch (e) {
+        content = Center(
+          child: Text('Error rendering tile: $e'),
+        );
+      }
     } else {
       content = Center(
         child: Text(

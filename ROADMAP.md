@@ -493,3 +493,50 @@
 - [frontend/lib/screens/app_shell.dart](frontend/lib/screens/app_shell.dart) — Added `_NeedsReviewBadge`.
 - [frontend/lib/router.dart](frontend/lib/router.dart) — Registered `/review` route.
 - [frontend/lib/theme.dart](frontend/lib/theme.dart) — Implemented glassmorphic styling for cards and navigation bars.
+
+---
+
+## Phase 13: Dashboard Investment Analytics — ✅ COMPLETED
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 13.1 | Investment Backend API | ✅ Done | Added `GET /api/v2/analytics/investments` endpoint that parses outbound `DEBIT` transactions tagged with `Investment` or `Insurance` categories. Groups these by `merchant_name` to calculate total capital invested and platform allocations. |
+| 13.2 | Dashboard Widget Integration | ✅ Done | Integrated a new glassmorphic `InvestmentPortfolioCard` into the `DashboardScreen`. Features a pie chart for capital allocation and real-time total net-invested calculation. |
+| 13.3 | Dynamic Layout Persistence | ✅ Done | Added `DashboardTileId.investments` to the dynamic `dashboardLayoutProvider` so users can move, resize, and hide their investment portfolio widget. |
+
+**Files Created:**
+- [frontend/lib/widgets/charts/investment_portfolio_card.dart](frontend/lib/widgets/charts/investment_portfolio_card.dart) — Pie chart widget for investments.
+
+**Files Modified:**
+- [backend/app/schemas/analytics.py](backend/app/schemas/analytics.py) — Added `InvestmentAnalyticsResponse`.
+- [backend/app/services/analytics_service.py](backend/app/services/analytics_service.py) — Implemented `get_investment_analytics`.
+- [backend/app/routers/analytics.py](backend/app/routers/analytics.py) — Added endpoint `/investments`.
+- [frontend/lib/models/analytics_models.dart](frontend/lib/models/analytics_models.dart) — Added models for UI.
+- [frontend/lib/services/api/analytics_api.dart](frontend/lib/services/api/analytics_api.dart) — Added API wrapper.
+- [frontend/lib/providers/dashboard_provider.dart](frontend/lib/providers/dashboard_provider.dart) — Wired investment analytics into concurrent fetch.
+- [frontend/lib/providers/dashboard_layout_provider.dart](frontend/lib/providers/dashboard_layout_provider.dart) — Registered new tile type.
+
+---
+
+## Phase 14: Investment Portfolio Expansion & Asset Classes — ✅ COMPLETED
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 14.1 | Investment Rules Engine (Backend) | ✅ Done | Replaced raw platform grouping with an `InvestmentRule` model (aka `MerchantAlias`). Rules map `keywords` (e.g., "SGB", "Groww") to a specific `platform_name` and an `asset_class` (Mutual Funds, Fixed Deposits, Commodities, etc.). `get_investment_analytics` dynamically applies these rules to outbound transfers. |
+| 14.2 | Multidimensional Analytics Output | ✅ Done | Updated `/api/v2/analytics/investments` to return capital divided by Asset Class (`assetClasses`) and by Platform (`platforms`), plus historical 6-month contribution trends (`trends`). |
+| 14.3 | Dedicated Investments Screen | ✅ Done | Created a robust `/investments` screen with a `CustomScrollView` and Slivers. Features a hero header for total capital, an interactive Trend Chart, an Asset Class allocation grid, and a Top Platforms list. |
+| 14.4 | Discreet Rule Management UI | ✅ Done | Built the `InvestmentRulesSection`—an expandable `ExpansionTile` at the bottom of the Investments Screen. Allows users to create or edit mapping rules directly on the screen without leaving the context of their portfolio. |
+
+**Files Created:**
+- `backend/app/models/investment_rule.py` — SQLAlchemy model for rules.
+- `backend/app/schemas/investment_rule.py` — Pydantic DTOs.
+- `backend/app/routers/investment_rules.py` — CRUD endpoints.
+- `frontend/lib/models/investment_rule.dart` — Rule models.
+- `frontend/lib/providers/investment_rule_provider.dart` — State management.
+- `frontend/lib/widgets/investment_rules_section.dart` — Discreet inline management widget.
+- `frontend/lib/screens/investments_screen.dart` — Dedicated `/investments` route.
+
+**Files Modified:**
+- `backend/app/services/analytics_service.py` — Enhanced grouping logic using rules.
+- `frontend/lib/router.dart` — Added `/investments` navigation.
+- `frontend/lib/screens/app_shell.dart` — Added to sidebar navigation.

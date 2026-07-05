@@ -98,3 +98,9 @@ class TransferDetectResult(BaseModel):
     """Response from auto-detection: how many pairs were linked."""
     linked_count: int
     details: list[TransferPairSchema] = []
+
+
+class BulkUpdateResponse(BaseModel):
+    """Response from the bulk-update endpoint."""
+    updated: int
+    auto_resolved: int = 0

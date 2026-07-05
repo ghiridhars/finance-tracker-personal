@@ -13,6 +13,7 @@ import '../providers/app_settings_provider.dart';
 import '../providers/accounts_provider.dart';
 import '../providers/categories_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/investment_rule_provider.dart';
 import '../providers/transfers_provider.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/upi_provider.dart';
@@ -31,6 +32,17 @@ class _AppShellState extends ConsumerState<AppShell> {
   bool _isRefreshing = false;
   bool _isSidebarExpanded = true;
 
+  // ── Per-route refresh label (shown in tooltip) ──────────────
+  static const Map<String, String> _routeLabels = {
+    AppRoutes.dashboard:   'Dashboard',
+    AppRoutes.calendar:    'Calendar',
+    AppRoutes.investments: 'Investments',
+    AppRoutes.accounts:    'Accounts',
+    AppRoutes.settings:    'Settings',
+    AppRoutes.review:      'Review',
+    AppRoutes.import_:     'Import',
+  };
+
   /// Determine which nav index is active based on the current route.
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
@@ -44,27 +56,77 @@ class _AppShellState extends ConsumerState<AppShell> {
     context.go(navDestinations[index].path);
   }
 
-  Future<void> _refreshAll() async {
+  /// Returns the current route path from GoRouter.
+  String _currentPath(BuildContext context) =>
+      GoRouterState.of(context).uri.path;
+
+  /// Refreshes only the providers relevant to the active page.
+  /// The review badge is always refreshed since it's visible in the shell.
+  Future<void> _refreshCurrentPage(BuildContext context) async {
     if (_isRefreshing) return;
+    final path = _currentPath(context);
     setState(() => _isRefreshing = true);
     try {
+      // Always keep the global badge in sync.
       ref.invalidate(needsReviewCountProvider);
-      
-      await Future.wait<dynamic>([
-        ref.read(dashboardProvider.notifier).loadDashboard(),
-        ref.read(accountsProvider.notifier).loadAccounts(),
-        ref.read(categoriesProvider.notifier).loadCategories(),
-        ref.read(upiProvider.notifier).loadUpiIds(),
-        ref.read(transfersProvider.notifier).loadAll(),
-        ref.read(unifiedTransactionsProvider.notifier).loadTransactions(),
-      ]);
+
+      switch (path) {
+        case AppRoutes.dashboard:
+          await Future.wait<dynamic>([
+            ref.read(dashboardProvider.notifier).loadDashboard(),
+            ref.read(categoriesProvider.notifier).loadCategories(),
+          ]);
+
+        case AppRoutes.calendar:
+          // Calendar only consumes dashboardProvider (calendar slice).
+          await ref.read(dashboardProvider.notifier).loadDashboard();
+
+        case AppRoutes.investments:
+          await Future.wait<dynamic>([
+            ref.read(dashboardProvider.notifier).loadDashboard(),
+            ref.invalidate(investmentRuleProvider),
+          ]);
+
+        case AppRoutes.accounts:
+          await Future.wait<dynamic>([
+            ref.read(accountsProvider.notifier).loadAccounts(),
+            ref.read(transfersProvider.notifier).loadAll(),
+            ref.read(unifiedTransactionsProvider.notifier).loadTransactions(),
+          ]);
+
+        case AppRoutes.settings:
+          await Future.wait<dynamic>([
+            ref.read(categoriesProvider.notifier).loadCategories(),
+            ref.read(upiProvider.notifier).loadUpiIds(),
+          ]);
+
+        case AppRoutes.review:
+          // Review screen manages its own paginated local state;
+          // invalidating the count is sufficient from the shell.
+          // The screen itself handles full reloads internally.
+          break;
+
+        case AppRoutes.import_:
+          // Import manages live job-polling state — resetting it here
+          // would interrupt in-progress uploads. Nothing to do.
+          break;
+
+        default:
+          // Fallback: reload core shared data.
+          await Future.wait<dynamic>([
+            ref.read(dashboardProvider.notifier).loadDashboard(),
+            ref.read(accountsProvider.notifier).loadAccounts(),
+            ref.read(categoriesProvider.notifier).loadCategories(),
+          ]);
+      }
     } finally {
       if (mounted) {
         setState(() => _isRefreshing = false);
+        final label = _routeLabels[path] ?? 'Page';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data refreshed'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text('$label refreshed'),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -96,7 +158,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ref: ref,
                     extended: _isSidebarExpanded,
                     isRefreshing: _isRefreshing,
-                    onRefresh: _refreshAll,
+                    onRefresh: () => _refreshCurrentPage(context),
+                    refreshLabel: _routeLabels[_currentPath(context)],
                   ),
                   trailing: Expanded(
                     child: Align(
@@ -189,7 +252,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ref: ref,
                     extended: false,
                     isRefreshing: _isRefreshing,
-                    onRefresh: _refreshAll,
+                    onRefresh: () => _refreshCurrentPage(context),
+                    refreshLabel: _routeLabels[_currentPath(context)],
                   ),
                   trailing: Expanded(
                     child: Align(
@@ -255,7 +319,11 @@ class _AppShellState extends ConsumerState<AppShell> {
             backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             actions: [
               _NeedsReviewBadge(ref: ref),
-              _RefreshButton(isRefreshing: _isRefreshing, onRefresh: _refreshAll),
+              _RefreshButton(
+                isRefreshing: _isRefreshing,
+                onRefresh: () => _refreshCurrentPage(context),
+                refreshLabel: _routeLabels[_currentPath(context)],
+              ),
               _ThemeToggleButton(settings: settings, ref: ref),
               const SizedBox(width: 8),
             ],
@@ -287,6 +355,7 @@ class _RailHeader extends StatelessWidget {
   final bool extended;
   final bool isRefreshing;
   final VoidCallback onRefresh;
+  final String? refreshLabel;
 
   const _RailHeader({
     required this.settings,
@@ -294,6 +363,7 @@ class _RailHeader extends StatelessWidget {
     required this.extended,
     required this.isRefreshing,
     required this.onRefresh,
+    this.refreshLabel,
   });
 
   @override
@@ -332,7 +402,11 @@ class _RailHeader extends StatelessWidget {
           ],
           _NeedsReviewBadge(ref: ref),
           _ThemeToggleButton(settings: settings, ref: ref),
-          _RefreshButton(isRefreshing: isRefreshing, onRefresh: onRefresh),
+          _RefreshButton(
+            isRefreshing: isRefreshing,
+            onRefresh: onRefresh,
+            refreshLabel: refreshLabel,
+          ),
           const Divider(),
         ],
       ),
@@ -341,14 +415,21 @@ class _RailHeader extends StatelessWidget {
 }
 
 /// Refresh button — shows a spinner while data is loading, refresh icon when idle.
+/// The [refreshLabel] is used in the tooltip to indicate which page is being refreshed.
 class _RefreshButton extends StatelessWidget {
   final bool isRefreshing;
   final VoidCallback onRefresh;
+  final String? refreshLabel;
 
-  const _RefreshButton({required this.isRefreshing, required this.onRefresh});
+  const _RefreshButton({
+    required this.isRefreshing,
+    required this.onRefresh,
+    this.refreshLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final label = refreshLabel ?? 'Page';
     return IconButton(
       icon: isRefreshing
           ? const SizedBox(
@@ -357,7 +438,7 @@ class _RefreshButton extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.refresh),
-      tooltip: isRefreshing ? 'Refreshing…' : 'Refresh all data',
+      tooltip: isRefreshing ? 'Refreshing $label…' : 'Refresh $label',
       onPressed: isRefreshing ? null : onRefresh,
     );
   }

@@ -139,18 +139,32 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     setState(() => _approvedIds.add(txId));
 
     try {
-      await ApiService.bulkUpdateTransactions([edit]);
+      final result = await ApiService.bulkUpdateTransactions([edit]);
       ref.invalidate(needsReviewCountProvider);
 
       if (mounted) {
-        // Remove from list after a brief delay for the animation
+        // Show auto-resolved snackbar before the card animates out.
+        if (result.autoResolved > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Auto-resolved ${result.autoResolved} similar '
+                'transaction${result.autoResolved == 1 ? '' : 's'} '
+                'based on your correction',
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Remove from list after a brief delay for the animation.
         await Future.delayed(const Duration(milliseconds: 400));
         if (!mounted) return;
         setState(() {
           _transactions.removeWhere((t) => t.id == txId);
           _edits.remove(txId);
           _approvedIds.remove(txId);
-          _totalCount = _totalCount > 0 ? _totalCount - 1 : 0;
+          _totalCount = (_totalCount - 1 - result.autoResolved).clamp(0, _totalCount);
         });
       }
     } catch (e) {
@@ -171,16 +185,21 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
     try {
       final updates = _edits.values.toList();
-      await ApiService.bulkUpdateTransactions(updates);
+      final result = await ApiService.bulkUpdateTransactions(updates);
 
       ref.invalidate(needsReviewCountProvider);
       ref.read(unifiedTransactionsProvider.notifier).loadTransactions();
 
       if (mounted) {
+        final autoMsg = result.autoResolved > 0
+            ? ' · auto-resolved ${result.autoResolved} similar'
+            : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text('Successfully reviewed ${updates.length} transactions')),
+            content: Text(
+              'Reviewed ${updates.length} transaction${updates.length == 1 ? '' : 's'}$autoMsg',
+            ),
+          ),
         );
         context.go('/');
       }

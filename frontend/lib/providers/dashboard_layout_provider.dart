@@ -15,6 +15,7 @@ enum DashboardTileId {
   incomeExpense,
   monthOverMonth,
   topMerchants,
+  investments,
 }
 
 extension DashboardTileLabel on DashboardTileId {
@@ -25,6 +26,7 @@ extension DashboardTileLabel on DashboardTileId {
         DashboardTileId.incomeExpense => 'Income vs Expense',
         DashboardTileId.monthOverMonth => 'Month-over-Month',
         DashboardTileId.topMerchants => 'Top Merchants',
+        DashboardTileId.investments => 'Investment Portfolio',
       };
 }
 
@@ -136,6 +138,7 @@ const List<TileConfig> _defaultTiles = [
   TileConfig(id: DashboardTileId.incomeExpense, height: 340, colSpan: 6),
   TileConfig(id: DashboardTileId.monthOverMonth, height: 280, colSpan: 6),
   TileConfig(id: DashboardTileId.topMerchants, height: 420, colSpan: 6),
+  TileConfig(id: DashboardTileId.investments, height: 260, colSpan: 12),
 ];
 
 // ── Notifier ────────────────────────────────────────────────
