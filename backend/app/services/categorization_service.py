@@ -47,6 +47,22 @@ def extract_upi_id(description: str | None) -> str | None:
     """
     if not description:
         return None
+
+    # Heal spurious spaces injected by PDF parsing in standard bank formats.
+    # We target slash-bounded or hyphen-bounded chunks that contain an '@'
+    # (e.g. ".../gokuldeepma njeri@okaxis/...") to avoid merging regular words.
+    slash_match = re.search(r'(?:^|/)([^/]+@[^/]+)(?:/|$)', description)
+    if slash_match:
+        raw_chunk = slash_match.group(1)
+        if raw_chunk.count(' ') <= 3:
+            description = description.replace(raw_chunk, raw_chunk.replace(' ', ''))
+    else:
+        hyphen_match = re.search(r'(?:^|-)([^-]+@[^-]+)(?:-|$)', description)
+        if hyphen_match:
+            raw_chunk = hyphen_match.group(1)
+            if raw_chunk.count(' ') <= 3:
+                description = description.replace(raw_chunk, raw_chunk.replace(' ', ''))
+
     match = _UPI_HANDLE_RE.search(description)
     if not match:
         return None
@@ -209,52 +225,262 @@ def auto_register_own_upi(
 
 # ── Learn from user corrections ──────────────────────────────
 
+# Minimum and maximum character length for a learnable keyword
+_KW_MIN_LEN = 4
+_KW_MAX_LEN = 60
+
+# Reusable compiled regexes for keyword extraction
+_CITY_LIKE = re.compile(r"^[A-Z]{4,15}$")
+_LEADING_NOISE = re.compile(r"^(HTTP|HTTPS)$")
+
+
+
+def _extract_learnable_keyword(description: str | None) -> str | None:
+    """
+    Extract a stable, learnable keyword from a non-UPI transaction description.
+
+    Uses format-specific extraction rules derived from real statement data:
+
+    **PGDR/PRCR format** (old SBI debit-card/netbanking):
+        ``PGDR/SWIGGY/25-11-2018 19:10:25/SWT`` → ``SWIGGY``
+        ``PRCR/TUTE OF ENGINEERING/ERNAKULAM``   → ``TUTE OF ENGINEERING``
+
+    **NEFT format**:
+        ``NEFT-CMS2626671445-NEXTBILLION TECHNOLOGY PRIVATE`` → ``NEXTBILLION TECHNOLOGY``
+
+    **RAZ* format** (Razorpay POS):
+        ``RAZ*BUNDL TECHNOLOGIES   BENGALURU`` → ``BUNDL TECHNOLOGIES``
+        ``RAZ*LE TRAVENUES TECHNO  Gurgaon``  → ``LE TRAVENUES TECHNO``
+
+    **Credit-card / POS style** (no structural separator):
+        ``AMAZON SELLER SERVICES MUMBAI``  → ``AMAZON SELLER SERVICES``
+        ``BUNDL TECHNOLOGIES PRIVBANGALORE`` → ``BUNDL TECHNOLOGIES``
+        ``WWW SWIGGY IN          GURGAON``  → ``SWIGGY``
+
+    Returns None for descriptions that yield nothing stable (pure reference
+    numbers, timestamps, ATM codes, etc.).
+    """
+    if not description:
+        return None
+
+    text = description.strip()
+    upper = text.upper()
+
+    # ── 1. PGDR / PRCR format: take segment between 1st and 2nd slash ────
+    # PGDR/SWIGGY/25-11-2018…/SWT → SWIGGY
+    # PRCR/TUTE OF ENGINEERING/ERNAKULAM → TUTE OF ENGINEERING
+    if re.match(r"^P[A-Z]{3}/", upper):
+        parts = text.split("/")
+        if len(parts) >= 2:
+            merchant = parts[1].strip()
+            # Skip if the segment is a date or purely numeric
+            if merchant and not re.match(r"^[\d/\-: ]+$", merchant):
+                return merchant[:_KW_MAX_LEN].upper().strip()
+        return None
+
+    # ── Early skip-list: descriptions with no extractable merchant ───────
+    # Must run before the NEFT regex to prevent false matches.
+    skip_patterns = [
+        r"^VCR\s+ARN",
+        r"^ATM/",
+        r"^\(REF#",
+        r"^\d+:INT\.PD:",      # account interest lines like 05570100013649:Int.Pd:
+        r"^DCARDFEE/",
+        r"^BY CASH$",
+        r"^NETBANKING TRANSFER",
+        r"^TELE TRANSFER",
+        r"^AUTOPAY THANK YOU",
+        r"^SMS ALERT CHARGES",
+        r"^NEFT CREDIT CARD",   # CC bill payment via NEFT — describes method, not merchant
+        r"^NEFT.*\(REF#",       # NEFT with only a ref number — no extractable merchant
+    ]
+    for pat in skip_patterns:
+        if re.match(pat, upper):
+            return None
+
+    # ── 2. NEFT format: take text after the numeric reference ────────────
+    # NEFT-CMS2626671445-NEXTBILLION TECHNOLOGY PRIVATE → NEXTBILLION TECHNOLOGY PRIVATE
+    # Requires a clearly numeric reference segment to avoid matching NEFT CC payment lines.
+    neft_match = re.match(
+        r"^NEFT[-\s]+([A-Z]{0,4}\d{6,})[-\s]+(.+)$", upper
+    )
+    if neft_match:
+        merchant = neft_match.group(2).strip()
+        # Strip trailing location / branch info (short last token often a city)
+        parts = merchant.split()
+        if len(parts) > 2 and len(parts[-1]) <= 5:
+            parts = parts[:-1]
+        return " ".join(parts)[:_KW_MAX_LEN].strip() or None
+
+    # ── 3. IMPS format: nothing stable to extract (just ref numbers) ──────
+    # IMPS PMT 210505007383 9176 (Ref# ...) → skip
+    if re.match(r"^IMPS\b", upper):
+        return None
+
+    # ── 4. RAZ* format (Razorpay): take text after RAZ* ──────────────────
+    # RAZ*BUNDL TECHNOLOGIES   BENGALURU → BUNDL TECHNOLOGIES
+    raz_match = re.match(r"^RAZ\*(.+)$", upper)
+    if raz_match:
+        merchant = raz_match.group(1).strip()
+        # Drop last token if it looks like a city (short, all alpha)
+        parts = merchant.split()
+        if len(parts) > 1 and re.match(r"^[A-Z]+$", parts[-1]) and len(parts[-1]) <= 10:
+            parts = parts[:-1]
+        result = " ".join(parts)[:_KW_MAX_LEN].strip()
+        return result if len(result) >= _KW_MIN_LEN else None
+
+
+    # ── 6. Credit-card / POS style: "MERCHANT CITY" ──────────────────────
+    # AMAZON SELLER SERVICES MUMBAI → AMAZON SELLER SERVICES
+    # BUNDL TECHNOLOGIES PRIVBANGALORE → BUNDL TECHNOLOGIES
+    # WWW SWIGGY IN GURGAON → SWIGGY (strip WWW prefix and city suffix)
+    words = upper.split()
+    if not words:
+        return None
+
+    # Strip leading WWW
+    if words[0] == "WWW" and len(words) > 1:
+        words = words[1:]
+
+    # Drop the last token if it looks like an Indian city name (all-alpha, 4–15 chars)
+    # These are typically appended by the bank: BANGALORE, MUMBAI, GURGAON, etc.
+    if len(words) > 1 and _CITY_LIKE.match(words[-1]):
+        words = words[:-1]
+
+    # Strip leading web-protocol tokens (WWW already handled above, but guard)
+    words = [w for w in words if not _LEADING_NOISE.match(w)]
+
+    if not words:
+        return None
+
+    # Take up to 4 words as the keyword (merchant names are rarely > 4 words)
+    keyword = " ".join(words[:4])[:_KW_MAX_LEN].strip()
+    return keyword if len(keyword) >= _KW_MIN_LEN else None
+
+
+def _learn_keyword(db: Session, keyword: str, category_id: int) -> bool:
+    """
+    Persist a keyword → category mapping in ``category_keywords``.
+
+    - If the keyword already maps to the *same* category → no-op (returns False).
+    - If the keyword maps to a *different* category → update it (returns True).
+    - If the keyword is new → create it with ``is_learned=True`` (returns True).
+
+    Args:
+        db: Active SQLAlchemy session.
+        keyword: The normalized keyword string.
+        category_id: Target category ID.
+
+    Returns:
+        True if a new mapping was created or an existing one updated.
+    """
+    from app.models.category import CategoryKeyword
+
+    existing = (
+        db.query(CategoryKeyword)
+        .filter(CategoryKeyword.keyword == keyword)
+        .first()
+    )
+    if existing:
+        if existing.category_id != category_id:
+            existing.category_id = category_id
+            db.commit()
+            logger.info(
+                "Updated learned keyword mapping: '%s' → category_id=%d",
+                keyword, category_id,
+            )
+            return True
+        return False  # already correct
+
+    new_kw = CategoryKeyword(
+        keyword=keyword,
+        category_id=category_id,
+        is_learned=True,
+    )
+    db.add(new_kw)
+    db.commit()
+    logger.info(
+        "Learned new keyword mapping: '%s' → category_id=%d",
+        keyword, category_id,
+    )
+    return True
+
+
 def learn_from_categorization(
     db: Session,
     transaction_description: str | None,
     category_id: int,
-) -> bool:
+) -> tuple[str | None, str | None]:
     """
-    When a user manually categorizes a transaction, extract the UPI handle
-    and auto-create a mapping in the upi_ids table for future auto-categorization.
+    When a user manually categorizes a transaction, teach the system so that
+    future transactions from the same source are categorized automatically.
 
-    This is the self-improving loop: every user correction teaches the system
-    to categorize future transactions from the same UPI handle automatically.
+    Two-tier learning:
 
-    Returns True if a new mapping was created.
+    **Tier 1 — UPI handle learning** (UPI transactions only):
+      Extracts the ``@``-handle from the description and persists it in
+      ``upi_ids`` with the chosen ``category_id``.  Future UPI transactions
+      from the same handle skip the review queue entirely.
+
+    **Tier 2 — Keyword learning** (all other transactions: NEFT, IMPS, POS, …):
+      When no UPI handle is present, extracts a normalized keyword phrase
+      from the description and persists it in ``category_keywords``.
+      Future transactions whose description contains this phrase are
+      auto-categorized via the existing keyword-match path.
+
+    Args:
+        db: Active SQLAlchemy session.
+        transaction_description: Raw description string from the statement.
+        category_id: The category the user assigned.
+
+    Returns:
+        ``(learned_upi_handle, learned_keyword)`` — each is the string that
+        was learned, or ``None`` if that tier produced no new mapping.
+        Both may be ``None`` if nothing was learned.
     """
+    learned_handle: str | None = None
+    learned_keyword: str | None = None
+
+    # ── Tier 1: UPI handle learning ──────────────────────────
     upi_handle = extract_upi_id(transaction_description)
-    if not upi_handle:
-        return False
+    if upi_handle:
+        # Don't learn from own-account transfers
+        if _is_own_upi_transfer(db, upi_handle):
+            return None, None
 
-    # Don't learn from own-account transfers
-    if _is_own_upi_transfer(db, upi_handle):
-        return False
-
-    # Check if this UPI handle already has a mapping
-    existing = db.query(UpiId).filter(UpiId.upi_handle == upi_handle).first()
-    if existing:
-        if existing.category_id != category_id:
-            # Update existing mapping to the new category
-            existing.category_id = category_id
+        existing = db.query(UpiId).filter(UpiId.upi_handle == upi_handle).first()
+        if existing:
+            if existing.category_id != category_id:
+                existing.category_id = category_id
+                db.commit()
+                logger.info(
+                    "Updated UPI mapping: %s → category_id=%d", upi_handle, category_id
+                )
+                learned_handle = upi_handle
+            # else already correct — no-op
+        else:
+            new_upi = UpiId(
+                upi_handle=upi_handle,
+                label="Learned from user correction",
+                is_own=False,
+                category_id=category_id,
+            )
+            db.add(new_upi)
             db.commit()
             logger.info(
-                f"Updated UPI mapping: {upi_handle} → category_id={category_id}"
+                "Learned UPI mapping: %s → category_id=%d", upi_handle, category_id
             )
-            return True
-        return False  # Already mapped correctly
+            learned_handle = upi_handle
 
-    # Create new UPI handle → category mapping
-    new_upi = UpiId(
-        upi_handle=upi_handle,
-        label=f"Learned from user correction",
-        is_own=False,
-        category_id=category_id,
-    )
-    db.add(new_upi)
-    db.commit()
-    logger.info(f"Learned UPI mapping: {upi_handle} → category_id={category_id}")
-    return True
+        return learned_handle, None  # UPI path: skip keyword tier
+
+    # ── Tier 2: Keyword learning (non-UPI: NEFT, IMPS, POS …) ──
+    keyword = _extract_learnable_keyword(transaction_description)
+    if keyword:
+        if _learn_keyword(db, keyword, category_id):
+            learned_keyword = keyword
+
+    return None, learned_keyword
 
 
 # ── Merchant normalization patterns ──────────────────────────

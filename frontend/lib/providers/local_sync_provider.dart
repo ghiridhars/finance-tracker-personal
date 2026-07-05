@@ -27,6 +27,12 @@ class LocalSyncFile {
   final String status; // pending | processing | success | failed | skipped
   final String? errorMessage;
 
+  // Suggestion metadata from backend (immutable, not user-editable)
+  final String suggestionSource;   // 'filename' | 'history'
+  final bool suggestionConflict;   // true = ambiguous history
+  final String suggestedBank;
+  final String suggestedType;
+
   const LocalSyncFile({
     required this.filepath,
     required this.relativePath,
@@ -42,7 +48,12 @@ class LocalSyncFile {
     this.selected = true,
     this.status = 'pending',
     this.errorMessage,
-  });
+    this.suggestionSource = 'filename',
+    this.suggestionConflict = false,
+    String? suggestedBank,
+    String? suggestedType,
+  })  : suggestedBank = suggestedBank ?? selectedBank,
+        suggestedType = suggestedType ?? selectedType;
 
   LocalSyncFile copyWith({
     String? selectedBank,
@@ -66,6 +77,11 @@ class LocalSyncFile {
       selected: selected ?? this.selected,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
+      // Preserve immutable suggestion metadata
+      suggestionSource: suggestionSource,
+      suggestionConflict: suggestionConflict,
+      suggestedBank: suggestedBank,
+      suggestedType: suggestedType,
     );
   }
 
@@ -73,6 +89,10 @@ class LocalSyncFile {
     final bank = json['inferred_bank'] as String? ?? 'OTHER';
     final type = json['inferred_type'] as String? ?? 'SAVINGS';
     final alreadyProcessed = json['already_processed'] as bool? ?? false;
+    final suggestionSource = json['suggestion_source'] as String? ?? 'filename';
+    final suggestionConflict = json['suggestion_conflict'] as bool? ?? false;
+    final suggestedBank = json['suggested_bank'] as String? ?? bank;
+    final suggestedType = json['suggested_type'] as String? ?? type;
 
     return LocalSyncFile(
       filepath: json['filepath'] as String,
@@ -84,11 +104,15 @@ class LocalSyncFile {
       inferredType: type,
       alreadyProcessed: alreadyProcessed,
       fileKey: json['file_key'] as String? ?? '',
-      selectedBank: bank,
-      selectedType: type,
+      selectedBank: suggestedBank,
+      selectedType: suggestedType,
       // Auto-deselect already processed files
       selected: !alreadyProcessed,
       status: alreadyProcessed ? 'skipped' : 'pending',
+      suggestionSource: suggestionSource,
+      suggestionConflict: suggestionConflict,
+      suggestedBank: suggestedBank,
+      suggestedType: suggestedType,
     );
   }
 }

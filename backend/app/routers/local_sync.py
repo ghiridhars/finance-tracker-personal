@@ -12,10 +12,11 @@ Provides endpoints to:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.database import SessionLocal, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +77,17 @@ def local_sync_list_files(
         None,
         description="Directory path to scan. Uses configured path if omitted.",
     ),
+    db: Session = Depends(get_db),
 ):
     """
     List statement files in the configured (or specified) local directory.
     Recursively scans for PDF, CSV, and Excel files.
     Shows inferred bank/type and whether each file has been processed.
+    History-based prefix suggestions are included when previous parses exist.
     """
     try:
         from app.services.local_sync_service import list_local_files
-        files = list_local_files(path=path)
+        files = list_local_files(path=path, db=db)
         return {
             "file_count": len(files),
             "files": files,

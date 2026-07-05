@@ -82,10 +82,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           await ref.read(dashboardProvider.notifier).loadDashboard();
 
         case AppRoutes.investments:
-          await Future.wait<dynamic>([
-            ref.read(dashboardProvider.notifier).loadDashboard(),
-            ref.invalidate(investmentRuleProvider),
-          ]);
+          ref.invalidate(investmentRuleProvider);
+          await ref.read(dashboardProvider.notifier).loadDashboard();
 
         case AppRoutes.accounts:
           await Future.wait<dynamic>([

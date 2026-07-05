@@ -943,64 +943,143 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             // Bank dropdown
             SizedBox(
               width: 140,
-              child: DropdownButtonFormField<String>(
-                value: file.selectedBank,
-                isDense: true,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  border: OutlineInputBorder(),
-                ),
-                items: _bankOptionsShort
-                    .map((opt) => DropdownMenuItem(
-                          value: opt['value'],
-                          child: Text(opt['label']!,
-                              style: const TextStyle(fontSize: 13)),
-                        ))
-                    .toList(),
-                onChanged: syncState.isScanning
-                    ? null
-                    : (val) {
-                        if (val != null) {
-                          ref
-                              .read(localSyncProvider.notifier)
-                              .updateFileBank(index, val);
-                        }
-                      },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: file.selectedBank,
+                    isDense: true,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: const OutlineInputBorder(),
+                      // Amber border for conflict, green border for history-filled
+                      enabledBorder: file.suggestionConflict
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.amber.shade700,
+                                width: 1.5,
+                              ),
+                            )
+                          : file.suggestionSource == 'history'
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Colors.green.shade400,
+                                    width: 1.5,
+                                  ),
+                                )
+                              : null,
+                    ),
+                    items: _bankOptionsShort
+                        .map((opt) => DropdownMenuItem(
+                              value: opt['value'],
+                              child: Text(opt['label']!,
+                                  style: const TextStyle(fontSize: 13)),
+                            ))
+                        .toList(),
+                    onChanged: syncState.isScanning
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              ref
+                                  .read(localSyncProvider.notifier)
+                                  .updateFileBank(index, val);
+                            }
+                          },
+                  ),
+                  // Show suggestion hint label
+                  if (file.suggestionSource == 'history') ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        if (file.suggestionConflict)
+                          Tooltip(
+                            message:
+                                'Ambiguous: multiple past parses with this filename prefix had different bank/type. Please verify.',
+                            child: Icon(Icons.warning_amber_rounded,
+                                size: 11, color: Colors.amber.shade700),
+                          )
+                        else
+                          Icon(Icons.history,
+                              size: 11, color: Colors.green.shade600),
+                        const SizedBox(width: 2),
+                        Flexible(
+                          child: Text(
+                            file.suggestionConflict
+                                ? 'Conflict — verify'
+                                : 'From history',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: file.suggestionConflict
+                                  ? Colors.amber.shade700
+                                  : Colors.green.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(width: 8),
             // Type dropdown
             SizedBox(
               width: 140,
-              child: DropdownButtonFormField<String>(
-                value: file.selectedType,
-                isDense: true,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  border: OutlineInputBorder(),
-                ),
-                items: _typeOptionsShort
-                    .map((opt) => DropdownMenuItem(
-                          value: opt['value'],
-                          child: Text(opt['label']!,
-                              style: const TextStyle(fontSize: 13)),
-                        ))
-                    .toList(),
-                onChanged: syncState.isScanning
-                    ? null
-                    : (val) {
-                        if (val != null) {
-                          ref
-                              .read(localSyncProvider.notifier)
-                              .updateFileType(index, val);
-                        }
-                      },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: file.selectedType,
+                    isDense: true,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: const OutlineInputBorder(),
+                      enabledBorder: file.suggestionConflict
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.amber.shade700,
+                                width: 1.5,
+                              ),
+                            )
+                          : file.suggestionSource == 'history'
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Colors.green.shade400,
+                                    width: 1.5,
+                                  ),
+                                )
+                              : null,
+                    ),
+                    items: _typeOptionsShort
+                        .map((opt) => DropdownMenuItem(
+                              value: opt['value'],
+                              child: Text(opt['label']!,
+                                  style: const TextStyle(fontSize: 13)),
+                            ))
+                        .toList(),
+                    onChanged: syncState.isScanning
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              ref
+                                  .read(localSyncProvider.notifier)
+                                  .updateFileType(index, val);
+                            }
+                          },
+                  ),
+                  // Mirror the hint from bank dropdown for visual alignment
+                  if (file.suggestionSource == 'history')
+                    const SizedBox(height: 13),
+                ],
               ),
             ),
           ],

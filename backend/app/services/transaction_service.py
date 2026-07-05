@@ -254,8 +254,14 @@ class UnifiedTransactionService:
         if not tx:
             return None
 
+        from app.models.category import Category
+        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+        self_transfer_cat_id = self_transfer_cat.id if self_transfer_cat else None
+
         if category_id is not ...:
             tx.category_id = category_id
+            if self_transfer_cat_id and category_id == self_transfer_cat_id:
+                tx.is_transfer = True
         if merchant_name is not ...:
             tx.merchant_name = merchant_name
         if notes is not ...:
@@ -282,6 +288,10 @@ class UnifiedTransactionService:
         if not updates:
             return 0
             
+        from app.models.category import Category
+        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+        self_transfer_cat_id = self_transfer_cat.id if self_transfer_cat else None
+
         updated_count = 0
         for item in updates:
             tx = db.query(UnifiedTransaction).filter(UnifiedTransaction.id == item.id).first()
@@ -290,6 +300,8 @@ class UnifiedTransactionService:
                 
             if item.category_id is not None:
                 tx.category_id = item.category_id
+                if self_transfer_cat_id and item.category_id == self_transfer_cat_id:
+                    tx.is_transfer = True
             if item.merchant_name is not None:
                 tx.merchant_name = item.merchant_name
             if item.notes is not None:
@@ -320,6 +332,10 @@ class UnifiedTransactionService:
         if not learned_mappings:
             return 0
 
+        from app.models.category import Category
+        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+        self_transfer_cat_id = self_transfer_cat.id if self_transfer_cat else None
+
         resolved = 0
         for mapping in learned_mappings:
             handle = mapping.get("handle")
@@ -339,6 +355,8 @@ class UnifiedTransactionService:
                 if tx.id in exclude_ids:
                     continue
                 tx.category_id = category_id
+                if self_transfer_cat_id and category_id == self_transfer_cat_id:
+                    tx.is_transfer = True
                 tx.review_status = ReviewStatus.REVIEWED.value
                 resolved += 1
 
@@ -347,6 +365,70 @@ class UnifiedTransactionService:
             logger.info(
                 f"Auto-resolved {resolved} similar NEEDS_REVIEW transaction(s) "
                 "after review approval"
+            )
+
+        return resolved
+
+    @staticmethod
+    def auto_resolve_by_keywords(
+        db: Session,
+        learned_keywords: list[dict],
+        exclude_ids: set[int],
+    ) -> int:
+        """
+        After keyword learning, scan remaining NEEDS_REVIEW transactions whose
+        descriptions contain the newly learned keywords and auto-resolve them.
+
+        This is the keyword-tier complement of :meth:`auto_resolve_similar`
+        (which handles UPI handles).  Together they ensure that both UPI and
+        non-UPI transactions in the review queue benefit immediately from a
+        user correction.
+
+        Args:
+            db: Active SQLAlchemy session.
+            learned_keywords: List of ``{"keyword": str, "category_id": int}`` dicts.
+            exclude_ids: Transaction IDs that were just updated — skip them to
+                         avoid double-counting.
+
+        Returns:
+            Count of auto-resolved transactions.
+        """
+        if not learned_keywords:
+            return 0
+
+        from app.models.category import Category
+        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+        self_transfer_cat_id = self_transfer_cat.id if self_transfer_cat else None
+
+        resolved = 0
+        for mapping in learned_keywords:
+            keyword = mapping.get("keyword")
+            category_id = mapping.get("category_id")
+            if not keyword or category_id is None:
+                continue
+
+            pending = (
+                db.query(UnifiedTransaction)
+                .filter(
+                    UnifiedTransaction.review_status == ReviewStatus.NEEDS_REVIEW.value,
+                    UnifiedTransaction.description.ilike(f"%{keyword}%"),
+                )
+                .all()
+            )
+            for tx in pending:
+                if tx.id in exclude_ids:
+                    continue
+                tx.category_id = category_id
+                if self_transfer_cat_id and category_id == self_transfer_cat_id:
+                    tx.is_transfer = True
+                tx.review_status = ReviewStatus.REVIEWED.value
+                resolved += 1
+
+        if resolved:
+            db.commit()
+            logger.info(
+                f"Auto-resolved {resolved} NEEDS_REVIEW transaction(s) "
+                "via keyword learning"
             )
 
         return resolved

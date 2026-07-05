@@ -144,14 +144,27 @@ def update_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    # Self-improving: learn from the user's category choice
+    # Self-improving: learn from the user's category choice (both tiers)
     if data.category_id is not None and tx.description:
         from app.services.categorization_service import learn_from_categorization
-        learned = learn_from_categorization(db, tx.description, data.category_id)
-        if learned:
+        learned_handle, learned_keyword = learn_from_categorization(
+            db, tx.description, data.category_id
+        )
+        if learned_handle or learned_keyword:
             logger.info(
-                f"Learned category mapping from user correction on tx {transaction_id}"
+                "Learned category mapping from user correction on tx %d "
+                "(handle=%s, keyword=%s)",
+                transaction_id, learned_handle, learned_keyword,
             )
+            # Auto-resolve similar NEEDS_REVIEW transactions immediately
+            if learned_handle:
+                UnifiedTransactionService.auto_resolve_similar(
+                    db, [{"handle": learned_handle, "category_id": data.category_id}], {transaction_id}
+                )
+            if learned_keyword:
+                UnifiedTransactionService.auto_resolve_by_keywords(
+                    db, [{"keyword": learned_keyword, "category_id": data.category_id}], {transaction_id}
+                )
 
     return UnifiedTransactionSchema.model_validate(tx)
 
@@ -192,19 +205,29 @@ def recategorize_all(db: Session = Depends(get_db)):
 def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)):
     """
     Bulk update transactions from the review pane.
+    Also handles individual saves — the review pane always sends a single-item
+    list when the user approves one transaction at a time.
 
-    Tier 1 — Self-improving: for every item where the category changed, the
-    UPI handle extracted from the description is persisted as a learned mapping
-    so future statements auto-categorise without triggering a review.
+    Two-tier self-improving learning runs after every save:
 
-    Tier 3 — Auto-propagation: after learning, any other NEEDS_REVIEW
-    transactions sharing the same UPI handles are resolved automatically,
-    reducing the remaining review queue without additional user action.
+    **Tier 1 — UPI handle learning**: for UPI transactions, the handle is
+    persisted as a learned mapping so future statements are auto-categorised
+    without triggering a review.
+
+    **Tier 2 — Keyword learning**: for NEFT / IMPS / POS / bank transfers
+    (no UPI handle), a normalized keyword phrase is extracted from the
+    description and saved to ``category_keywords``.  Future transactions
+    matching that phrase are auto-categorised via the keyword-match path.
+
+    **Auto-propagation**: after learning, any other NEEDS_REVIEW transactions
+    sharing the same UPI handles *or* matching the newly learned keywords are
+    resolved automatically, shrinking the review queue without additional
+    user action.
     """
     from app.services.categorization_service import learn_from_categorization, extract_upi_id
 
-    # Pre-fetch descriptions as plain strings before the bulk commit so we
-    # can drive the learning step regardless of SQLAlchemy session expiry.
+    # Pre-fetch descriptions before the bulk commit so learning survives
+    # SQLAlchemy session expiry after the bulk update commit.
     ids = [item.id for item in data.updates]
     desc_map: dict[int, str | None] = {}
     if ids:
@@ -218,28 +241,55 @@ def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)
     # Perform the actual bulk update (commits inside).
     count = UnifiedTransactionService.bulk_update(db, data.updates)
 
-    # ── Tier 1: learn UPI handle → category from each correction ──────────
-    learned_mappings: list[dict] = []
+    # ── Two-tier learning: collect what was learned ────────────────────────
+    # Use dicts to deduplicate by handle/keyword so we don't run redundant sweeps
+    learned_upi_dict: dict[str, dict] = {}
+    learned_kw_dict: dict[str, dict] = {}
+
     for item in data.updates:
         if item.category_id is None:
             continue
         description = desc_map.get(item.id)
         if not description:
             continue
-        learn_from_categorization(db, description, item.category_id)
-        handle = extract_upi_id(description)
-        if handle:
-            learned_mappings.append({"handle": handle, "category_id": item.category_id})
 
-    if learned_mappings:
-        logger.info(
-            f"Learned {len(learned_mappings)} UPI mapping(s) from bulk review approval"
+        learned_handle, learned_keyword = learn_from_categorization(
+            db, description, item.category_id
         )
 
-    # ── Tier 3: auto-resolve other NEEDS_REVIEW txns with same handles ────
+        if learned_handle:
+            learned_upi_dict[learned_handle] = {
+                "handle": learned_handle, 
+                "category_id": item.category_id
+            }
+        if learned_keyword:
+            learned_kw_dict[learned_keyword] = {
+                "keyword": learned_keyword, 
+                "category_id": item.category_id
+            }
+
+    learned_upi_mappings = list(learned_upi_dict.values())
+    learned_kw_mappings = list(learned_kw_dict.values())
+
+    if learned_upi_mappings:
+        logger.info(
+            "Learned %d unique UPI mapping(s) from review approval",
+            len(learned_upi_mappings),
+        )
+    if learned_kw_mappings:
+        logger.info(
+            "Learned %d unique keyword mapping(s) from review approval",
+            len(learned_kw_mappings),
+        )
+
+    # ── Auto-propagate: resolve other NEEDS_REVIEW txns in the queue ──────
     exclude_ids = set(ids)
+
     auto_resolved = UnifiedTransactionService.auto_resolve_similar(
-        db, learned_mappings, exclude_ids
+        db, learned_upi_mappings, exclude_ids
+    )
+    auto_resolved += UnifiedTransactionService.auto_resolve_by_keywords(
+        db, learned_kw_mappings, exclude_ids
     )
 
     return BulkUpdateResponse(updated=count, auto_resolved=auto_resolved)

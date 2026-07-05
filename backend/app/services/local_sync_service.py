@@ -12,9 +12,12 @@ import json
 import logging
 import re
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+from sqlalchemy import func
 
 from app.config import settings
 from app.parsers.base_parser import ParseException
@@ -194,12 +197,110 @@ def _file_key(filepath: Path) -> str:
 
 # ── File Discovery ─────────────────────────────────────────────
 
-def list_local_files(path: str | None = None) -> list[dict]:
+def build_filename_prefix_map(db) -> dict:
+    """
+    Build a prefix-to-bank/type lookup from successfully parsed statement history.
+
+    Queries ``statement_audit`` for rows with ``status = 'SUCCESS'`` and a
+    known ``bank_name`` (not NULL, not 'OTHER').  For each row the first 5
+    characters of the lowercased filename stem are used as the prefix key.
+
+    Returns a dict keyed by 5-char prefix::
+
+        {
+            "estat": {"bank": "HDFC", "type": "CREDIT_CARD", "conflict": False, "count": 5},
+            "accou": {"bank": "ICICI", "type": "SAVINGS", "conflict": True, "count": 2},
+        }
+
+    ``conflict=True`` signals that the same prefix has resolved to more than
+    one unique ``(bank, type)`` combination in the past.  The most frequent
+    combination is used as the suggestion even when there is a conflict.
+
+    Args:
+        db: Active SQLAlchemy session.
+
+    Returns:
+        Dict mapping 5-char prefix strings to suggestion metadata dicts.
+    """
+    from app.models.statement_audit import StatementAudit
+
+    try:
+        rows = (
+            db.query(
+                StatementAudit.file_name,
+                StatementAudit.bank_name,
+                StatementAudit.statement_type,
+                func.count(StatementAudit.id).label("cnt"),
+            )
+            .filter(
+                StatementAudit.status == "SUCCESS",
+                StatementAudit.bank_name.isnot(None),
+                StatementAudit.bank_name != "OTHER",
+            )
+            .group_by(
+                StatementAudit.file_name,
+                StatementAudit.bank_name,
+                StatementAudit.statement_type,
+            )
+            .all()
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning("build_filename_prefix_map: DB query failed — %s", exc)
+        return {}
+
+    # Aggregate counts per (prefix, bank, type)
+    prefix_combos: dict[str, dict[tuple[str, str], int]] = defaultdict(lambda: defaultdict(int))
+    for file_name, bank_name, statement_type, cnt in rows:
+        prefix = Path(file_name).stem[:5].lower()
+        if not prefix:
+            continue
+        prefix_combos[prefix][(bank_name, statement_type)] += cnt
+
+    prefix_map: dict = {}
+    for prefix, combos in prefix_combos.items():
+        # Pick the most frequent (bank, type) pair
+        best_combo, best_count = max(combos.items(), key=lambda item: item[1])
+        total_count = sum(combos.values())
+        conflict = len(combos) > 1
+
+        prefix_map[prefix] = {
+            "bank": best_combo[0],
+            "type": best_combo[1],
+            "conflict": conflict,
+            "count": total_count,
+        }
+
+    logger.debug("build_filename_prefix_map: built %d prefix entries", len(prefix_map))
+    return prefix_map
+
+
+def list_local_files(path: str | None = None, db=None) -> list[dict]:
     """
     Recursively scan a directory for statement files.
 
     Returns a list of file metadata with inferred bank/type and processed status.
     Capped at settings.local_sync_max_files files, sorted by modification time (newest first).
+
+    When a DB session is provided, history-based suggestions are added via
+    :func:`build_filename_prefix_map`.  For files where filename inference
+    returned ``OTHER``, the most frequent historical ``(bank, type)`` combo
+    for the same 5-char filename prefix is used to pre-fill the selection.
+
+    Each returned dict includes four extra suggestion fields:
+
+    - ``suggestion_source``: ``'filename'`` or ``'history'``
+    - ``suggestion_conflict``: ``bool`` — ``True`` when the prefix maps to
+      more than one historical ``(bank, type)`` combination
+    - ``suggested_bank``: suggested bank name string
+    - ``suggested_type``: suggested statement type string
+
+    Args:
+        path: Optional directory path override.  Uses configured path if omitted.
+        db:   Optional SQLAlchemy session for history-based prefix lookup.
+
+    Returns:
+        List of file metadata dicts, newest-first, capped at
+        ``settings.local_sync_max_files``.
     """
     scan_path = path or get_configured_path()
     if not scan_path:
@@ -213,6 +314,9 @@ def list_local_files(path: str | None = None) -> list[dict]:
 
     state = _load_sync_state()
     processed = state.get("processed_files", {})
+
+    # Build prefix map once for the whole listing if a DB session is available
+    prefix_map: dict = build_filename_prefix_map(db) if db is not None else {}
 
     files: list[dict] = []
     for f in root.rglob("*"):
@@ -228,6 +332,27 @@ def list_local_files(path: str | None = None) -> list[dict]:
         key = _file_key(f)
         bank, stmt_type = infer_file_type(f.name, relative)
 
+        # ── History-based suggestion enrichment ──────────────
+        stem_prefix = Path(f.name).stem[:5].lower()
+        history_match = prefix_map.get(stem_prefix)
+
+        if bank == "OTHER" and history_match:
+            # Override inferred values with the historical best-guess
+            inferred_bank = history_match["bank"]
+            inferred_type = history_match["type"]
+            suggestion_bank = history_match["bank"]
+            suggestion_type = history_match["type"]
+            suggestion_source = "history"
+            suggestion_conflict = history_match["conflict"]
+        else:
+            # Filename/path inference was confident (non-OTHER) or no history
+            inferred_bank = bank
+            inferred_type = stmt_type
+            suggestion_bank = bank
+            suggestion_type = stmt_type
+            suggestion_source = "filename"
+            suggestion_conflict = False
+
         files.append({
             "filepath": str(f),
             "relative_path": relative,
@@ -236,10 +361,14 @@ def list_local_files(path: str | None = None) -> list[dict]:
             "modified_time": datetime.fromtimestamp(
                 stat.st_mtime, tz=timezone.utc
             ).isoformat(),
-            "inferred_bank": bank,
-            "inferred_type": stmt_type,
+            "inferred_bank": inferred_bank,
+            "inferred_type": inferred_type,
             "already_processed": key in processed,
             "file_key": key,
+            "suggestion_source": suggestion_source,
+            "suggestion_conflict": suggestion_conflict,
+            "suggested_bank": suggestion_bank,
+            "suggested_type": suggestion_type,
         })
 
     # Sort by modification time (newest first) and cap
