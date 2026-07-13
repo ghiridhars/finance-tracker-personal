@@ -248,11 +248,15 @@ class InvestmentPlatform {
 
 class InvestmentAsset {
   final String assetClass;
+  final String color;
+  final String icon;
   final double totalInvested;
   final double percentage;
 
   InvestmentAsset({
     required this.assetClass,
+    required this.color,
+    required this.icon,
     required this.totalInvested,
     required this.percentage,
   });
@@ -260,6 +264,8 @@ class InvestmentAsset {
   factory InvestmentAsset.fromJson(Map<String, dynamic> json) {
     return InvestmentAsset(
       assetClass: json['asset_class'] ?? 'Unknown',
+      color: json['color'] ?? '#9E9E9E',
+      icon: json['icon'] ?? 'help_outline',
       totalInvested: toDouble(json['total_invested']) ?? 0,
       percentage: toDouble(json['percentage']) ?? 0,
     );

@@ -2,6 +2,8 @@
 
 > Single tracking file for all phases. Updated after each phase completion.
 
+**Latest Phase:** [Phase 12 — Investment Portfolio Redesign](#phase-12-investment-portfolio-redesign----completed)
+
 ---
 
 ## Phase 1: Multi-Bank Statement Support (Foundation) — ✅ COMPLETED
@@ -542,3 +544,53 @@
 - `backend/app/services/analytics_service.py` — Enhanced grouping logic using rules.
 - `frontend/lib/router.dart` — Added `/investments` navigation.
 - `frontend/lib/screens/app_shell.dart` — Added to sidebar navigation.
+
+---
+
+## Phase 15: Investment Portfolio UX Redesign & Asset Classes — ✅ COMPLETED
+
+**Goal:** Replace the hardcoded asset-class strings and the inline `InvestmentRulesSection` widget with a relational `AssetClass` entity and a dedicated settings portal with visual pickers, dynamic analytics, and an "Inbox Zero" smart mapping queue.
+
+| # | Task | Status | Details |
+|---|------|--------|---------|
+| 15.1 | AssetClass Entity (Backend) | ✅ Done | New `asset_classes` table with `id`, `name`, `color_hex`, `icon_name`. Seeded with 6 defaults (Mutual Funds, Fixed Deposits, Equities & Stocks, Commodities, Crypto, Real Estate). Migration script `backend/scripts/migrate_investments.py` handles schema creation, data seeding, and FK linkage while preserving existing rules. |
+| 15.2 | InvestmentRule Relational Refactor | ✅ Done | Replaced `asset_class` string column on `investment_rules` with `asset_class_id` FK pointing to `asset_classes`. Backend eager-loads the nested `AssetClass` object (`joinedload`) so the frontend receives full color/icon data in a single request. |
+| 15.3 | Dynamic Analytics Engine | ✅ Done | `get_investment_analytics` now aggregates by `AssetClass` database objects rather than raw strings. Pie chart colors and icons are driven by backend data. An `asset_id=0` sentinel cleanly segregates "Uncategorized" transactions without DB null collisions. |
+| 15.4 | Unmapped Investments Endpoint | ✅ Done | New `GET /api/v2/analytics/investments/unmapped` — returns all investment-category transactions that match zero rules. Computed live on demand; no background jobs required. Instantly reflects new rules on next call. |
+| 15.5 | Asset Class CRUD API | ✅ Done | New `asset_classes` router with full CRUD (`GET /api/v2/asset-classes`, `POST`, `PUT /{id}`, `DELETE /{id}`). |
+| 15.6 | Investment Settings Screen (Frontend) | ✅ Done | New `InvestmentSettingsScreen` with 3-tab layout: **Asset Classes** (CRUD with visual pickers), **Mapping Rules** (view/delete existing rules), **Inbox** (Smart Mapping queue). Accessed via a gear icon in the InvestmentsScreen AppBar. |
+| 15.7 | Visual Color & Icon Pickers | ✅ Done | "New Asset Class" dialog uses tappable color swatches (8 preset Material colors with selection ring + checkmark) and `ChoiceChip` icon grid instead of raw text input. Zero hex codes typed by hand. |
+| 15.8 | Inbox Zero Smart Mapping | ✅ Done | The **Inbox** tab surfaces unmapped investment transactions in a prioritized queue. Tapping "Map this Investment" opens a dialog pre-filled with merchant data, allows the user to choose an Asset Class from a dropdown, set a platform name, and define a keyword. Saving creates a rule and immediately removes the transaction from the queue — all historical matches are retrospectively classified on next refresh. |
+| 15.9 | Dynamic Frontend Rendering | ✅ Done | `InvestmentsScreen` asset-class grid and `InvestmentPortfolioCard` pie chart now read `color` and `icon` from backend API data via `parseColor()` and `getIconDataFromString()`. Removed all hardcoded color/icon fallback logic. Removed `investment_rules_section.dart`. |
+
+**Files Created:**
+- `backend/app/models/asset_class.py` — `AssetClass` SQLAlchemy model.
+- `backend/app/schemas/asset_class.py` — `AssetClassSchema`, `AssetClassCreate`, `AssetClassUpdate` Pydantic DTOs.
+- `backend/app/routers/asset_classes.py` — Full CRUD router for asset classes.
+- `backend/scripts/migrate_investments.py` — One-time migration script.
+- `frontend/lib/models/asset_class.dart` — `AssetClass` Dart model.
+- `frontend/lib/providers/asset_classes_provider.dart` — `AssetClassesNotifier` Riverpod provider.
+- `frontend/lib/providers/unmapped_investments_provider.dart` — `UnmappedInvestmentsNotifier` Riverpod provider.
+- `frontend/lib/screens/investment_settings_screen.dart` — 3-tab settings screen.
+- `frontend/lib/services/api/asset_class_api.dart` — API client for asset class endpoints.
+
+**Files Modified:**
+- `backend/app/models/investment_rule.py` — Added `asset_class_id` FK, removed `asset_class` string column.
+- `backend/app/models/__init__.py` — Exported `AssetClass`.
+- `backend/app/routers/__init__.py` — Registered `asset_classes_router`.
+- `backend/app/main.py` — Included `asset_classes_router`.
+- `backend/app/schemas/investment_rule.py` — Updated DTOs to use `asset_class_id` + nested `AssetClassSchema`.
+- `backend/app/schemas/analytics.py` — Added `color` and `icon` fields to `InvestmentAssetSchema`.
+- `backend/app/routers/analytics.py` — Added `GET /investments/unmapped` endpoint; added `List[UnifiedTransactionSchema]` response model.
+- `backend/app/services/analytics_service.py` — Rewrote asset grouping to use `AssetClass` objects; added `get_unmapped_investments()` method.
+- `frontend/lib/models/investment_rule.dart` — Updated to `assetClassId` + nested `AssetClass?`.
+- `frontend/lib/models/analytics_models.dart` — Added `color` and `icon` fields to `InvestmentAsset`.
+- `frontend/lib/providers/investment_rule_provider.dart` — Updated signatures to use `int assetClassId`.
+- `frontend/lib/screens/investments_screen.dart` — Added settings gear in AppBar; removed inline rules section; dynamic color/icon rendering.
+- `frontend/lib/services/api/analytics_api.dart` — Added `getUnmappedInvestments()`.
+- `frontend/lib/services/api/investment_rule_api.dart` — Updated create/update signatures to `int assetClassId`.
+- `frontend/lib/services/api_service.dart` — Exported `AssetClassApi`; updated Investment Rule wrappers; added `getUnmappedInvestments()`.
+- `frontend/lib/widgets/charts/chart_helpers.dart` — Added `getIconDataFromString()` helper.
+- `frontend/lib/widgets/charts/investment_portfolio_card.dart` — Dynamic colors via `parseColor(asset.color)`.
+- `frontend/lib/widgets/investment_rules_section.dart` — **DELETED** (fully replaced by `InvestmentSettingsScreen`).
+

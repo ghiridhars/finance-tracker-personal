@@ -4,7 +4,7 @@ Analytics router — dashboard data endpoints.
 All endpoints return aggregate data from unified_transactions.
 """
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.analytics_service import AnalyticsService
 from app.schemas.analytics import InvestmentAnalyticsResponse
+from app.schemas.transaction import UnifiedTransactionSchema
 
 router = APIRouter(prefix="/api/v2/analytics", tags=["Analytics"])
 
@@ -125,3 +126,10 @@ def get_investments(db: Session = Depends(get_db)):
     Investment analytics.
     """
     return AnalyticsService.get_investment_analytics(db)
+
+@router.get("/investments/unmapped", response_model=List[UnifiedTransactionSchema])
+def get_unmapped_investments(db: Session = Depends(get_db)):
+    """
+    Returns a list of investment transactions that do not match any existing investment rules.
+    """
+    return AnalyticsService.get_unmapped_investments(db)

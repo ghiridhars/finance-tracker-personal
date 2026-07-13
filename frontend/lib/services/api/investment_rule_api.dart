@@ -19,14 +19,14 @@ class InvestmentRuleApi {
     }
   }
 
-  static Future<InvestmentRule> createInvestmentRule(String platformName, String assetClass, String keywords) async {
+  static Future<InvestmentRule> createInvestmentRule(String platformName, int assetClassId, String keywords) async {
     final response = await http
         .post(
           Uri.parse('${ApiClient.baseUrl}/api/v2/investment-rules'),
           headers: ApiClient.jsonHeaders,
           body: jsonEncode({
             'platform_name': platformName,
-            'asset_class': assetClass,
+            'asset_class_id': assetClassId,
             'keywords': keywords,
           }),
         )
@@ -41,10 +41,10 @@ class InvestmentRuleApi {
     }
   }
 
-  static Future<InvestmentRule> updateInvestmentRule(int id, {String? platformName, String? assetClass, String? keywords}) async {
+  static Future<InvestmentRule> updateInvestmentRule(int id, {String? platformName, int? assetClassId, String? keywords}) async {
     final body = <String, dynamic>{};
     if (platformName != null) body['platform_name'] = platformName;
-    if (assetClass != null) body['asset_class'] = assetClass;
+    if (assetClassId != null) body['asset_class_id'] = assetClassId;
     if (keywords != null) body['keywords'] = keywords;
 
     final response = await http

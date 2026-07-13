@@ -7,6 +7,7 @@ from app.models.budget import Budget, SavingsGoal, BillReminder, RecurringTransa
 from app.models.upi import UpiId
 from app.models.statement_audit import StatementAudit
 from app.models.investment_rule import InvestmentRule
+from app.models.asset_class import AssetClass
 
 __all__ = [
     "TransactionType",
@@ -27,4 +28,5 @@ __all__ = [
     "UpiId",
     "StatementAudit",
     "InvestmentRule",
+    "AssetClass",
 ]

@@ -42,7 +42,7 @@ Complete technical specification: architecture, database schema, API details, an
 ├─────────────────────────────────────────────────────────┤
 │                    Database                              │
 │          SQLite (WAL mode, foreign keys)                │
-│            15+ tables, 6 enums                          │
+│            17+ tables, 6 enums                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -112,6 +112,8 @@ backend/
 │   │   ├── tag.py              # Tag, TransactionTag
 │   │   ├── budget.py           # Budget, SavingsGoal, BillReminder, RecurringTransaction
 │   │   ├── upi.py              # UpiId (UPI handle mappings)
+│   │   ├── investment_rule.py  # InvestmentRule (platform keyword → AssetClass FK)
+│   │   ├── asset_class.py      # AssetClass (id, name, color_hex, icon_name)
 │   │   ├── bank_account.py     # BankAccount (first-class account entity)
 │   │   └── statement_audit.py  # StatementAudit (parse tracking + statement metadata)
 │   ├── schemas/
@@ -122,6 +124,9 @@ backend/
 │   │   ├── transaction.py      # UnifiedTransaction query/update DTOs + transfer schemas
 │   │   ├── budget.py           # Budget, Goal, Reminder, Recurring DTOs
 │   │   ├── upi.py              # UPI ID DTOs (create, update, response)
+│   │   ├── investment_rule.py  # InvestmentRule DTOs (uses AssetClass FK)
+│   │   ├── asset_class.py      # AssetClass CRUD DTOs
+│   │   ├── analytics.py        # Analytics response schemas (InvestmentAnalyticsResponse)
 │   │   └── admin.py            # Admin / Database Manager DTOs
 │   ├── parsing/                 # Refactored modular parsing engine
 │   │   ├── generic_pdf.py       # Generic PDF parsing orchestration
@@ -172,6 +177,8 @@ backend/
 │       ├── export.py           # CSV/JSON export + clear data
 │       ├── transfers.py        # Transfer management (detect, link, unlink)
 │       ├── upi.py              # UPI ID management (CRUD + rescan)
+│       ├── asset_classes.py    # Asset Class CRUD (for investment classification)
+│       ├── investment_rules.py # Investment Rule CRUD
 │       ├── gdrive.py           # Google Drive OAuth (connect, browse, import)
 │       ├── admin.py            # Database admin panel (table CRUD)
 │       └── local_sync.py       # Local directory sync (scan, import, status)
@@ -232,6 +239,8 @@ frontend/lib/
 │   ├── analytics_models.dart
 │   ├── account_models.dart
 │   ├── admin_models.dart
+│   ├── asset_class.dart
+│   ├── investment_rule.dart
 │   ├── converters.dart
 │   └── upi_models.dart
 ├── providers/
@@ -244,6 +253,9 @@ frontend/lib/
 │   ├── accounts_provider.dart          # Accounts + statements
 │   ├── transfers_provider.dart         # Transfer pair state
 │   ├── upi_provider.dart               # UPI ID state
+│   ├── investment_rule_provider.dart   # InvestmentRule CRUD state
+│   ├── asset_classes_provider.dart     # AssetClass CRUD state
+│   ├── unmapped_investments_provider.dart # Smart mapping inbox state
 │   ├── gdrive_import_provider.dart    # Google Drive OAuth + import state
 │   ├── local_sync_provider.dart       # Local directory sync state
 │   ├── admin_provider.dart            # Database admin state
@@ -251,6 +263,8 @@ frontend/lib/
 ├── screens/
 │   ├── app_shell.dart                  # Responsive shell (NavigationRail/Bar)
 │   ├── calendar_screen.dart            # Full-page spending calendar with editable transaction popup
+│   ├── investments_screen.dart         # Investment portfolio screen (dynamic asset classes)
+│   ├── investment_settings_screen.dart # 3-tab settings: Asset Classes, Rules, Inbox
 │   ├── import_screen.dart              # Import hub: upload + local sync + Google Drive
 │   ├── database_manager_screen.dart   # Admin table browser and editor
 │   ├── login_screen.dart               # Login/register screen (JWT auth)
@@ -262,9 +276,11 @@ frontend/lib/
 │       ├── api_client.dart             # Base HTTP client
 │       ├── account_api.dart            # Account API methods
 │       ├── admin_api.dart              # Admin/database API
-│       ├── analytics_api.dart          # Analytics API methods
+│       ├── analytics_api.dart          # Analytics API methods (incl. unmapped investments)
+│       ├── asset_class_api.dart        # Asset Class CRUD API
 │       ├── export_api.dart             # Export/data API
 │       ├── gdrive_api.dart             # Google Drive OAuth API
+│       ├── investment_rule_api.dart    # Investment Rule CRUD API
 │       ├── local_sync_api.dart         # Local directory sync API
 │       ├── transaction_api.dart        # Transaction API
 │       ├── transfers_api.dart          # Transfer API
@@ -323,7 +339,7 @@ frontend/lib/
 ## Database Schema
 
 **Engine:** SQLite with WAL mode and foreign keys enabled via PRAGMA.
-**Tables:** 15+ | **Enums:** 6
+**Tables:** 17+ | **Enums:** 6
 
 ### Enums
 
@@ -610,6 +626,26 @@ Unique: `(year, month, category_id)`
 | is_own | Boolean | **No** | | Default: false (true = user's own UPI) |
 | created_at | DateTime | **No** | | Default: UTC now |
 
+#### investment_rules
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| platform_name | String(200) | No | | Display name for platform (e.g. Groww) |
+| asset_class_id | Integer | No | FK | → asset_classes.id |
+| keywords | Text | No | | Comma-separated keyword list |
+
+#### asset_classes
+
+| Column | Type | Nullable | Key | Notes |
+|--------|------|----------|-----|-------|
+| id | Integer | No | PK | Auto-increment |
+| name | String(100) | No | UQ | Unique asset class name |
+| color_hex | String(7) | No | | Hex color for UI (e.g. #4CAF50) |
+| icon_name | String(50) | No | | Material icon name string |
+
+Has many: `investment_rules`
+
 ### Entity Relationship Diagram
 
 ```
@@ -623,6 +659,8 @@ categories 1───* budgets
 categories 1───* bill_reminders
 categories 1───* recurring_transactions
 categories 1───* upi_ids
+
+asset_classes 1───* investment_rules
 
 unified_transactions *───* tags (via transaction_tags)
 ```
@@ -645,7 +683,9 @@ unified_transactions *───* tags (via transaction_tags)
 | Categories | 7 | `/api/v2/categories/` |
 | Unified Transactions | 8 | `/api/v2/transactions/` |
 | Tags | 3 | `/api/v2/tags/` |
-| Analytics | 7 | `/api/v2/analytics/` |
+| Analytics | 9 | `/api/v2/analytics/` |
+| Asset Classes | 4 | `/api/v2/asset-classes/` |
+| Investment Rules | 4 | `/api/v2/investment-rules/` |
 | Accounts | 5 | `/api/v2/accounts/` |
 | Budgets | 7 | `/api/v2/budgets/` |
 | Savings Goals | 6 | `/api/v2/goals/` |

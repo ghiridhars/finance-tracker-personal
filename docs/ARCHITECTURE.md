@@ -83,6 +83,8 @@ graph TB
         R16["admin.py"]
         R17["local_sync.py"]
         R18["transactions.py<br/>(legacy)"]
+        R19["investment_rules.py"]
+        R20["asset_classes.py"]
     end
 
     subgraph Business["Service Layer"]
@@ -119,6 +121,8 @@ graph TB
         M10["UpiId"]
         M11["BankAccount"]
         M12["StatementAudit"]
+        M13["InvestmentRule"]
+        M14["AssetClass"]
     end
 
     Presentation --> Business
@@ -424,6 +428,22 @@ erDiagram
     }
 
     categories ||--o{ upi_ids : "optional category"
+
+    asset_classes {
+        int id PK
+        string name UK
+        string color_hex
+        string icon_name
+    }
+
+    investment_rules {
+        int id PK
+        string platform_name
+        int asset_class_id FK
+        string keywords
+    }
+
+    asset_classes ||--o{ investment_rules : "classifies"
 ```
 
 ---
@@ -451,6 +471,8 @@ graph TB
         Dashboard["DashboardWidget<br/>charts + summary"]
         Import["ImportScreen<br/>upload + local sync + Google Drive"]
         Calendar["CalendarScreen<br/>spending heatmap + editable transactions"]
+        Investments["InvestmentsScreen<br/>portfolio + asset classes"]
+        InvSettings["InvestmentSettingsScreen<br/>asset class + rules + inbox"]
         Accounts["AccountsWidget<br/>account cards + inline transaction list"]
         UpiMgmt["UpiManagementWidget<br/>UPI handle mappings"]
         Settings["SettingsScreen<br/>theme + currency + URL"]
@@ -470,6 +492,9 @@ graph TB
         GDriveProv["GDriveImportNotifier<br/>(OAuth + import)"]
         LocalProv["LocalSyncNotifier<br/>(directory sync)"]
         AdminProv["AdminNotifier<br/>(table browsing)"]
+        RulesProv["InvestmentRuleNotifier<br/>(rule CRUD)"]
+        AssetProv["AssetClassesNotifier<br/>(asset class CRUD)"]
+        UnmappedProv["UnmappedInvestmentsNotifier<br/>(inbox queue)"]
     end
 
     subgraph API["Modular API Layer"]
@@ -497,6 +522,11 @@ graph TB
     Accounts --> TxnProv
     UpiMgmt --> UpiProv
     UpiMgmt --> CatProv
+    Investments --> RulesProv
+    Investments --> AssetProv
+    InvSettings --> AssetProv
+    InvSettings --> RulesProv
+    InvSettings --> UnmappedProv
     Settings --> AppSettings
     DbManager --> AdminProv
 

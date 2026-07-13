@@ -13,6 +13,7 @@ A personal finance management app to upload bank statements, auto-categorize tra
 - Full-page spending calendar heatmap with per-bank color-coded breakdown and editable transaction categories
 - **Account-centric transactions** — Click any account to view its filtered transactions inline with editable categories
 - **Review Pane** — Dedicated screen to batch review and categorize doubtful transactions flagged during statement parsing, accessible via a notification badge
+- **Investment Portfolio** — Dedicated investments screen with dynamic Asset Classes (custom name, color, icon), a Smart Mapping rule engine, and an "Inbox Zero" queue for unclassified investment transactions
 - **Glassmorphic UI** — Modern, translucent design language tailored for desktop environments
 - **Transfer detection** — Auto-detect and manually link inter-account transfers and CC bill payments
 - **UPI ID management** — Map UPI handles to accounts/categories for auto-categorization and transfer flagging
@@ -105,21 +106,21 @@ finance-tracker-v2/
 │   │   ├── config.py         # Settings (env-based)
 │   │   ├── database.py       # SQLAlchemy engine + session
 │   │   ├── auth.py           # JWT authentication (register/login/token)
-│   │   ├── models/           # 15+ SQLAlchemy ORM models (6 enums)
+│   │   ├── models/           # 17+ SQLAlchemy ORM models (6 enums)
 │   │   ├── schemas/          # Pydantic request/response DTOs
 │   │   ├── parsers/          # PDF/CSV parsers + LLM fallback
 │   │   ├── services/         # Business logic layer (16 services)
-│   │   ├── routers/          # 18 API route modules (~122 endpoints)
+│   │   ├── routers/          # 20+ API route modules (~130+ endpoints)
 │   │   └── utils/            # Shared utilities (file_utils.py)
 │   └── requirements.txt
 ├── frontend/
 │   ├── lib/
 │   │   ├── main.dart         # App entry (MaterialApp.router)
-│   │   ├── router.dart       # GoRouter config (5 nav destinations)
+│   │   ├── router.dart       # GoRouter config (6 nav destinations)
 │   │   ├── theme.dart        # Light/dark theme
-│   │   ├── models/           # Dart data models
-│   │   ├── providers/        # Riverpod state management (13+ providers)
-│   │   ├── screens/          # App shell, login, calendar, import, settings, database manager, review pane
+│   │   ├── models/           # Dart data models (incl. AssetClass, InvestmentRule)
+│   │   ├── providers/        # Riverpod state management (16+ providers)
+│   │   ├── screens/          # App shell, login, calendar, investments, import, settings, database manager, review pane
 │   │   ├── services/         # API client + auth service + modular API layer
 │   │   └── widgets/          # Dashboard, accounts, UPI, charts/
 │   └── pubspec.yaml

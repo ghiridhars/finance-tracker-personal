@@ -13,9 +13,9 @@ class InvestmentRuleNotifier extends AsyncNotifier<List<InvestmentRule>> {
     return await ApiService.getInvestmentRules();
   }
 
-  Future<void> addRule(String platformName, String assetClass, String keywords) async {
+  Future<void> addRule(String platformName, int assetClassId, String keywords) async {
     try {
-      final newRule = await ApiService.createInvestmentRule(platformName, assetClass, keywords);
+      final newRule = await ApiService.createInvestmentRule(platformName, assetClassId, keywords);
       if (state.hasValue) {
         state = AsyncValue.data([...state.value!, newRule]);
       } else {
@@ -26,12 +26,12 @@ class InvestmentRuleNotifier extends AsyncNotifier<List<InvestmentRule>> {
     }
   }
 
-  Future<void> updateRule(int id, String platformName, String assetClass, String keywords) async {
+  Future<void> updateRule(int id, String platformName, int assetClassId, String keywords) async {
     try {
       final updated = await ApiService.updateInvestmentRule(
         id, 
         platformName: platformName, 
-        assetClass: assetClass, 
+        assetClassId: assetClassId, 
         keywords: keywords,
       );
       if (state.hasValue) {

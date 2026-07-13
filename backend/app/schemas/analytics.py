@@ -7,6 +7,8 @@ class InvestmentPlatformSchema(BaseModel):
 
 class InvestmentAssetSchema(BaseModel):
     asset_class: str
+    color: str
+    icon: str
     total_invested: float
     percentage: float
 

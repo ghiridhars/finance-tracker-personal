@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/charts/investment_trend_chart.dart';
 import '../widgets/charts/chart_helpers.dart';
-import '../widgets/investment_rules_section.dart';
+import 'investment_settings_screen.dart';
 
 class InvestmentsScreen extends ConsumerWidget {
   const InvestmentsScreen({super.key});
@@ -19,6 +19,15 @@ class InvestmentsScreen extends ConsumerWidget {
         slivers: [
           SliverAppBar.large(
             title: const Text('Investment Portfolio'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const InvestmentSettingsScreen()),
+                ),
+              ),
+            ],
           ),
           if (dashState.isLoading)
             const SliverFillRemaining(
@@ -39,12 +48,19 @@ class InvestmentsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Start classifying your outbound transfers into asset classes using the transaction list.',
+                      'Start mapping your outbound transfers using the Settings gear above.',
                       style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    const InvestmentRulesSection(),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const InvestmentSettingsScreen()),
+                      ),
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Configure Portfolio'),
+                    ),
                   ],
                 ),
               ),
@@ -52,12 +68,6 @@ class InvestmentsScreen extends ConsumerWidget {
           else ...[
             SliverToBoxAdapter(
               child: _buildHeroHeader(context, dashState.investmentAnalytics!.totalInvested),
-            ),
-            const SliverPadding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              sliver: SliverToBoxAdapter(
-                child: InvestmentRulesSection(),
-              ),
             ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -100,7 +110,7 @@ class InvestmentsScreen extends ConsumerWidget {
                           children: [
                             Row(
                               children: [
-                                Icon(getAssetClassIcon(asset.assetClass), color: cs.primary),
+                                Icon(getIconDataFromString(asset.icon), color: parseColor(asset.color)),
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -195,7 +205,6 @@ class InvestmentsScreen extends ConsumerWidget {
   }
 
   Widget _buildHeroHeader(BuildContext context, double totalInvested) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.all(16.0),
       padding: const EdgeInsets.all(24.0),
@@ -241,16 +250,5 @@ class InvestmentsScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  IconData getAssetClassIcon(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('mutual fund') || lower.contains('mf')) return Icons.pie_chart;
-    if (lower.contains('stock') || lower.contains('equity')) return Icons.show_chart;
-    if (lower.contains('fixed deposit') || lower.contains('fd')) return Icons.account_balance;
-    if (lower.contains('commodit') || lower.contains('gold')) return Icons.diamond;
-    if (lower.contains('crypto')) return Icons.currency_bitcoin;
-    if (lower.contains('real estate')) return Icons.house;
-    return Icons.account_balance_wallet;
   }
 }

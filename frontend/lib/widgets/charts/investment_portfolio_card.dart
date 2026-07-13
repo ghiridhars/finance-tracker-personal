@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../models/analytics_models.dart';
+import 'chart_helpers.dart';
 
 class InvestmentPortfolioCard extends StatelessWidget {
   final InvestmentAnalytics data;
@@ -95,11 +96,9 @@ class InvestmentPortfolioCard extends StatelessWidget {
                             PieChartData(
                               sectionsSpace: 2,
                               centerSpaceRadius: 40,
-                              sections: data.assetClasses.asMap().entries.map((e) {
-                                final index = e.key;
-                                final asset = e.value;
+                              sections: data.assetClasses.map((asset) {
                                 return PieChartSectionData(
-                                  color: _getAssetColor(index, isDark),
+                                  color: parseColor(asset.color),
                                   value: asset.percentage,
                                   title: '${asset.percentage.toInt()}%',
                                   radius: 20,
@@ -125,9 +124,7 @@ class InvestmentPortfolioCard extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: data.assetClasses.asMap().entries.map((e) {
-                            final index = e.key;
-                            final asset = e.value;
+                          children: data.assetClasses.map((asset) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Row(
@@ -136,7 +133,7 @@ class InvestmentPortfolioCard extends StatelessWidget {
                                     width: 12,
                                     height: 12,
                                     decoration: BoxDecoration(
-                                      color: _getAssetColor(index, isDark),
+                                      color: parseColor(asset.color),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -172,24 +169,4 @@ class InvestmentPortfolioCard extends StatelessWidget {
     );
   }
 
-  Color _getAssetColor(int index, bool isDark) {
-    final colors = isDark
-        ? [
-            Colors.indigo.shade400,
-            Colors.teal.shade400,
-            Colors.orange.shade400,
-            Colors.purple.shade400,
-            Colors.pink.shade400,
-            Colors.cyan.shade400,
-          ]
-        : [
-            Colors.indigo.shade500,
-            Colors.teal.shade500,
-            Colors.orange.shade500,
-            Colors.purple.shade500,
-            Colors.pink.shade500,
-            Colors.cyan.shade500,
-          ];
-    return colors[index % colors.length];
-  }
 }

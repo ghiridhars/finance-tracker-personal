@@ -3,6 +3,7 @@ library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/analytics_models.dart';
+import '../../models/unified_transaction_models.dart';
 import 'api_client.dart';
 
 class AnalyticsApi {
@@ -126,5 +127,16 @@ class AnalyticsApi {
       throw Exception('Failed to fetch investments: ${response.body}');
     }
     return InvestmentAnalytics.fromJson(jsonDecode(response.body));
+  }
+
+  /// Unmapped investments
+  static Future<List<UnifiedTransaction>> getUnmappedInvestments() async {
+    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/analytics/investments/unmapped');
+    final response = await http.get(uri, headers: ApiClient.headers);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch unmapped investments: ${response.body}');
+    }
+    final List<dynamic> data = jsonDecode(response.body);
+    return data.map((t) => UnifiedTransaction.fromJson(t)).toList();
   }
 }

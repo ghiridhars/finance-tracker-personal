@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.database import get_db
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v2/investment-rules", tags=["Investment Rules"])
 
 @router.get("", response_model=List[InvestmentRuleResponse])
 def get_investment_rules(db: Session = Depends(get_db)):
-    return db.query(InvestmentRule).all()
+    return db.query(InvestmentRule).options(joinedload(InvestmentRule.asset_class)).all()
 
 @router.post("", response_model=InvestmentRuleResponse, status_code=201)
 def create_investment_rule(rule: InvestmentRuleCreate, db: Session = Depends(get_db)):

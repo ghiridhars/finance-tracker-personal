@@ -44,3 +44,19 @@ class LegendDot extends StatelessWidget {
     );
   }
 }
+
+IconData getIconDataFromString(String name) {
+  switch (name) {
+    case 'pie_chart': return Icons.pie_chart;
+    case 'show_chart': return Icons.show_chart;
+    case 'account_balance': return Icons.account_balance;
+    case 'diamond': return Icons.diamond;
+    case 'currency_bitcoin': return Icons.currency_bitcoin;
+    case 'house': return Icons.house;
+    case 'business': return Icons.business;
+    case 'savings': return Icons.savings;
+    case 'attach_money': return Icons.attach_money;
+    case 'trending_up': return Icons.trending_up;
+    default: return Icons.account_balance_wallet;
+  }
+}

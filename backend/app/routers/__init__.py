@@ -16,6 +16,7 @@ from app.routers.upi import router as upi_router
 from app.routers.admin import router as admin_router
 from app.routers.local_sync import router as local_sync_router
 from app.routers.investment_rules import router as investment_rules_router
+from app.routers.asset_classes import router as asset_classes_router
 
 __all__ = [
     "health_router",
@@ -36,4 +37,5 @@ __all__ = [
     "admin_router",
     "local_sync_router",
     "investment_rules_router",
+    "asset_classes_router",
 ]

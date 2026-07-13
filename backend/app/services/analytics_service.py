@@ -543,17 +543,19 @@ class AnalyticsService:
 
         # Rules
         from app.models.investment_rule import InvestmentRule
-        rules = db.query(InvestmentRule).all()
+        from sqlalchemy.orm import joinedload
+        rules = db.query(InvestmentRule).options(joinedload(InvestmentRule.asset_class)).all()
 
         txs = base_query.all()
         from collections import defaultdict
         platform_totals = defaultdict(float)
         asset_totals = defaultdict(float)
+        asset_info = {}
 
         for tx in txs:
             raw_string = tx.merchant_name or tx.description or 'Unknown'
             resolved_platform = raw_string
-            resolved_asset_class = 'Uncategorized'
+            resolved_asset_class = None
             
             raw_string_lower = raw_string.lower()
             for rule in rules:
@@ -565,7 +567,11 @@ class AnalyticsService:
                         break
             
             platform_totals[resolved_platform] += float(tx.amount)
-            asset_totals[resolved_asset_class] += float(tx.amount)
+            if resolved_asset_class:
+                asset_totals[resolved_asset_class.id] += float(tx.amount)
+                asset_info[resolved_asset_class.id] = resolved_asset_class
+            else:
+                asset_totals[0] += float(tx.amount)
 
         platforms = []
         for p, amt in sorted(platform_totals.items(), key=lambda x: x[1], reverse=True):
@@ -576,12 +582,24 @@ class AnalyticsService:
             })
 
         asset_classes = []
-        for a, amt in sorted(asset_totals.items(), key=lambda x: x[1], reverse=True):
-            asset_classes.append({
-                "asset_class": a,
-                "total_invested": amt,
-                "percentage": round(amt / total_invested * 100, 1) if total_invested > 0 else 0
-            })
+        for a_id, amt in sorted(asset_totals.items(), key=lambda x: x[1], reverse=True):
+            if a_id == 0:
+                asset_classes.append({
+                    "asset_class": "Uncategorized",
+                    "color": "#9E9E9E",
+                    "icon": "help_outline",
+                    "total_invested": amt,
+                    "percentage": round(amt / total_invested * 100, 1) if total_invested > 0 else 0
+                })
+            else:
+                ac = asset_info[a_id]
+                asset_classes.append({
+                    "asset_class": ac.name,
+                    "color": ac.color_hex,
+                    "icon": ac.icon_name,
+                    "total_invested": amt,
+                    "percentage": round(amt / total_invested * 100, 1) if total_invested > 0 else 0
+                })
 
         # Trends
         period_expr = func.strftime("%Y-%m", UnifiedTransaction.date)
@@ -608,4 +626,35 @@ class AnalyticsService:
             "asset_classes": asset_classes,
             "trends": trends
         }
+
+    @staticmethod
+    def get_unmapped_investments(db: Session) -> list[UnifiedTransaction]:
+        base_query = (
+            db.query(UnifiedTransaction)
+            .join(Category, UnifiedTransaction.category_id == Category.id)
+            .filter(
+                UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
+                Category.name.in_(["Investment", "Insurance"])
+            )
+        )
+        txs = base_query.all()
+        from app.models.investment_rule import InvestmentRule
+        rules = db.query(InvestmentRule).all()
+        
+        unmapped = []
+        for tx in txs:
+            raw_string = tx.merchant_name or tx.description or 'Unknown'
+            raw_string_lower = raw_string.lower()
+            matched = False
+            for rule in rules:
+                if rule.keywords:
+                    keywords = [k.strip().lower() for k in rule.keywords.split(',')]
+                    if any(k and k in raw_string_lower for k in keywords):
+                        matched = True
+                        break
+            if not matched:
+                unmapped.append(tx)
+                
+        return unmapped
 

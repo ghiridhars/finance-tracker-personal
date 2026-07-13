@@ -20,6 +20,7 @@ export 'api/transfers_api.dart';
 export 'api/upi_api.dart';
 export 'api/admin_api.dart';
 export 'api/local_sync_api.dart';
+export 'api/asset_class_api.dart';
 
 import 'api/api_client.dart';
 import 'api/transaction_api.dart';
@@ -30,6 +31,7 @@ import 'api/export_api.dart';
 import 'api/transfers_api.dart';
 import 'api/upi_api.dart';
 import 'api/local_sync_api.dart';
+import 'api/asset_class_api.dart';
 
 import '../models/savings_models.dart';
 import '../models/credit_card_models.dart';
@@ -38,6 +40,7 @@ import '../models/unified_transaction_models.dart';
 import '../models/analytics_models.dart';
 import '../models/account_models.dart';
 import '../models/upi_models.dart';
+import '../models/asset_class.dart';
 
 /// Backward-compatible facade. All methods delegate to domain-specific API classes.
 /// New code should use TransactionApi, UploadApi, AnalyticsApi, etc. directly.
@@ -146,6 +149,8 @@ class ApiService {
   static Future<List<SpendingTrend>> getDailySpending({
     required int year, required int month,
   }) => AnalyticsApi.getDailySpending(year: year, month: month);
+  static Future<List<UnifiedTransaction>> getUnmappedInvestments() =>
+      AnalyticsApi.getUnmappedInvestments();
 
   // ── Accounts ──────────────────────────────────────────────
 
@@ -251,16 +256,27 @@ class ApiService {
       LocalSyncApi.resetState(filepaths: filepaths);
 
 
+  // ── Asset Classes ─────────────────────────────────────────
+
+  static Future<List<AssetClass>> getAssetClasses() =>
+      AssetClassApi.getAssetClasses();
+  static Future<AssetClass> createAssetClass(String name, String colorHex, String iconName) =>
+      AssetClassApi.createAssetClass(name, colorHex, iconName);
+  static Future<AssetClass> updateAssetClass(int id, {String? name, String? colorHex, String? iconName}) =>
+      AssetClassApi.updateAssetClass(id, name: name, colorHex: colorHex, iconName: iconName);
+  static Future<void> deleteAssetClass(int id) =>
+      AssetClassApi.deleteAssetClass(id);
+
   // ── Investment Rules ──────────────────────────────────────
 
   static Future<List<InvestmentRule>> getInvestmentRules() =>
       InvestmentRuleApi.getInvestmentRules();
 
-  static Future<InvestmentRule> createInvestmentRule(String platformName, String assetClass, String keywords) =>
-      InvestmentRuleApi.createInvestmentRule(platformName, assetClass, keywords);
+  static Future<InvestmentRule> createInvestmentRule(String platformName, int assetClassId, String keywords) =>
+      InvestmentRuleApi.createInvestmentRule(platformName, assetClassId, keywords);
 
-  static Future<InvestmentRule> updateInvestmentRule(int id, {String? platformName, String? assetClass, String? keywords}) =>
-      InvestmentRuleApi.updateInvestmentRule(id, platformName: platformName, assetClass: assetClass, keywords: keywords);
+  static Future<InvestmentRule> updateInvestmentRule(int id, {String? platformName, int? assetClassId, String? keywords}) =>
+      InvestmentRuleApi.updateInvestmentRule(id, platformName: platformName, assetClassId: assetClassId, keywords: keywords);
 
   static Future<void> deleteInvestmentRule(int id) =>
       InvestmentRuleApi.deleteInvestmentRule(id);
