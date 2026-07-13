@@ -1,4 +1,5 @@
 /// Transfers state management — handles transfer detection, linking, and listing.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api/transfers_api.dart';
 

@@ -1,6 +1,7 @@
 /// Skeleton loading widgets — shimmer placeholders for loading states.
 ///
 /// Reusable across dashboard, transaction list, accounts, and budget screens.
+library;
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 

@@ -1,4 +1,5 @@
 /// Upload-related API calls (PDF and CSV statement upload).
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';

@@ -5,6 +5,7 @@
 ///   - Currency symbol selection
 ///   - Theme mode selector (system/light/dark)
 ///   - Clear all data action
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';

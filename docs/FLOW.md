@@ -100,6 +100,7 @@ Create, edit, and configure auto-categorization rules.
 User views categories → Creates/edits categories → Adds keywords
   → Keywords drive auto-categorization on future uploads
   → Can re-categorize existing transactions
+  → System also auto-learns keywords and UPI mappings from Review Pane corrections
 ```
 
 | Step | Method | Endpoint | Details |

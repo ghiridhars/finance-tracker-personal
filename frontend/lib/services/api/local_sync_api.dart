@@ -2,6 +2,7 @@
 ///
 /// Provides methods to configure a local directory path, list files,
 /// start a batch scan/import, poll scan progress, and reset state.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_client.dart';

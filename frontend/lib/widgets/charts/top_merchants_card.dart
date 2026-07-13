@@ -1,4 +1,5 @@
 /// Top merchants card — ranked list of highest-spending merchants.
+library;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../models/analytics_models.dart';

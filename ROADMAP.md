@@ -480,6 +480,8 @@
 | 12.3 | Review Pane Screen | ✅ Done | Created a dedicated `/review` screen for batch processing doubtful transactions. Provides inline dropdowns for category assignment and text fields for merchant names, with a final "Submit Reviewed" bulk action. |
 | 12.4 | Glassmorphism Theme | ✅ Done | Applied Liquid Glass UI techniques to `theme.dart` (translucent surfaces, `BackdropFilter` blurs) to modernize the app's desktop experience. |
 | 12.5 | Review Reasons & Approvability | ✅ Done | Added `review_reason` (String) to `UnifiedTransaction` schema extracted from parse validation errors. Redesigned review UI with individual row approvals, fade animations, and inline notes editing. |
+| 12.6 | Review Pane Self-Learning | ✅ Done | Correcting a category in the review pane triggers a 2-tier learning engine. Tier 1 maps the UPI handle; Tier 2 extracts a format-aware keyword for non-UPI txns. Automatically sweeps and auto-resolves similar transactions in the queue. |
+| 12.7 | Local Sync History Suggestion | ✅ Done | Directory import tracks past successful parses in `statement_audit`. Maps the first 5 characters of a filename to bank/type combinations, auto-filling dropdowns (and showing conflict warnings) for new matching files. |
 
 **Files Created:**
 - [frontend/lib/screens/review_screen.dart](frontend/lib/screens/review_screen.dart) — Dedicated UI for reviewing doubtful transactions.

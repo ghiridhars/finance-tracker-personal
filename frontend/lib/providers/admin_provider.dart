@@ -1,4 +1,5 @@
 /// Provider for Database Manager state.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/admin_models.dart';
 import '../services/api/admin_api.dart';

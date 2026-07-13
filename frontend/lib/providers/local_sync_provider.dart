@@ -2,6 +2,7 @@
 ///
 /// Handles path configuration, file discovery, bank/type overrides,
 /// file selection, scan initiation, and progress polling.
+library;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api/local_sync_api.dart';

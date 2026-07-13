@@ -1,5 +1,6 @@
 /// AppSettingsNotifier — manages theme mode and user preferences.
 /// Persists settings to shared_preferences.
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';

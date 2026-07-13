@@ -1,4 +1,5 @@
 /// Accounts & Statement Management provider (Phase 4).
+library;
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

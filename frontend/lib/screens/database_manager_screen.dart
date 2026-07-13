@@ -3,6 +3,7 @@
 /// Accessed from Settings → Advanced → Database Manager.
 /// Provides table selection, paginated row browsing, search, sort,
 /// and full CRUD via dynamically generated forms.
+library;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -86,7 +87,7 @@ class _DatabaseManagerScreenState
                 Expanded(
                   flex: 2,
                   child: DropdownButtonFormField<String>(
-                    value: adminState.selectedTable,
+                    initialValue: adminState.selectedTable,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Table',
@@ -856,7 +857,7 @@ class _RowFormDialogState extends State<_RowFormDialog> {
 
   Widget _buildEnumDropdown(ColumnInfo col) {
     return DropdownButtonFormField<String>(
-      value: _data[col.name]?.toString(),
+      initialValue: _data[col.name]?.toString(),
       decoration: InputDecoration(labelText: col.name),
       items: [
         if (col.nullable)
@@ -884,7 +885,7 @@ class _RowFormDialogState extends State<_RowFormDialog> {
         : int.tryParse(_data[col.name]?.toString() ?? '');
 
     return DropdownButtonFormField<int?>(
-      value: currentVal,
+      initialValue: currentVal,
       decoration: InputDecoration(labelText: col.name),
       isExpanded: true,
       items: [

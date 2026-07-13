@@ -1,5 +1,6 @@
 /// Shared date-range utilities for transaction notifiers.
 /// Eliminates duplicated applyPreset / formatDate logic across providers.
+library;
 import 'transactions_provider.dart' show DateRangePreset;
 
 mixin DateRangeMixin {

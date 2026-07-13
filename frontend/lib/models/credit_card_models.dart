@@ -1,4 +1,5 @@
 /// Credit Card models.
+library;
 import 'converters.dart';
 import 'enums.dart';
 

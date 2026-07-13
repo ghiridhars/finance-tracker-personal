@@ -1,4 +1,5 @@
 /// Unified transaction model — single representation for all transaction types.
+library;
 import 'category_models.dart';
 import 'converters.dart';
 import 'enums.dart';

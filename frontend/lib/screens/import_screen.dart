@@ -6,6 +6,7 @@
 ///
 /// Each mode delegates to its own existing provider
 /// (statementsProvider / localSyncProvider).
+library;
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -34,7 +35,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   String _bank = 'HDFC';
   String _statementType = 'SAVINGS';
   bool _saveAfterParse = true;
-  bool _isDragHovering = false;
+  final bool _isDragHovering = false;
 
   /// Per-bank password cache for the session (not persisted).
   final Map<String, String> _bankPasswords = {};
@@ -235,7 +236,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
             // Bank dropdown
             DropdownButtonFormField<String>(
-              value: _bank,
+              initialValue: _bank,
               decoration: const InputDecoration(
                 labelText: 'Bank',
                 border: OutlineInputBorder(),
@@ -261,7 +262,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
             // Statement type dropdown
             DropdownButtonFormField<String>(
-              value: _statementType,
+              initialValue: _statementType,
               decoration: const InputDecoration(
                 labelText: 'Statement Type',
                 border: OutlineInputBorder(),
@@ -948,7 +949,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: file.selectedBank,
+                    initialValue: file.selectedBank,
                     isDense: true,
                     isExpanded: true,
                     decoration: InputDecoration(
@@ -1035,7 +1036,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: file.selectedType,
+                    initialValue: file.selectedType,
                     isDense: true,
                     isExpanded: true,
                     decoration: InputDecoration(
@@ -1517,7 +1518,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedBank,
+                  initialValue: selectedBank,
                   decoration: const InputDecoration(
                     labelText: 'Bank',
                     border: OutlineInputBorder(),
@@ -1533,7 +1534,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(
                     labelText: 'Account Type',
                     border: OutlineInputBorder(),
@@ -1942,7 +1943,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: file.selectedBank,
+                initialValue: file.selectedBank,
                 isDense: true,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -1974,7 +1975,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: file.selectedType,
+                initialValue: file.selectedType,
                 isDense: true,
                 isExpanded: true,
                 decoration: const InputDecoration(

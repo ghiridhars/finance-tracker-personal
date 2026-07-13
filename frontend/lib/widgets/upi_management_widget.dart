@@ -2,6 +2,7 @@
 ///
 /// Shows UPI IDs linked to the current context (account or all),
 /// with add/edit/delete capabilities and a rescan trigger.
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/upi_models.dart';
@@ -494,7 +495,7 @@ void _showAddUpiDialog(
                   if (!isOwn && categoryList.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<int>(
-                      value: selectedCategoryId,
+                      initialValue: selectedCategoryId,
                       decoration: const InputDecoration(
                         labelText: 'Auto-assign category',
                         border: OutlineInputBorder(),

@@ -1,4 +1,5 @@
 /// Summary cards — financial overview tiles (income, spending, net savings, etc.)
+library;
 import 'package:flutter/material.dart';
 import '../../models/analytics_models.dart';
 import 'chart_helpers.dart';

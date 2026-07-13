@@ -12,7 +12,7 @@ enum TransactionType {
       (e) => e.value == s.toUpperCase(),
     );
     if (match.isEmpty) {
-      throw ArgumentError('Unknown TransactionType: "$s"');
+      return TransactionType.credit;
     }
     return match.first;
   }

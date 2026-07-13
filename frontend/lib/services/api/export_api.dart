@@ -1,4 +1,5 @@
 /// Export, data management, categories, and Google Drive sync API calls.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/category_models.dart';

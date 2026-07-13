@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/investment_rule.dart';
 import '../providers/dashboard_provider.dart';
-import '../providers/investment_rule_provider.dart';
-import '../widgets/charts/investment_portfolio_card.dart';
 import '../widgets/charts/investment_trend_chart.dart';
 import '../widgets/charts/chart_helpers.dart';
 import '../widgets/investment_rules_section.dart';

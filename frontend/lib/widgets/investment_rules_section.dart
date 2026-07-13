@@ -130,7 +130,7 @@ class InvestmentRulesSection extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: assetClasses.contains(selectedAssetClass) ? selectedAssetClass : 'Other',
+                      initialValue: assetClasses.contains(selectedAssetClass) ? selectedAssetClass : 'Other',
                       decoration: const InputDecoration(
                         labelText: 'Asset Class',
                         border: OutlineInputBorder(),

@@ -1,4 +1,5 @@
 /// Login / Registration screen for single-user authentication.
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';

@@ -1,4 +1,5 @@
 /// Models for analytics/dashboard data from the backend.
+library;
 import 'converters.dart';
 
 class DashboardSummary {

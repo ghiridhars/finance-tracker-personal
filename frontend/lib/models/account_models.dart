@@ -1,4 +1,5 @@
 /// Account & Statement management models for Phase 4.
+library;
 import 'converters.dart';
 
 class Account {

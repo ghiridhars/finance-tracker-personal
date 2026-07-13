@@ -1,5 +1,6 @@
 /// TransactionsNotifier — manages transaction data, loading state, and date filters.
 /// Cross-tab reactive: uploading a statement triggers auto-refresh here.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/unified_transaction_models.dart';
 import '../services/api_service.dart';

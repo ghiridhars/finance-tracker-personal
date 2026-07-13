@@ -1,5 +1,6 @@
 /// Shared HTTP client utilities for all API modules.
 /// Provides auth token management, common headers, and error extraction.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 

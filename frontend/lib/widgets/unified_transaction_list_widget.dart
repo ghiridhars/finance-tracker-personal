@@ -1,5 +1,6 @@
 /// Unified Transaction List — shows all transactions from all sources
 /// with category badges, search, filters, and CSV export.
+library;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

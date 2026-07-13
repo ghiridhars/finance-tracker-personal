@@ -2,6 +2,7 @@
 /// Replaces: React frontend (App.tsx, main.tsx)
 ///
 /// Architecture: Material Design 3, Riverpod state management, go_router navigation
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router.dart';

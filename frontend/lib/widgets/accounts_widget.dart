@@ -4,6 +4,7 @@
 ///   1. Accounts list — shows all linked savings/CC accounts with summary
 ///   2. Statement history — shows statements for the selected account
 ///      with swipe-to-delete support
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';

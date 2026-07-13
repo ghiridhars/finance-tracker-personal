@@ -1,5 +1,6 @@
 /// GDriveImportNotifier — manages Google Drive OAuth connection, folder browsing,
 /// file discovery, review overrides, and import progress polling.
+library;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api/gdrive_api.dart';

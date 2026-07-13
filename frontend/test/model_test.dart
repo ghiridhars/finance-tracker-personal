@@ -1,5 +1,6 @@
 /// Unit tests for data models: SavingsTransaction, CreditCardTransaction,
 /// SavingsStatement, CreditCardStatement, and TransactionType.
+library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:finance_tracker_frontend/models/savings_models.dart';
 import 'package:finance_tracker_frontend/models/credit_card_models.dart';

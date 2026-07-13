@@ -1,4 +1,5 @@
 /// Dashboard state management — loads all analytics data.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/analytics_models.dart';
 import '../services/api_service.dart';

@@ -1,4 +1,5 @@
 /// Month-over-month comparison card.
+library;
 import 'package:flutter/material.dart';
 import '../../models/analytics_models.dart';
 import 'chart_helpers.dart';

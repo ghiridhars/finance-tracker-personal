@@ -1,4 +1,5 @@
 /// UPI ID state management provider.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/upi_models.dart';
 import '../services/api/upi_api.dart';

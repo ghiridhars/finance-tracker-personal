@@ -1,13 +1,13 @@
 /// Dashboard screen — financial overview with charts and summary cards.
 ///
 /// Chart widgets are in charts/ subdirectory.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/dashboard_layout_provider.dart';
-import '../models/analytics_models.dart';
 import 'skeleton_widgets.dart';
 import 'charts/summary_cards.dart';
 import 'charts/spending_trends_chart.dart';

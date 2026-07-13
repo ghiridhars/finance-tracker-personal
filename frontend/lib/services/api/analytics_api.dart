@@ -1,4 +1,5 @@
 /// Analytics / Dashboard API calls.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/analytics_models.dart';

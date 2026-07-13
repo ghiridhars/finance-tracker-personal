@@ -1,4 +1,5 @@
 /// Models for the Database Manager / Admin API.
+library;
 
 class ForeignKeyInfo {
   final String table;

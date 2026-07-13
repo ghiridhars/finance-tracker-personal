@@ -1,5 +1,6 @@
 /// Savings Account Transaction model.
 /// Replaces: Transaction interface in React's TransactionList.tsx
+library;
 import 'converters.dart';
 import 'enums.dart';
 

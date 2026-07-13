@@ -1,4 +1,5 @@
 /// Transfer API module — manages transfer detection, linking, and listing.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/unified_transaction_models.dart';

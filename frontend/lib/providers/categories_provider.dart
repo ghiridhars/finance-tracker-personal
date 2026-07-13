@@ -1,4 +1,5 @@
 /// Provider for categories and tags.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/category_models.dart';
 import '../services/api_service.dart';

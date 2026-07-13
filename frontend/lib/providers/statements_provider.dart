@@ -1,5 +1,6 @@
 /// StatementsNotifier — manages upload state and parsed results.
 /// After a successful upload, triggers auto-refresh of transaction lists.
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import 'transactions_provider.dart';

@@ -1,4 +1,5 @@
 /// Admin / Database Manager API calls.
+library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/admin_models.dart';

@@ -516,6 +516,7 @@ Has many: `category_keywords`, `children` (self), `unified_transactions`, `budge
 | id | Integer | No | PK | Auto-increment |
 | keyword | String(100) | **No** | UQ | Unique keyword |
 | category_id | Integer | **No** | FK | → categories.id |
+| is_learned | Boolean | **No** | | Auto-created via review pane (default: false) |
 
 #### tags
 
@@ -698,18 +699,26 @@ Auto-detects columns by matching header names: Date, Description, Debit, Credit,
 
 ## Auto-Categorization
 
-### Process
+### Priority Process
 
-1. On statement upload → unified transactions are created
-2. Each transaction description is matched against category keywords
-3. Longest-match wins (e.g., "AMAZON PRIME" matches "AMAZON PRIME" before "AMAZON")
-4. Merchant name is normalized: UPI/NEFT/IMPS prefixes stripped, reference numbers removed
+1. On statement upload → unified transactions are created and auto-categorized.
+2. **Tier 1 (UPI Handles):** The system extracts the UPI handle. If it matches a known/learned handle (`upi_ids`), the category is assigned.
+3. **Tier 2 (MCC Codes):** If it's a UPI merchant transaction with a 4-digit MCC code, the system maps the MCC code to a category.
+4. **Tier 3 (Keywords):** The system falls back to matching the description against `category_keywords` (longest-match wins).
+5. If no match is found, the transaction is marked as `NEEDS_REVIEW` and assigned the "Other" category.
+
+### Review Pane & Self-Learning
+
+When a user manually corrects a category in the **Review Pane**, the system learns from it:
+* **UPI Transactions:** Maps the UPI handle to the selected category.
+* **Non-UPI Transactions:** Extracts a format-aware, normalized merchant keyword (from NEFT, IMPS, POS string formats) and saves it as a learned keyword.
+* **Queue Sweep:** The system immediately sweeps the remaining `NEEDS_REVIEW` queue and auto-resolves any other transactions matching the newly learned handle or keyword.
 
 ### Default Categories (15)
 
 Food & Dining, Transport, Shopping, Bills & Utilities, Entertainment, Health, Travel, Education, Transfers, Salary, Investment, ATM/Cash, EMI/Loan, Insurance, Other
 
-Each has pre-configured keywords. Users can add custom categories and keywords.
+Each has pre-configured keywords. Users can add custom categories and keywords. "Self Transfer" logic auto-syncs the transaction's `is_transfer` flag to keep analytics accurate.
 
 ---
 

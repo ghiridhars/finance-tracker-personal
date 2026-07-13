@@ -1,4 +1,5 @@
 /// Shared chart helpers — formatters, legend dot, color parser.
+library;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 

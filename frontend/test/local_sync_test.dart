@@ -1,4 +1,5 @@
 /// Widget test for Import Screen — verifies directory-import UI structure and interactions.
+library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +11,7 @@ import 'package:finance_tracker_frontend/screens/import_screen.dart';
 /// A test notifier that exposes state without making API calls.
 class MockLocalSyncNotifier extends Notifier<LocalSyncState>
     implements LocalSyncNotifier {
-  LocalSyncState _initial;
+  final LocalSyncState _initial;
 
   MockLocalSyncNotifier([this._initial = const LocalSyncState()]);
 
