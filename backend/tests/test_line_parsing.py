@@ -86,3 +86,13 @@ class TestLineParsing:
         assert parse_txn_line("Page 1 of 5", StatementType.SAVINGS) is None
         assert parse_txn_line("Account Statement", StatementType.SAVINGS) is None
         assert parse_txn_line("15/01/2024 Some description text only", StatementType.SAVINGS) is None
+
+    def test_normalize_token_stream_heals_upi_spaces(self):
+        from app.parsing.line_parsing import normalize_token_stream
+        res = normalize_token_stream("UPI/122206334631/08:32:02/UPI/virenderganes h84-1@okicici/2000.00")
+        assert res == "UPI/122206334631/08:32:02/UPI/virenderganesh84-1@okicici/2000.00"
+
+    def test_normalize_token_stream_preserves_hyphens(self):
+        from app.parsing.line_parsing import normalize_token_stream
+        res = normalize_token_stream("UPI/974525-7363@ybl/TRANSFER")
+        assert res == "UPI/974525-7363@ybl/TRANSFER"

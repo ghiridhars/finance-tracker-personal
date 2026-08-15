@@ -1,6 +1,7 @@
 import re
 
 from app.models.enums import StatementType, TransactionType
+from app.parsing.line_parsing import normalize_token_stream
 from app.parsing.patterns import (
     get_cell,
     is_table_header as patterns_is_table_header,
@@ -11,12 +12,40 @@ from app.parsing.patterns import (
 )
 
 
+def expand_multiline_table_rows(
+    rows: list[list[str | None]],
+    col_map: dict,
+) -> list[list[str | None]]:
+    """Split rows where pdfplumber concatenated multiple transactions using newlines."""
+    expanded: list[list[str | None]] = []
+    date_idx = col_map.get("date")
+
+    for row in rows:
+        if date_idx is not None and date_idx < len(row) and row[date_idx] and "\n" in row[date_idx]:
+            date_lines = [d.strip() for d in row[date_idx].split("\n") if d.strip()]
+            if len(date_lines) > 1:
+                split_cells = [(cell or "").split("\n") for cell in row]
+                for i in range(len(date_lines)):
+                    sub_row: list[str | None] = []
+                    for lines in split_cells:
+                        if i < len(lines):
+                            sub_row.append(lines[i])
+                        else:
+                            sub_row.append("")
+                    expanded.append(sub_row)
+                continue
+        expanded.append(row)
+
+    return expanded
+
+
 def filter_table_data_rows(
     rows: list[list[str | None]],
     col_map: dict,
 ) -> list[list[str | None]]:
     """Keep only rows that look like actual transaction records."""
-    return [row for row in rows if looks_like_table_data_row(row, col_map)]
+    expanded_rows = expand_multiline_table_rows(rows, col_map)
+    return [row for row in expanded_rows if looks_like_table_data_row(row, col_map)]
 
 
 def looks_like_table_data_row(
@@ -67,8 +96,8 @@ def parse_table_rows(
         if txn_date is None:
             continue
 
-        desc = get_cell(row, col_map["description"])
-        desc = desc.replace("\n", " ").strip() if desc else ""
+        raw_desc = get_cell(row, col_map["description"])
+        desc = normalize_token_stream(raw_desc.replace("\n", " ")) if raw_desc else ""
         if is_table_metadata_row(desc):
             continue
 

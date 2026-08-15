@@ -8,8 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router.dart';
 import 'theme.dart';
 import 'providers/app_settings_provider.dart';
-import 'services/auth_service.dart';
-import 'screens/login_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: FinanceTrackerApp()));
@@ -21,7 +19,6 @@ class FinanceTrackerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
-    final authState = ref.watch(authProvider);
 
     return MaterialApp.router(
       title: 'Finance Tracker v2',
@@ -31,21 +28,7 @@ class FinanceTrackerApp extends ConsumerWidget {
       themeMode: settings.themeMode,
       routerConfig: router,
       builder: (context, child) {
-        // Show loading spinner while checking auth state
-        if (authState.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        // Show login screen if not authenticated
-        if (!authState.isAuthenticated) {
-          return Overlay(
-            initialEntries: [
-              OverlayEntry(builder: (_) => const LoginScreen()),
-            ],
-          );
-        }
-        // Show app content
+        // Show app content directly (legacy auth removed)
         return child!;
       },
     );

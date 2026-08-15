@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import exc
 
-from app.models.category import Category, CategoryKeyword, MccCategory
+from app.models.category import Category, MccCategory, CategoryKeyword
 from app.schemas.category import CategorySchema, CategoryCreateSchema, CategoryUpdateSchema
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,8 @@ DEFAULT_CATEGORIES: list[dict] = [
         "color": "#4CAF50",
         "keywords": [
             "TDINT", "SBINT", "NEFT INT", "INTEREST PAID", "INTEREST CR",
-            "INTEREST ON", "INT: ", "TD INT", "FD INT", "RD INT", "DIVIDEND"
+            "INTEREST ON", "INT: ", "TD INT", "FD INT", "RD INT", "DIVIDEND",
+            "INT.PD:", "INT:", "INTEREST CREDIT"
         ],
     },
     {
@@ -72,7 +73,8 @@ DEFAULT_CATEGORIES: list[dict] = [
         "keywords": [
             "MUTUAL FUND", "MF PURCHASE", "ZERODHA", "GROWW", "KUVERA", "GROWW.ICCL",
             "SIP", "DEMAT", "STOCK", "SHARE",
-            "REDEMPTION", "MF REDEMPT", "TMF REDEMPTION", "NFT REDEMPTION", "MMTCPAMP"
+            "REDEMPTION", "MF REDEMPT", "TMF REDEMPTION", "NFT REDEMPTION", "MMTCPAMP",
+            "REPAYMENT CREDIT"
         ],
     },
     # Expenses
@@ -101,7 +103,7 @@ DEFAULT_CATEGORIES: list[dict] = [
         "keywords": [
             "AMAZON", "AMAZONUPI", "FLIPKART", "MYNTRA", "AJIO", "MEESHO",
             "NYKAA", "DECATHLON", "SHOPPING", "MALL", "CROMA",
-            "RELIANCE DIGITAL", "OLX", "OLXNEW", "BHARATPE", "\.BQR",
+            "RELIANCE DIGITAL", "OLX", "OLXNEW", "BHARATPE", "\\.BQR",
             "PAYTMQR", "PAYTM MERCHANT", "PHONEPE MERCHANT", "GPAY MERCHANT", "BOISM"
         ],
     },
@@ -214,68 +216,38 @@ class CategoryService:
     def seed_defaults(db: Session) -> None:
         """Insert default categories + keywords if the table is empty."""
         count = db.query(Category).count()
-        if count > 0:
-            logger.info(f"Categories table already has {count} rows — skipping seed.")
-            return
-
-        logger.info("Seeding default categories …")
-        for cat_def in DEFAULT_CATEGORIES:
-            category = Category(
-                name=cat_def["name"],
-                icon=cat_def["icon"],
-                color=cat_def["color"],
-                is_system=True,
-            )
-            for kw in cat_def["keywords"]:
-                category.keywords.append(CategoryKeyword(keyword=kw.upper()))
-            db.add(category)
-
-        db.commit()
-        logger.info(f"Seeded {len(DEFAULT_CATEGORIES)} default categories.")
-
-    @staticmethod
-    def upgrade_keywords(db: Session) -> int:
-        """Add new default keywords to existing categories.
-
-        Only adds keywords that don't already exist, preserving
-        any user customizations. Creates new categories if missing.
-        Returns count of new keywords added.
-        """
-        added = 0
-        for cat_def in DEFAULT_CATEGORIES:
-            # Find or create the category
-            category = (
-                db.query(Category)
-                .filter(Category.name == cat_def["name"])
-                .first()
-            )
-            if not category:
+        if count == 0:
+            logger.info("Seeding default categories …")
+            for cat_def in DEFAULT_CATEGORIES:
                 category = Category(
                     name=cat_def["name"],
                     icon=cat_def["icon"],
                     color=cat_def["color"],
                     is_system=True,
                 )
+                for kw in cat_def.get("keywords", []):
+                    category.keywords.append(CategoryKeyword(keyword=kw.upper()))
                 db.add(category)
-                db.flush()  # Get the ID
-                logger.info(f"Created new category: {cat_def['name']}")
-
-            # Add missing keywords
-            for kw in cat_def["keywords"]:
-                kw_upper = kw.upper()
-                existing = (
-                    db.query(CategoryKeyword)
-                    .filter(CategoryKeyword.keyword == kw_upper)
-                    .first()
-                )
-                if not existing:
-                    category.keywords.append(CategoryKeyword(keyword=kw_upper))
-                    added += 1
-
-        if added:
             db.commit()
-            logger.info(f"Upgraded keywords: added {added} new keywords.")
-        return added
+            logger.info(f"Seeded {len(DEFAULT_CATEGORIES)} default categories.")
+            return
+
+        # Table already populated — sync any new default keywords into existing categories
+        all_existing_kws = {k.keyword for k in db.query(CategoryKeyword).all()}
+        added_count = 0
+        for cat_def in DEFAULT_CATEGORIES:
+            cat = db.query(Category).filter(Category.name == cat_def["name"]).first()
+            if cat:
+                for kw in cat_def.get("keywords", []):
+                    kw_up = kw.upper().strip()
+                    if kw_up and kw_up not in all_existing_kws:
+                        cat.keywords.append(CategoryKeyword(keyword=kw_up))
+                        all_existing_kws.add(kw_up)
+                        added_count += 1
+        if added_count > 0:
+            db.commit()
+            logger.info(f"Synced {added_count} new default category keywords into database.")
+
 
     @staticmethod
     def seed_mcc_codes(db: Session) -> int:
@@ -326,6 +298,52 @@ class CategoryService:
         return added
 
     @staticmethod
+    def upgrade_keywords(db: Session) -> int:
+        """One-off utility to insert keywords for existing defaults if missing."""
+        count = 0
+        categories = db.query(Category).all()
+        cat_map = {c.name: c for c in categories}
+        for cat_def in DEFAULT_CATEGORIES:
+            c = cat_map.get(cat_def["name"])
+            if c:
+                existing_kws = {k.keyword for k in c.keywords}
+                for kw in cat_def.get("keywords", []):
+                    upper_kw = kw.upper()
+                    if upper_kw not in existing_kws:
+                        c.keywords.append(CategoryKeyword(keyword=upper_kw))
+                        count += 1
+        if count > 0:
+            db.commit()
+        return count
+
+    @staticmethod
+    def add_keywords(db: Session, category_id: int, keywords: list[str]) -> Category:
+        category = CategoryService.get_by_id(db, category_id)
+        if not category:
+            raise ValueError(f"Category {category_id} not found.")
+        
+        for kw in keywords:
+            upper_kw = kw.upper().strip()
+            existing = db.query(CategoryKeyword).filter(CategoryKeyword.keyword == upper_kw).first()
+            if existing:
+                if existing.category_id != category_id:
+                    raise ValueError(f"Keyword '{upper_kw}' already assigned to category '{existing.category.name}'")
+            else:
+                category.keywords.append(CategoryKeyword(keyword=upper_kw))
+        db.commit()
+        db.refresh(category)
+        return category
+
+    @staticmethod
+    def remove_keyword(db: Session, keyword_id: int) -> bool:
+        kw = db.query(CategoryKeyword).filter(CategoryKeyword.id == keyword_id).first()
+        if not kw:
+            return False
+        db.delete(kw)
+        db.commit()
+        return True
+
+    @staticmethod
     def get_all(db: Session) -> list[Category]:
         return db.query(Category).filter(Category.parent_id.is_(None)).all()
 
@@ -343,7 +361,12 @@ class CategoryService:
             is_system=False,
         )
         for kw in data.keywords:
-            category.keywords.append(CategoryKeyword(keyword=kw.upper()))
+            upper_kw = kw.upper().strip()
+            existing = db.query(CategoryKeyword).filter(CategoryKeyword.keyword == upper_kw).first()
+            if existing:
+                raise ValueError(f"Keyword '{upper_kw}' already assigned to category '{existing.category.name}'")
+            category.keywords.append(CategoryKeyword(keyword=upper_kw))
+
         db.add(category)
         db.commit()
         db.refresh(category)
@@ -377,31 +400,3 @@ class CategoryService:
         db.commit()
         return True
 
-    @staticmethod
-    def add_keywords(db: Session, category_id: int, keywords: list[str]) -> Optional[Category]:
-        category = db.query(Category).filter(Category.id == category_id).first()
-        if not category:
-            return None
-        for kw in keywords:
-            existing = (
-                db.query(CategoryKeyword)
-                .filter(CategoryKeyword.keyword == kw.upper())
-                .first()
-            )
-            if existing:
-                # Move keyword to this category
-                existing.category_id = category_id
-            else:
-                category.keywords.append(CategoryKeyword(keyword=kw.upper()))
-        db.commit()
-        db.refresh(category)
-        return category
-
-    @staticmethod
-    def remove_keyword(db: Session, keyword_id: int) -> bool:
-        kw = db.query(CategoryKeyword).filter(CategoryKeyword.id == keyword_id).first()
-        if not kw:
-            return False
-        db.delete(kw)
-        db.commit()
-        return True

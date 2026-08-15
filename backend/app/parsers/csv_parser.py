@@ -27,6 +27,7 @@ import pandas as pd
 
 from app.models.enums import BankType, StatementType, TransactionType
 from app.parsers.base_parser import ParseResult
+from app.parsing.line_parsing import normalize_token_stream
 from app.parsing.patterns import (
     parse_date,
     parse_amount,
@@ -177,7 +178,8 @@ def _parse_as_savings(
             continue
 
         desc_idx = col_map.get("description")
-        description = vals[desc_idx] if desc_idx is not None and desc_idx < len(vals) else ""
+        raw_desc = vals[desc_idx] if desc_idx is not None and desc_idx < len(vals) else ""
+        description = normalize_token_stream(raw_desc) or ""
         ref_idx = col_map.get("reference")
         reference = vals[ref_idx] if ref_idx is not None and ref_idx < len(vals) else ""
 
@@ -270,7 +272,8 @@ def _parse_as_credit_card(
             continue
 
         desc_idx = col_map.get("description")
-        description = vals[desc_idx] if desc_idx is not None and desc_idx < len(vals) else ""
+        raw_desc = vals[desc_idx] if desc_idx is not None and desc_idx < len(vals) else ""
+        description = normalize_token_stream(raw_desc) or ""
         ref_idx = col_map.get("reference")
         reference = vals[ref_idx] if ref_idx is not None and ref_idx < len(vals) else ""
 

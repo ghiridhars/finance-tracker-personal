@@ -20,24 +20,20 @@ from app.config import settings
 from app.database import create_tables, migrate_schema
 from app.routers import (
     health_router,
-    transactions_router,
     upload_router,
     categories_router,
     unified_transactions_router,
-    tags_router,
     analytics_router,
     accounts_router,
-    budgets_router,
-    goals_router,
-    reminders_router,
     export_router,
     gdrive_router,
-    transfers_router,
     upi_router,
     admin_router,
     local_sync_router,
     investment_rules_router,
     asset_classes_router,
+    classification_rules_router,
+    transfers_router,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -72,10 +68,7 @@ async def lifespan(app: FastAPI):
     seed_db = SessionLocal()
     try:
         CategoryService.seed_defaults(seed_db)
-        added = CategoryService.upgrade_keywords(seed_db)
-        if added:
-            logger.info(f"Keyword upgrade: {added} new keywords added")
-            
+
         mcc_added = CategoryService.seed_mcc_codes(seed_db)
         if mcc_added:
             logger.info(f"MCC seed: {mcc_added} new MCC codes added")
@@ -169,23 +162,19 @@ app.include_router(gdrive_router)  # Handles its own per-endpoint auth dependenc
 
 # Protected routes (require valid JWT)
 for protected_router in [
-    transactions_router,
     upload_router,
     categories_router,
     unified_transactions_router,
-    tags_router,
     analytics_router,
     accounts_router,
-    budgets_router,
-    goals_router,
-    reminders_router,
     export_router,
-    transfers_router,
     upi_router,
     admin_router,
     local_sync_router,
     investment_rules_router,
     asset_classes_router,
+    classification_rules_router,
+    transfers_router,
 ]:
     # Inject auth dependency into every route of each protected router
     protected_router.dependencies.append(Depends(get_current_user))

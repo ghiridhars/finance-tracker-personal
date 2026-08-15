@@ -58,3 +58,33 @@ class ReviewStatus(str, enum.Enum):
     LLM_PARSED = "LLM_PARSED"       # LLM fallback was used
     NEEDS_REVIEW = "NEEDS_REVIEW"    # Low confidence or parse issues
     REVIEWED = "REVIEWED"            # Manually verified by user
+
+
+class ClassificationSource(str, enum.Enum):
+    """How a transaction's category was assigned."""
+    AUTO_KEYWORD = "AUTO_KEYWORD"
+    AUTO_UPI = "AUTO_UPI"
+    AUTO_MCC = "AUTO_MCC"
+    AUTO_PATTERN = "AUTO_PATTERN"
+    AUTO_RULE = "AUTO_RULE"
+    USER_REVIEW = "USER_REVIEW"
+    USER_DIRECT = "USER_DIRECT"
+
+
+class AccountSubtype(str, enum.Enum):
+    SAVINGS = "SAVINGS"
+    SALARY = "SALARY"
+    CURRENT = "CURRENT"
+    CREDIT_CARD = "CREDIT_CARD"
+    LOAN_HOME = "LOAN_HOME"
+    LOAN_PERSONAL = "LOAN_PERSONAL"
+    LOAN_VEHICLE = "LOAN_VEHICLE"
+    LOAN_EDUCATION = "LOAN_EDUCATION"
+    LOAN_OTHER = "LOAN_OTHER"
+    FD = "FD"
+    RD = "RD"
+    MF = "MF"
+    DEMAT = "DEMAT"
+    PPF = "PPF"
+    NPS = "NPS"
+    OTHER = "OTHER"

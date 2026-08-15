@@ -4,11 +4,15 @@ metadata (replaces the old credit_card_statements / savings_account_statements t
 """
 from datetime import date as date_type, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import String, Integer, Text, DateTime, Date, Numeric, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.bank_account import BankAccount
 
 
 class StatementAudit(Base):
@@ -33,6 +37,10 @@ class StatementAudit(Base):
     # Account linkage (nullable for failed imports where account isn't resolved)
     bank_account_id: Mapped[int | None] = mapped_column(
         ForeignKey("bank_accounts.id"), nullable=True
+    )
+    bank_account: Mapped[Optional["BankAccount"]] = relationship(
+        "BankAccount", foreign_keys=[bank_account_id],
+        back_populates="statement_audits", lazy="selectin"
     )
     # Denormalized bank name for failed imports where account doesn't exist yet
     bank_name: Mapped[str | None] = mapped_column(String(30), nullable=True)

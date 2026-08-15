@@ -114,11 +114,7 @@ class StatementsNotifier extends Notifier<UploadState> {
       );
 
       // Auto-refresh transaction lists
-      if (statementType == 'CREDIT_CARD') {
-        ref.read(creditCardTransactionsProvider.notifier).loadTransactions();
-      } else {
-        ref.read(savingsTransactionsProvider.notifier).loadTransactions();
-      }
+      ref.read(unifiedTransactionsProvider.notifier).loadTransactions();
     } catch (e) {
       String errorMsg = e.toString();
       if (errorMsg.contains('XMLHttpRequest error')) {

@@ -7,6 +7,7 @@
 ///   /accounts            → Accounts & Statements
 ///   /settings            → Settings
 library;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/app_shell.dart';
@@ -14,9 +15,12 @@ import 'screens/calendar_screen.dart';
 import 'widgets/dashboard_widget.dart';
 import 'screens/import_screen.dart';
 import 'widgets/accounts_widget.dart';
+import 'screens/account_detail_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/review_screen.dart';
 import 'screens/investments_screen.dart';
+import 'screens/upi_directory_screen.dart';
+import 'screens/classification_rules_screen.dart';
 
 /// Route path constants for type-safe navigation.
 class AppRoutes {
@@ -25,9 +29,13 @@ class AppRoutes {
   static const upload = '/upload';
   static const import_ = '/import';
   static const accounts = '/accounts';
+  static const accountNew = '/accounts/new';
+  static const accountDetail = '/accounts/:id';
   static const settings = '/settings';
   static const review = '/review';
   static const investments = '/investments';
+  static const upiDirectory = '/upi-directory';
+  static const classificationRules = '/classification-rules';
 }
 
 /// Navigation destination metadata used by both the shell and router.
@@ -78,10 +86,22 @@ const List<NavDestination> navDestinations = [
     path: AppRoutes.accounts,
   ),
   NavDestination(
+    label: 'UPI Directory',
+    icon: Icons.contacts_outlined,
+    selectedIcon: Icons.contacts,
+    path: AppRoutes.upiDirectory,
+  ),
+  NavDestination(
     label: 'Settings',
     icon: Icons.settings_outlined,
     selectedIcon: Icons.settings,
     path: AppRoutes.settings,
+  ),
+  NavDestination(
+    label: 'Rules',
+    icon: Icons.rule_outlined,
+    selectedIcon: Icons.rule,
+    path: AppRoutes.classificationRules,
   ),
 ];
 
@@ -94,51 +114,65 @@ final GoRouter router = GoRouter(
       routes: [
         GoRoute(
           path: AppRoutes.dashboard,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: DashboardScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: DashboardScreen()),
         ),
         GoRoute(
           path: AppRoutes.calendar,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: CalendarScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: CalendarScreen()),
         ),
 
         GoRoute(
           path: AppRoutes.import_,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: ImportScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: ImportScreen()),
         ),
         GoRoute(
           path: AppRoutes.investments,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: InvestmentsScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: InvestmentsScreen()),
         ),
         // Legacy redirect: /upload → /import
-        GoRoute(
-          path: AppRoutes.upload,
-          redirect: (_, __) => AppRoutes.import_,
-        ),
+        GoRoute(path: AppRoutes.upload, redirect: (_, __) => AppRoutes.import_),
         GoRoute(
           path: AppRoutes.accounts,
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: AccountsWidget()),
+        ),
+        GoRoute(
+          path: AppRoutes.accountNew,
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: AccountsWidget(),
+            child: AccountDetailScreen(accountId: null),
           ),
+        ),
+        GoRoute(
+          path: AppRoutes.accountDetail,
+          pageBuilder: (context, state) {
+            final idParam = state.pathParameters['id'];
+            final id = idParam != null ? int.tryParse(idParam) : null;
+            return NoTransitionPage(child: AccountDetailScreen(accountId: id));
+          },
         ),
         GoRoute(
           path: AppRoutes.settings,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: SettingsScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: SettingsScreen()),
         ),
         GoRoute(
           path: AppRoutes.review,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: ReviewScreen(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: ReviewScreen()),
+        ),
+        GoRoute(
+          path: AppRoutes.upiDirectory,
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: UpiDirectoryScreen()),
+        ),
+        GoRoute(
+          path: AppRoutes.classificationRules,
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: ClassificationRulesScreen()),
         ),
       ],
     ),

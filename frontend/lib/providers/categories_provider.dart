@@ -71,14 +71,7 @@ class CategoriesNotifier extends Notifier<CategoriesState> {
     }
   }
 
-  Future<void> addKeywords(int categoryId, List<String> keywords) async {
-    try {
-      await ApiService.addCategoryKeywords(categoryId, keywords);
-      await loadCategories();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
-  }
+
 }
 
 final categoriesProvider =

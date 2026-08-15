@@ -19,156 +19,7 @@ enum DateRangePreset {
   const DateRangePreset(this.label);
 }
 
-/// State for transactions of a specific type.
-class TransactionsState {
-  final List<dynamic> transactions;
-  final bool isLoading;
-  final String? error;
-  final DateTime? fromDate;
-  final DateTime? toDate;
-  final DateRangePreset preset;
 
-  const TransactionsState({
-    this.transactions = const [],
-    this.isLoading = false,
-    this.error,
-    this.fromDate,
-    this.toDate,
-    this.preset = DateRangePreset.last30Days,
-  });
-
-  TransactionsState copyWith({
-    List<dynamic>? transactions,
-    bool? isLoading,
-    String? error,
-    DateTime? fromDate,
-    DateTime? toDate,
-    DateRangePreset? preset,
-    bool clearError = false,
-    bool clearFromDate = false,
-    bool clearToDate = false,
-  }) {
-    return TransactionsState(
-      transactions: transactions ?? this.transactions,
-      isLoading: isLoading ?? this.isLoading,
-      error: clearError ? null : (error ?? this.error),
-      fromDate: clearFromDate ? null : (fromDate ?? this.fromDate),
-      toDate: clearToDate ? null : (toDate ?? this.toDate),
-      preset: preset ?? this.preset,
-    );
-  }
-}
-
-/// Notifier for savings transactions.
-class SavingsTransactionsNotifier extends Notifier<TransactionsState>
-    with DateRangeMixin {
-  @override
-  TransactionsState build() {
-    final now = DateTime.now();
-    final from = now.subtract(const Duration(days: 30));
-    return TransactionsState(
-      fromDate: from,
-      toDate: now,
-      preset: DateRangePreset.last30Days,
-    );
-  }
-
-  Future<void> loadTransactions() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final txns = await ApiService.getSavingsTransactions(
-        from: state.fromDate != null
-            ? formatDate(state.fromDate!)
-            : null,
-        to: state.toDate != null
-            ? formatDate(state.toDate!)
-            : null,
-      );
-      state = state.copyWith(transactions: txns, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      );
-    }
-  }
-
-  void setDateRange(DateTime? from, DateTime? to, DateRangePreset preset) {
-    state = state.copyWith(
-      fromDate: from,
-      toDate: to,
-      preset: preset,
-      clearError: true,
-    );
-    loadTransactions();
-  }
-
-  void applyPreset(DateRangePreset preset) {
-    if (preset == DateRangePreset.custom) return;
-    final range = resolveDateRange(preset);
-    setDateRange(range.from, range.to, preset);
-  }
-}
-
-/// Notifier for credit card transactions.
-class CreditCardTransactionsNotifier extends Notifier<TransactionsState>
-    with DateRangeMixin {
-  @override
-  TransactionsState build() {
-    final now = DateTime.now();
-    final from = now.subtract(const Duration(days: 30));
-    return TransactionsState(
-      fromDate: from,
-      toDate: now,
-      preset: DateRangePreset.last30Days,
-    );
-  }
-
-  Future<void> loadTransactions() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final txns = await ApiService.getCreditCardTransactions(
-        from: state.fromDate != null
-            ? formatDate(state.fromDate!)
-            : null,
-        to: state.toDate != null
-            ? formatDate(state.toDate!)
-            : null,
-      );
-      state = state.copyWith(transactions: txns, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      );
-    }
-  }
-
-  void setDateRange(DateTime? from, DateTime? to, DateRangePreset preset) {
-    state = state.copyWith(
-      fromDate: from,
-      toDate: to,
-      preset: preset,
-      clearError: true,
-    );
-    loadTransactions();
-  }
-
-  void applyPreset(DateRangePreset preset) {
-    if (preset == DateRangePreset.custom) return;
-    final range = resolveDateRange(preset);
-    setDateRange(range.from, range.to, preset);
-  }
-}
-
-/// Providers
-final savingsTransactionsProvider =
-    NotifierProvider<SavingsTransactionsNotifier, TransactionsState>(
-        SavingsTransactionsNotifier.new);
-
-final creditCardTransactionsProvider =
-    NotifierProvider<CreditCardTransactionsNotifier, TransactionsState>(
-        CreditCardTransactionsNotifier.new);
 
 // ── Unified Transactions ────────────────────────────────────
 
@@ -430,6 +281,14 @@ class UnifiedTransactionsNotifier extends Notifier<UnifiedTransactionsState>
 final unifiedTransactionsProvider =
     NotifierProvider<UnifiedTransactionsNotifier, UnifiedTransactionsState>(
         UnifiedTransactionsNotifier.new);
+
+class ReviewRefreshTriggerNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void increment() => state++;
+}
+
+final reviewRefreshTriggerProvider = NotifierProvider<ReviewRefreshTriggerNotifier, int>(ReviewRefreshTriggerNotifier.new);
 
 final needsReviewCountProvider = FutureProvider.autoDispose<int>((ref) async {
   try {

@@ -17,6 +17,13 @@ from app.schemas.transaction import UnifiedTransactionSchema
 router = APIRouter(prefix="/api/v2/analytics", tags=["Analytics"])
 
 
+@router.get("/net-worth")
+def get_net_worth(db: Session = Depends(get_db)):
+    """Calculate net worth from all active accounts."""
+    from app.services.analytics_service import AnalyticsService
+    return AnalyticsService.calculate_net_worth(db)
+
+
 @router.get("/summary")
 def get_summary(
     from_date: Optional[date] = Query(None, alias="from"),
@@ -133,3 +140,15 @@ def get_unmapped_investments(db: Session = Depends(get_db)):
     Returns a list of investment transactions that do not match any existing investment rules.
     """
     return AnalyticsService.get_unmapped_investments(db)
+
+
+@router.get("/investments/transactions", response_model=List[UnifiedTransactionSchema])
+def get_asset_class_transactions(
+    asset_class: str = Query(..., description="Asset class name, e.g. Fixed Deposit"),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns unified transactions belonging to a specific investment asset class.
+    """
+    transactions = AnalyticsService.get_transactions_for_asset_class(db, asset_class)
+    return [UnifiedTransactionSchema.model_validate(t) for t in transactions]

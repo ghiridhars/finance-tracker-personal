@@ -10,9 +10,14 @@ from pydantic import BaseModel, ConfigDict
 class CategoryKeywordSchema(BaseModel):
     id: Optional[int] = None
     keyword: str
-    category_id: Optional[int] = None
+    category_id: int
+    is_learned: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class KeywordAddSchema(BaseModel):
+    keywords: list[str]
 
 
 class MccCategorySchema(BaseModel):
@@ -53,6 +58,3 @@ class CategoryUpdateSchema(BaseModel):
     parent_id: Optional[int] = None
 
 
-class KeywordAddSchema(BaseModel):
-    """Input schema for adding keywords to a category."""
-    keywords: list[str]

@@ -62,6 +62,7 @@ coverage.xml
 *.sqlite
 *.sqlite3
 backend/data/
+!backend/data/mcc_codes.csv
 
 # ─── Alembic ────────────────────────────────────────
 # (keep migration scripts, ignore pycache inside alembic)
@@ -97,3 +98,10 @@ frontend/.pub/
 # ─── Logs ───────────────────────────────────────────
 *.log
 logs/
+full_logs.txt
+
+# ─── Test / CI output ───────────────────────────────
+frontend/test_output.json
+
+# ─── Graphify tool output ───────────────────────────
+graphify-out/

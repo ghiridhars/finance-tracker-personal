@@ -38,6 +38,8 @@ def test_build_parse_success_result_serializes_review_fallback():
         "confidence": "low",
         "reason_codes": ["validate.balance.reconciliation_failed"],
         "message": "Manual review required: validate.balance.reconciliation_failed",
+        "mismatched_indices": [],
+        "valid_indices": [],
     }
 
 

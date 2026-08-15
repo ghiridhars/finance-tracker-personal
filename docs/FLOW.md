@@ -4,442 +4,718 @@ All identified user flows with their corresponding API endpoints.
 
 ---
 
-## 1. Statement Upload Flow
+## 1. Statement Parsing & Import Flow
 
-Upload a bank statement (PDF or CSV), parse it, and save transactions.
+**Overview:** Upload a bank statement (PDF or CSV) or sync a local directory, parse it into generic DTOs, resolve the target Bank Account, and save the transaction list into the unified database.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Import[import_screen.dart\nSegmentedButton]
+        
+        Prov_Single[statements_provider.dart\nuploadFile]
+        Prov_Batch[local_sync_provider.dart\nstartSync]
+        
+        API[api_service.dart\nAPI Client]
+
+        UI_Import -- "Single File" --> Prov_Single
+        UI_Import -- "Folder Sync" --> Prov_Batch
+        
+        Prov_Single -- "POST /upload" --> API
+        Prov_Batch -- "POST /local-sync/sync" --> API
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Upload[upload.py\nupload_statement_v2]
+        Route_Sync[local_sync.py\nsync_folder]
+        
+        API --> Route_Upload
+        API --> Route_Sync
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Task_Sync[local_sync_service.py\nscan_and_import]
+        Route_Sync -- "Background Task" --> Task_Sync
+        
+        Srv_Parser[parser_service.py\nParserService.parse_statement]
+        Route_Upload --> Srv_Parser
+        Task_Sync --> Srv_Parser
+        
+        Srv_Acct[account_resolution_service.py\nAccountResolutionService.resolve_or_create]
+        Route_Upload --> Srv_Acct
+        Task_Sync --> Srv_Acct
+        
+        Srv_Audit[statement_audit_service.py\nStatementAuditService.save_statement]
+        Route_Upload --> Srv_Audit
+        Task_Sync --> Srv_Audit
+        
+        Srv_Tx[transaction_service.py\nUnifiedTransactionService.create_from_parsed]
+        Srv_Audit --> Srv_Tx
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_Bank[(bank_accounts)]
+        DB_Audit[(statement_audit)]
+        DB_Tx[(unified_transactions)]
+        
+        Srv_Acct -- "SELECT/INSERT" --> DB_Bank
+        Srv_Audit -- "INSERT" --> DB_Audit
+        Srv_Tx -- "INSERT (Batch)" --> DB_Tx
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef prov fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_Import ui;
+    class Prov_Single,Prov_Batch prov;
+    class API api;
+    class Route_Upload,Route_Sync router;
+    class Task_Sync,Srv_Parser,Srv_Acct,Srv_Audit,Srv_Tx service;
+    class DB_Bank,DB_Audit,DB_Tx db;
 ```
-User selects bank + statement type → Picks file → Uploads
-  → Backend parses (regex or LLM fallback) → Resolves/creates BankAccount
-  → Saves statement audit + transactions → Auto-categorizes → Returns result
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List supported banks | GET | `/api/v2/banks` | Returns bank/type combos + LLM availability |
-| Upload PDF | POST | `/api/v2/statements/upload` | Params: `bank`, `type` (SAVINGS/CREDIT_CARD), `save` (bool), `password` (optional). Body: PDF file |
-| Upload CSV | POST | `/api/v2/statements/upload-csv` | Params: `bank`, `type`, `save`. Body: CSV/TXT file. Auto-detects columns |
 
 ---
 
-## 2. Transaction Browsing Flow
+## 2. Transaction Parsing & Categorization Flow
 
-View, search, filter, and manage transactions across all sources.
+**Overview:** The core logic executed during an import to intelligently assign categories. It runs a waterfall of native heuristics (UPI, MCC, Regex) followed by user-defined custom Rules.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Entry Point
+    subgraph Import Engine
+        Srv_Tx[transaction_service.py\nUnifiedTransactionService.create_from_parsed]
+    end
+
+    %% Heuristics Engine
+    subgraph Heuristics
+        Srv_Cat[categorization_service.py\nauto_categorize]
+        Match_UPI[_match_upi]
+        Match_MCC[_match_mcc]
+        Match_Regex[_match_regex]
+        
+        Srv_Tx --> Srv_Cat
+        Srv_Cat --> Match_UPI
+        Srv_Cat --> Match_MCC
+        Srv_Cat --> Match_Regex
+    end
+
+    %% Rules Engine Fallback
+    subgraph Rules Engine
+        Srv_Rules[classification_rule_service.py\nClassificationRuleService.match_transaction]
+        
+        Srv_Tx -- "If confidence < 0.85" --> Srv_Rules
+    end
+
+    %% Thresholding
+    subgraph Result Thresholding
+        Decide{Confidence >= 0.85?}
+        State_High[review_status = AUTO_PARSED\nBypasses Review]
+        State_Low[review_status = NEEDS_REVIEW\ncategory_id = null]
+        
+        Srv_Cat --> Decide
+        Srv_Rules --> Decide
+        Decide -- Yes --> State_High
+        Decide -- No --> State_Low
+    end
+
+    %% Styling
+    classDef engine fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef rules fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef logic fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef state fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+
+    class Srv_Tx,Srv_Cat,Match_UPI,Match_MCC,Match_Regex engine;
+    class Srv_Rules rules;
+    class Decide logic;
+    class State_High,State_Low state;
 ```
-User clicks an Account card → Loads filtered transactions for that account
-  → Or opens Calendar → Clicks a day → Sees daily transactions popup
-  → Can edit category via tappable chip (all views)
-  → Can delete transactions (swipe-to-delete)
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List transactions | GET | `/api/v2/transactions` | Params: `from`, `to`, `category_id`, `bank`, `account_identifier`, `source_type`, `type`, `search`, `min_amount`, `max_amount`, `limit` (1–500), `offset` |
-| Count transactions | GET | `/api/v2/transactions/count` | Same filters minus limit/offset. Returns total count |
-| Get single transaction | GET | `/api/v2/transactions/{id}` | Full transaction detail |
-| Update transaction | PATCH | `/api/v2/transactions/{id}` | Body: `category_id`, `merchant_name`, `notes`, `tag_ids` |
-| Delete transaction | DELETE | `/api/v2/transactions/{id}` | Permanently removes from unified table |
-| Re-categorize all | POST | `/api/v2/transactions/recategorize` | Re-runs auto-categorization engine on all transactions |
-
-**Legacy endpoints** (in `transactions.py`):
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Savings transactions | GET | `/api/transactions/savings` | Params: `from`, `to`. Defaults: last 30 days |
-| Credit card transactions | GET | `/api/transactions/credit-card` | Params: `from`, `to`. Defaults: last 30 days |
-| All (savings) | GET | `/api/transactions` | Alias for savings. Backward-compatible |
 
 ---
 
-## 3. Dashboard & Analytics Flow
+## 3. Review & Classification Rules Flow
 
-View financial summary, charts, and insights. Dashboard layout is fully customizable.
+**Overview:** How users manually review low-confidence transactions and create global rules to automatically categorize them retroactively and in the future.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Review[review_screen.dart\nFilters: reviewStatus='NEEDS_REVIEW']
+        UI_Dialog[ClassificationRuleDialog]
+        
+        UI_Review -- "Approve & Create Rule" --> UI_Dialog
+        
+        API_Client[classification_rules_api.dart\nAPI Client]
+        UI_Dialog -- "POST /rules" --> API_Client
+        UI_Dialog -- "POST /rules/{id}/apply" --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Rules[classification_rules.py\napply_rule_endpoint]
+        API_Client --> Route_Rules
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Srv_Rules[classification_rule_service.py\nClassificationRuleService.apply_rule]
+        Route_Rules --> Srv_Rules
+        
+        Query_Tx[Fetch Transactions\ncategory_id IS NULL OR review_status = 'NEEDS_REVIEW']
+        Srv_Rules --> Query_Tx
+        
+        Match_Pattern[Evaluate Pattern against\ndescription & merchant_name]
+        Query_Tx --> Match_Pattern
+        
+        Update_State[Set review_status = 'REVIEWED'\nclassification_source = 'AUTO_RULE']
+        Match_Pattern -- Match Found --> Update_State
+    end
+
+    %% Event Bus Sync
+    subgraph State Sync [Riverpod Event Bus]
+        Sync_Trigger[reviewRefreshTriggerProvider\nIncrements on success]
+        Reload_UI[Reload Review Pane\nMatched items vanish]
+        
+        API_Client -- "Returns updated_count" --> Sync_Trigger
+        Sync_Trigger --> Reload_UI
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef sync fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+
+    class UI_Review,UI_Dialog ui;
+    class API_Client api;
+    class Route_Rules router;
+    class Srv_Rules,Query_Tx,Match_Pattern,Update_State service;
+    class Sync_Trigger,Reload_UI sync;
 ```
-User opens Dashboard → Selects time range (7d/30d/90d/6m/1y/all)
-  → Loads summary cards + spending trends + category breakdown
-  → Can view income vs expense, month-over-month, top merchants
-  → Spending calendar shows per-bank daily heatmap
-  → FAB → Edit mode → Reorder tiles, toggle visibility, resize width/height
-  → Save → Layout persisted to SharedPreferences
-```
-
-**Dashboard Customization (client-side):**
-
-| Feature | Details |
-|---------|---------|
-| Grid system | 12-column responsive grid. Tiles flow into rows based on `colSpan` |
-| Width resize | Snap stops: 4, 6, 8, 12 columns via ◀▶ buttons |
-| Height resize | 40px increments via ▲▼ buttons (min 120px, max 800px) |
-| Reorder | ↑↓ buttons to move tiles up/down |
-| Visibility | Toggle tiles on/off (dimmed in edit mode) |
-| Responsive | Compact (<600px): all tiles full-width, width controls hidden. Medium (600–1199px): saved layout. Expanded (≥1200px): full controls |
-| Persistence | `SharedPreferences` key `dashboard_layout` stores JSON of tile configs |
-| Animations | `AnimatedContainer` (300ms) for size, `AnimatedOpacity` (200ms) for visibility |
-
-**7 Dashboard Tiles:** Summary, Spending Calendar, Spending Trends, Category Breakdown, Income vs Expense, Month-over-Month, Top Merchants
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Summary | GET | `/api/v2/analytics/summary` | Params: `from`, `to`. Returns: income, spending, net, tx count, top category, active banks |
-| Category breakdown | GET | `/api/v2/analytics/spending-by-category` | Params: `from`, `to`. Returns: name, color, icon, amount, percentage, tx count per category |
-| Spending trends | GET | `/api/v2/analytics/spending-trends` | Params: `from`, `to`, `granularity` (daily/weekly/monthly). Time-series data |
-| Income vs Expense | GET | `/api/v2/analytics/income-vs-expense` | Params: `from`, `to`. Monthly grouped bar chart data. Defaults: last 12 months |
-| Month-over-month | GET | `/api/v2/analytics/month-over-month` | Params: `month` (date). Current vs previous month per category |
-| Top merchants | GET | `/api/v2/analytics/top-merchants` | Params: `from`, `to`, `limit` (1–50, default 15). Ranked by spending |
-| Spending by bank | GET | `/api/v2/analytics/spending-by-bank` | Params: `from`, `to`. Bank-level aggregation |
 
 ---
 
-## 4. Category Management Flow
+## 4. Transaction Browsing & Calendar Flow
 
-Create, edit, and configure auto-categorization rules.
+**Overview:** How transactions are fetched, filtered, viewed on the calendar, and manually edited or deleted by the user across the app.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_List[Transaction Lists\ncalendar_screen, dashboard_widget, accounts_widget]
+        UI_Edit[Inline Category Edit / Swipe to Delete]
+        
+        UI_List --> UI_Edit
+        
+        API_Client[transaction_api.dart\nAPI Client]
+        UI_List -- "GET /transactions" --> API_Client
+        UI_Edit -- "PATCH /transactions/{id}" --> API_Client
+        UI_Edit -- "DELETE /transactions/{id}" --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Get[unified_transactions.py\nlist_transactions]
+        Route_Patch[unified_transactions.py\nupdate_transaction]
+        Route_Delete[unified_transactions.py\ndelete_transaction]
+        
+        API_Client --> Route_Get
+        API_Client --> Route_Patch
+        API_Client --> Route_Delete
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Srv_Tx_Query[transaction_service.py\nUnifiedTransactionService.query]
+        Route_Get --> Srv_Tx_Query
+        
+        Srv_Tx_Update[transaction_service.py\nUnifiedTransactionService.update_transaction]
+        Route_Patch --> Srv_Tx_Update
+        
+        Update_State[Set classification_source = 'USER_DIRECT'\nconfidence = 1.0]
+        Srv_Tx_Update --> Update_State
+        
+        Srv_Tx_Delete[transaction_service.py\nUnifiedTransactionService.delete_transaction]
+        Route_Delete --> Srv_Tx_Delete
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+
+    class UI_List,UI_Edit ui;
+    class API_Client api;
+    class Route_Get,Route_Patch,Route_Delete router;
+    class Srv_Tx_Query,Srv_Tx_Update,Update_State,Srv_Tx_Delete service;
 ```
-User views categories → Creates/edits categories → Adds keywords
-  → Keywords drive auto-categorization on future uploads
-  → Can re-categorize existing transactions
-  → System also auto-learns keywords and UPI mappings from Review Pane corrections
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List categories | GET | `/api/v2/categories` | Returns all top-level categories with keywords |
-| Get category | GET | `/api/v2/categories/{id}` | Single category detail |
-| Create category | POST | `/api/v2/categories` | Body: `name`, `icon`, `color`, `parent_id`, `keywords` |
-| Update category | PUT | `/api/v2/categories/{id}` | Body: `name`, `icon`, `color`, `parent_id` |
-| Delete category | DELETE | `/api/v2/categories/{id}` | Removes category (transactions become uncategorized) |
-| Add keywords | POST | `/api/v2/categories/{id}/keywords` | Body: `keywords` (list of strings) |
-| Remove keyword | DELETE | `/api/v2/categories/keywords/{keyword_id}` | Delete a single keyword rule |
-
-**Default categories (15):** Food & Dining, Transport, Shopping, Bills & Utilities, Entertainment, Health, Travel, Education, Transfers, Salary, Investment, ATM/Cash, EMI/Loan, Insurance, Other.
 
 ---
 
-## 5. Tags Flow
+## 5. Account Management Flow
 
-Label transactions with custom tags for flexible grouping.
+**Overview:** How bank accounts and credit cards are registered, linked to imported statements, merged when duplicates arise, and managed by the user.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_List[accounts_widget.dart\nListView of accounts]
+        UI_Form[account_detail_screen.dart\nCreate/Edit/Merge]
+        
+        UI_List --> UI_Form
+        
+        API_Client[accounts_api.dart\nAPI Client]
+        UI_List -- "GET /accounts/{id}/summary" --> API_Client
+        UI_Form -- "POST /accounts" --> API_Client
+        UI_Form -- "PUT /accounts/{id}" --> API_Client
+        UI_Form -- "POST /accounts/merge" --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Accounts[accounts.py\nAccounts Router]
+        API_Client --> Route_Accounts
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Srv_Acct_Sum[accounts_service.py\nAccountsService.get_account_summary]
+        Route_Accounts --> Srv_Acct_Sum
+        
+        Srv_Acct_Merge[accounts_service.py\nAccountsService.merge_accounts]
+        Route_Accounts --> Srv_Acct_Merge
+        
+        Srv_Resolve[account_resolution_service.py\nAccountResolutionService.resolve_or_create]
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_Bank[(bank_accounts)]
+        DB_Tx[(unified_transactions)]
+        DB_Audit[(statement_audit)]
+        
+        Srv_Acct_Sum -- "Read" --> DB_Bank
+        Srv_Acct_Sum -- "Count" --> DB_Tx
+        
+        Srv_Acct_Merge -- "Reassign FK" --> DB_Tx
+        Srv_Acct_Merge -- "Reassign FK" --> DB_Audit
+        Srv_Acct_Merge -- "Soft Delete" --> DB_Bank
+        
+        Srv_Resolve -- "Create Dynamic" --> DB_Bank
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_List,UI_Form ui;
+    class API_Client api;
+    class Route_Accounts router;
+    class Srv_Acct_Sum,Srv_Acct_Merge,Srv_Resolve service;
+    class DB_Bank,DB_Tx,DB_Audit db;
 ```
-User creates tags → Assigns tags to transactions → Filters by tag
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List tags | GET | `/api/v2/tags` | All tags, ordered by name |
-| Create tag | POST | `/api/v2/tags` | Body: `name`, `color` (hex) |
-| Delete tag | DELETE | `/api/v2/tags/{id}` | Removes tag and all associations |
-| Add tag to transaction | POST | `/api/v2/transactions/{tx_id}/tags/{tag_id}` | Creates association |
-| Remove tag from transaction | DELETE | `/api/v2/transactions/{tx_id}/tags/{tag_id}` | Removes association |
 
 ---
 
-## 6. Accounts & Statement Management Flow
+## 6. Investments Tracking Flow
 
-View linked accounts, browse statement history, and manage uploads.
+**Overview:** How investment transactions (MF, Stocks, PPF) are detected and aggregated into a live portfolio dashboard with asset class breakdowns.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Dash[investments_screen.dart\nDashboard]
+        UI_Config[investment_settings_screen.dart\nRules Config]
+        
+        Prov_Dash[dashboard_provider.dart]
+        Prov_Rules[investment_rules_provider.dart]
+        
+        UI_Dash --> Prov_Dash
+        UI_Config --> Prov_Rules
+        
+        API_Client[API Client]
+        Prov_Dash -- "GET /analytics/investments" --> API_Client
+        Prov_Rules -- "GET/POST rules" --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Analytics[analytics.py]
+        Route_Rules[investment_rules.py]
+        
+        API_Client --> Route_Analytics
+        API_Client --> Route_Rules
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Srv_Invest[analytics_service.py\nInvestmentAnalyticsService.get_analytics]
+        Route_Analytics --> Srv_Invest
+        
+        Srv_Data[Fetch Active InvestmentRules\nMatch category_id / merchant regex]
+        Srv_Invest --> Srv_Data
+        
+        Srv_Group[Group by Month: Velocity Trend\nGroup by AssetClass: Breakdown]
+        Srv_Data --> Srv_Group
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef prov fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+
+    class UI_Dash,UI_Config ui;
+    class Prov_Dash,Prov_Rules prov;
+    class API_Client api;
+    class Route_Analytics,Route_Rules router;
+    class Srv_Invest,Srv_Data,Srv_Group service;
 ```
-User opens Accounts → Sees all linked accounts/cards with summaries
-  → Clicks an account → Views filtered transactions inline (UnifiedTransactionListWidget)
-  → Can edit category on any transaction → Back button returns to accounts list
-  → Can delete statements (cascades to transactions)
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List accounts | GET | `/api/v2/accounts` | All accounts/cards with statement count, tx count, latest balance |
-| Savings statements | GET | `/api/v2/accounts/statements/savings` | Params: `account_number`, `limit` (1–200), `offset` |
-| Credit card statements | GET | `/api/v2/accounts/statements/credit-card` | Params: `card_number`, `limit` (1–200), `offset` |
-| Delete savings statement | DELETE | `/api/v2/accounts/statements/savings/{id}` | Cascade-deletes raw + unified transactions |
-| Delete CC statement | DELETE | `/api/v2/accounts/statements/credit-card/{id}` | Cascade-deletes raw + unified transactions |
-
-
 
 ---
 
-## 7. Budget Management Flow
+## 7. Dashboard & Analytics Flow
 
-Set monthly spending limits per category and track progress.
+**Overview:** View financial summary, charts, and insights. Dashboard layout is customizable.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Dash[Dashboard Widget\nTime Range Filter]
+        UI_Tiles[Dashboard Tiles\nSummary, Breakdown, Trends, etc.]
+        
+        UI_Dash --> UI_Tiles
+        
+        API_Client[analytics_api.dart]
+        UI_Tiles -- "GET /analytics/summary\nGET /analytics/spending-trends" --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_Analytic[analytics.py]
+        API_Client --> Route_Analytic
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Srv_Analytic[analytics_service.py\nGenerates Aggregations]
+        Route_Analytic --> Srv_Analytic
+        
+        Calc_Agg[Group by time, category, merchant]
+        Srv_Analytic --> Calc_Agg
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+
+    class UI_Dash,UI_Tiles ui;
+    class API_Client api;
+    class Route_Analytic router;
+    class Srv_Analytic,Calc_Agg service;
 ```
-User opens Budget → Selects month → Creates budgets per category
-  → Views actual vs budgeted spending → Can copy budgets to next month
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List budgets | GET | `/api/v2/budgets` | Params: `year`, `month` (defaults: current month) |
-| Budget progress | GET | `/api/v2/budgets/progress` | Params: `year`, `month`. Budget vs actual per category |
-| Budget summary | GET | `/api/v2/budgets/summary` | Params: `year`, `month`. Totals: budgeted, spent, % used, over-budget count |
-| Create budget | POST | `/api/v2/budgets` | Body: `category_id`, `year`, `month`, `amount`, `rollover`, `notes` |
-| Copy budgets | POST | `/api/v2/budgets/copy` | Params: `from_year`, `from_month`, `to_year`, `to_month` |
-| Update budget | PATCH | `/api/v2/budgets/{id}` | Body: `amount`, `rollover`, `notes` |
-| Delete budget | DELETE | `/api/v2/budgets/{id}` | — |
 
 ---
 
-## 8. Savings Goals Flow
+## 8. Category Management Flow
 
-Set savings targets and track contributions.
+**Overview:** Create, edit, and configure auto-categorization keywords.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Cat[Categories Settings\nList & Add Categories]
+        API_Client[categories_api.dart]
+        
+        UI_Cat -- "GET / POST / PUT / DELETE" --> API_Client
+    end
+
+    %% Backend
+    subgraph Routers [FastAPI Routers]
+        Route_Cat[categories.py\nCRUD Endpoints]
+        API_Client --> Route_Cat
+    end
+
+    subgraph Services [Backend Services]
+        Srv_Cat[category_service.py\nManages Categories & Keywords]
+        Route_Cat --> Srv_Cat
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_Categories[(categories)]
+        Srv_Cat -- "Read / Write" --> DB_Categories
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_Cat ui;
+    class API_Client api;
+    class Route_Cat router;
+    class Srv_Cat service;
+    class DB_Categories db;
 ```
-User creates goal (name, target, deadline) → Contributes amounts over time
-  → Tracks progress % → Goal auto-completes when target is reached
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List goals | GET | `/api/v2/goals` | Params: `include_completed` (bool, default true) |
-| Get goal | GET | `/api/v2/goals/{id}` | Single goal with progress |
-| Create goal | POST | `/api/v2/goals` | Body: `name`, `target_amount`, `current_amount`, `deadline`, `icon`, `color`, `notes` |
-| Update goal | PATCH | `/api/v2/goals/{id}` | Body: any field |
-| Contribute | POST | `/api/v2/goals/{id}/contribute` | Params: `amount` (float, > 0). Auto-marks complete at target |
-| Delete goal | DELETE | `/api/v2/goals/{id}` | — |
 
 ---
 
-## 9. Bill Reminders Flow
+## 9. App Settings, GDrive Backup & Data Management Flow
 
-Track recurring bills and due dates.
+**Overview:** System administration tasks, including Google Drive backups, CSV exports, and database resetting.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Settings[settings_screen.dart]
+        UI_DB[database_manager_screen.dart]
+        
+        API_Client[gdrive_api.dart]
+        UI_Settings --> API_Client
+        UI_DB --> API_Client
+    end
+
+    %% Backend Routers
+    subgraph Routers [FastAPI Routers]
+        Route_G[gdrive.py\nBackup endpoints]
+        Route_Exp[export.py\nCSV/Clear-all]
+        
+        API_Client --> Route_G
+        API_Client --> Route_Exp
+    end
+
+    %% Backend Services
+    subgraph Services [Backend Services]
+        Task_Backup[Create tar.gz\nUpload to GDrive via OAuth]
+        Task_Export[Stream UnifiedTransaction rows as CSV]
+        Task_Clear[db.query().delete() across core tables]
+        
+        Route_G --> Task_Backup
+        Route_Exp --> Task_Export
+        Route_Exp --> Task_Clear
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_Bank[(bank_accounts)]
+        DB_Tx[(unified_transactions)]
+        DB_Audit[(statement_audit)]
+        
+        Task_Export -- "SELECT" --> DB_Tx
+        Task_Clear -- "DELETE" --> DB_Bank
+        Task_Clear -- "DELETE" --> DB_Tx
+        Task_Clear -- "DELETE" --> DB_Audit
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_Settings,UI_DB ui;
+    class API_Client api;
+    class Route_G,Route_Exp router;
+    class Task_Backup,Task_Export,Task_Clear service;
+    class DB_Bank,DB_Tx,DB_Audit db;
 ```
-User creates reminder (or auto-detects from CC statements)
-  → Views upcoming bills → Marks as paid → Recurring bills auto-advance due date
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List reminders | GET | `/api/v2/reminders` | Params: `include_paid` (bool), `upcoming_days` (int) |
-| Create reminder | POST | `/api/v2/reminders` | Body: `name`, `amount`, `category_id`, `is_recurring`, `frequency` (MONTHLY/QUARTERLY/YEARLY), `day_of_month`, `next_due_date`, `notes` |
-| Update reminder | PATCH | `/api/v2/reminders/{id}` | Body: any field |
-| Mark paid | POST | `/api/v2/reminders/{id}/paid` | Recurring bills auto-advance to next due date |
-| Delete reminder | DELETE | `/api/v2/reminders/{id}` | — |
-| Auto-detect from CC | POST | `/api/v2/reminders/auto-detect` | Creates reminders from credit card statement due dates |
 
 ---
 
-## 10. Recurring Transaction Detection Flow
+## 10. UPI ID Management Flow
 
-Detect spending patterns automatically.
+**Overview:** Map UPI handles to accounts and categories for smarter categorization.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_UPI[UPI Settings\nManage Own and Third-Party UPIs]
+        API_Client[upi_api.dart]
+        
+        UI_UPI -- "GET / POST / PUT / DELETE" --> API_Client
+    end
+
+    %% Backend
+    subgraph Routers [FastAPI Routers]
+        Route_UPI[upi.py\nCRUD & Rescan Endpoints]
+        API_Client --> Route_UPI
+    end
+
+    subgraph Services [Backend Services]
+        Srv_UPI[upi_service.py]
+        Srv_Tx[transaction_service.py\nApply Rules Retroactively]
+        
+        Route_UPI --> Srv_UPI
+        Route_UPI -- "POST /rescan" --> Srv_Tx
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_UPI[(upi_ids)]
+        DB_Tx[(unified_transactions)]
+        
+        Srv_UPI -- "Read / Write" --> DB_UPI
+        Srv_Tx -- "Update Categories" --> DB_Tx
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_UPI ui;
+    class API_Client api;
+    class Route_UPI router;
+    class Srv_UPI,Srv_Tx service;
+    class DB_UPI,DB_Tx db;
 ```
-User triggers detection → Algorithm groups by merchant, analyzes consistency
-  → Returns patterns with frequency, avg amount → User can mark as subscription
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List patterns | GET | `/api/v2/recurring` | Params: `active_only` (bool, default true) |
-| Run detection | POST | `/api/v2/recurring/detect` | Analyzes: amount CV ≤20%, interval CV ≤30%, min 3 occurrences. Classifies WEEKLY/MONTHLY/QUARTERLY/YEARLY |
-| Toggle subscription | PATCH | `/api/v2/recurring/{id}/subscription` | Params: `is_subscription` (bool) |
-| Delete pattern | DELETE | `/api/v2/recurring/{id}` | — |
 
 ---
 
-## 11. Export & Data Management Flow
+## 11. Local Directory Sync Flow
 
-Export transactions or clear all data.
+**Overview:** Scan and import bank statements from a local filesystem directory.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Sync[Import Screen\nSelect Folder]
+        API_Client[local_sync_provider.dart]
+        
+        UI_Sync -- "Configure / Scan" --> API_Client
+    end
+
+    %% Backend
+    subgraph Routers [FastAPI Routers]
+        Route_Sync[local_sync.py]
+        API_Client --> Route_Sync
+    end
+
+    subgraph Services [Backend Services]
+        Task_Scan[local_sync_service.py\nscan_and_import]
+        Srv_Parse[parser_service.py\nParse detected PDFs/CSVs]
+        
+        Route_Sync -- "Background Task" --> Task_Scan
+        Task_Scan --> Srv_Parse
+    end
+
+    %% Database
+    subgraph DB [SQLite Database]
+        DB_Audit[(statement_audit)]
+        DB_Tx[(unified_transactions)]
+        
+        Srv_Parse -- "INSERT" --> DB_Audit
+        Srv_Parse -- "INSERT" --> DB_Tx
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef service fill:#e0f7fa,stroke:#006064,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_Sync ui;
+    class API_Client api;
+    class Route_Sync router;
+    class Task_Scan,Srv_Parse service;
+    class DB_Audit,DB_Tx db;
 ```
-User clicks export → Downloads CSV/JSON with current filters applied
-User clicks clear all → Double confirmation → Wipes all data (keeps categories)
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Export transactions | GET | `/api/v2/export/transactions` | Params: `format` (csv/json), plus same filters as unified transactions. Up to 10,000 rows. Returns file download |
-| Clear all data | POST | `/api/v2/data/clear-all` | Deletes all transactions, statements, accounts, budgets, goals, reminders. Preserves categories |
 
 ---
 
-## 12. Settings Flow (Client-Side)
+## 12. Admin / Database Manager Flow
 
-User preferences stored locally via SharedPreferences.
+**Overview:** Browse, search, and edit database tables through a generic admin interface.
 
+#### Knowledge Graph Trace
+
+```mermaid
+graph TD
+    %% Frontend UI
+    subgraph Frontend [Flutter Frontend]
+        UI_Admin[Database Manager\nTable Viewer]
+        API_Client[admin_api.dart]
+        
+        UI_Admin -- "GET / PUT / DELETE rows" --> API_Client
+    end
+
+    %% Backend
+    subgraph Routers [FastAPI Routers]
+        Route_Admin[admin.py]
+        API_Client --> Route_Admin
+    end
+
+    subgraph Database [SQLite Database]
+        DB_All[(All core tables)]
+        Route_Admin -- "Dynamic SQLAlchemy Queries" --> DB_All
+    end
+
+    %% Styling
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef router fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px;
+    classDef db fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    class UI_Admin ui;
+    class API_Client api;
+    class Route_Admin router;
+    class DB_All db;
 ```
-User opens Settings → Toggles theme (light/dark/system)
-  → Changes currency (₹/$/€/£) → Configures backend URL → Tests connection
-```
-
-| Setting | Storage | Default |
-|---------|---------|---------|
-| Theme mode | SharedPreferences | System |
-| Currency symbol | SharedPreferences | ₹ |
-| Backend URL | SharedPreferences | http://localhost:8080 |
-
-**Health check endpoint** used for connection testing:
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Test connection | GET | `/health` | Returns `{ status: "UP", database: true }` |
-
----
-
-## 13. Authentication Flow
-
-Single-user JWT authentication. Register once, then login on each session.
-
-```
-App starts → Checks /api/auth/status (is registered?)
-  → If not registered: show Register form → POST /api/auth/register → JWT token → App
-  → If registered: show Login form → POST /api/auth/login → JWT token → App
-  → Token stored in SharedPreferences → Auto-validated on next launch via GET /api/auth/me
-  → All API calls include Authorization: Bearer <token>
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Check registration | GET | `/api/auth/status` | Returns `{ registered: true/false }`. Public endpoint |
-| Register | POST | `/api/auth/register` | Body: `{ username, password }`. Min 8-char password. One-time only. Returns JWT token |
-| Login | POST | `/api/auth/login` | OAuth2 password flow (form-encoded). Returns JWT token (24h expiry) |
-| Get current user | GET | `/api/auth/me` | Returns `{ username }`. Used to validate saved tokens |
-
-**Security details:**
-- Password hashed with bcrypt (passlib)
-- JWT signed with HS256 (configurable via `JWT_SECRET` env var)
-- Credentials stored in `data/.credentials.json` (not in DB)
-- All routes except `/health`, `/api/auth/status`, `/api/auth/register`, `/api/auth/login` require valid JWT
-
----
-
-## 14. Google Drive OAuth Sync Flow
-
-Import bank statements from a user's personal Google Drive using OAuth2 authentication.
-
-```
-User clicks "Connect Google Drive" → Redirected to Google consent screen
-  → Grants drive.readonly access → Callback exchanges code for tokens
-  → User browses folders → Configures folder bank/type mappings
-  → Selects files → Triggers background import → Polls progress
-```
-
-### Connection & Authentication
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Check status | GET | `/api/v2/gdrive/status` | Returns: connected (bool), email, secrets_configured |
-| Get auth URL | GET | `/api/v2/gdrive/auth-url` | Generates Google OAuth consent URL. Requires `credentials_google.json` on server |
-| OAuth callback | GET | `/api/v2/gdrive/callback` | Exchanges auth code for access+refresh tokens. Saves to `.gdrive_user_token.json`. Returns HTML success/error page. **Public endpoint** (no JWT required) |
-| Disconnect | POST | `/api/v2/gdrive/disconnect` | Revokes access by deleting stored tokens |
-
-### Folder Browsing & Configuration
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List folders | GET | `/api/v2/gdrive/folders` | Params: `parent_id` (default: root). Lists subfolders with config status |
-| List files | GET | `/api/v2/gdrive/files` | Params: `folder_id`. Lists PDF/CSV files with inferred bank/type and processed status |
-| Get folder configs | GET | `/api/v2/gdrive/folder-configs` | All saved folder → bank/type mappings |
-| Save folder config | POST | `/api/v2/gdrive/folder-configs/{folder_id}` | Body: `folder_name`, `bank`, `type`, `label`. Maps a folder to a bank/statement type |
-| Delete folder config | DELETE | `/api/v2/gdrive/folder-configs/{folder_id}` | Removes mapping for a folder |
-
-### Import & Progress
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Import files | POST | `/api/v2/gdrive/import` | Body: `files` (list of {filepath, filename, bank, type}), `force` (bool), `bank_passwords` (dict). Downloads + parses in background |
-| Import status | GET | `/api/v2/gdrive/import/{job_id}` | Poll progress: total, processed, skipped, failed, current_file, per-file details |
-| Reset sync state | POST | `/api/v2/gdrive/reset` | Body: `file_ids` (optional list). Clears processed markers for re-import |
-
-**Configuration:**
-- `GDRIVE_OAUTH_SECRETS_FILE` — Path to `credentials_google.json` (Google OAuth client secrets, "Desktop app" type)
-- Token stored at `data/.gdrive_user_token.json` (auto-refreshed when expired)
-- Folder configs stored at `data/.gdrive_folder_config.json`
-
----
-
-## 15. Transfer Management Flow
-
-Detect and manage inter-account transfers and CC bill payments.
-
-```
-User triggers auto-detection → Algorithm finds matching DEBIT/CREDIT pairs
-  → Pairs linked via transfer_group_id → Shown in Transfers list
-  → User can manually link/unlink pairs → Update transfer type
-  → Transfers excluded from double-counting in analytics
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Detect transfers | POST | `/api/v2/transfers/detect` | Auto-detect matching DEBIT/CREDIT pairs across accounts |
-| Link manually | POST | `/api/v2/transfers/link` | Body: `transaction_id_1`, `transaction_id_2`, `transfer_type` (INTERNAL_TRANSFER/CC_BILL_PAYMENT) |
-| List pairs | GET | `/api/v2/transfers/` | All linked transfer pairs with transactions |
-| Update type | PATCH | `/api/v2/transfers/{transfer_group_id}` | Params: `transfer_type` |
-| Unlink pair | DELETE | `/api/v2/transfers/{transfer_group_id}` | Removes transfer linkage |
-
----
-
-## 16. UPI ID Management Flow
-
-Map UPI handles to accounts and categories for smarter categorization.
-
-```
-User adds UPI handles → Marks own UPIs (linked to accounts)
-  → Marks third-party UPIs (linked to categories)
-  → Own UPIs auto-flag transactions as transfers
-  → Third-party UPIs auto-categorize transactions
-  → Rescan applies rules retroactively to existing transactions
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List UPI IDs | GET | `/api/v2/upi-ids` | Params: `is_own` (bool), `account_identifier` (string) |
-| Create UPI ID | POST | `/api/v2/upi-ids` | Body: `upi_handle` (must contain @), `label`, `account_type`, `account_identifier`, `category_id`, `is_own` |
-| Get UPI ID | GET | `/api/v2/upi-ids/{upi_id}` | Single UPI mapping |
-| Update UPI ID | PUT | `/api/v2/upi-ids/{upi_id}` | Body: `label`, `account_type`, `account_identifier`, `category_id`, `is_own` |
-| Delete UPI ID | DELETE | `/api/v2/upi-ids/{upi_id}` | Removes mapping |
-| Rescan transactions | POST | `/api/v2/upi-ids/rescan` | Re-apply UPI-based rules to all existing transactions |
-
----
-
-## 17. Local Directory Sync Flow
-
-Scan and import bank statements from a local filesystem directory.
-
-```
-User configures a local folder path → Scans for PDF/CSV files
-  → Reviews detected files with inferred bank/type → Selects files to import
-  → Triggers background scan & parse → Polls progress → Files saved to DB
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| Check status | GET | `/api/v2/local-sync/status` | Returns: configured path, path exists, last scan info |
-| Configure path | POST | `/api/v2/local-sync/configure` | Body: `{ path }`. Validates directory exists and is readable |
-| List files | GET | `/api/v2/local-sync/files` | Params: `path` (optional, uses configured path). Recursively lists PDF/CSV/Excel files with inferred bank/type and processed status |
-| Start scan | POST | `/api/v2/local-sync/scan` | Body: `files` (list of {filepath, bank, type}), `force` (bool), `bank_passwords` (dict). Background processing |
-| Scan status | GET | `/api/v2/local-sync/scan/{job_id}` | Poll progress: total, processed, skipped, failed, per-file details |
-| Reset state | POST | `/api/v2/local-sync/reset` | Body: `filepaths` (optional list). Clears processed markers for re-processing |
-
-**Configuration (env vars):**
-- `LOCAL_SYNC_PATH` — Default local folder path
-- `LOCAL_SYNC_MAX_FILES` — Max files to return per scan (default: 500)
-- `LOCAL_SYNC_ALLOWED_ROOTS` — Comma-separated allowed root directories for security
-
----
-
-## 18. Admin / Database Manager Flow
-
-Browse, search, and edit database tables through a generic admin interface.
-
-```
-User opens Database Manager → Views list of allowed tables
-  → Clicks a table → Views schema and rows with search/sort/pagination
-  → Can create, update, or delete individual rows
-  → Foreign key columns show dropdown options from related tables
-```
-
-| Step | Method | Endpoint | Details |
-|------|--------|----------|---------|
-| List tables | GET | `/api/v2/admin/tables` | Returns allowed tables with column count and row count |
-| Get table schema | GET | `/api/v2/admin/tables/{table_name}/schema` | Column metadata: type, nullable, PK, FK, enum values, max length |
-| List rows | GET | `/api/v2/admin/tables/{table_name}/rows` | Params: `limit` (1–500), `offset`, `sort`, `order` (asc/desc), `search`. Paginated with search across string columns |
-| Create row | POST | `/api/v2/admin/tables/{table_name}/rows` | Body: field-value dict. Autoincrement PK columns auto-stripped |
-| Update row | PUT | `/api/v2/admin/tables/{table_name}/rows/{row_id}` | Body: field-value dict. PK columns excluded |
-| Delete row | DELETE | `/api/v2/admin/tables/{table_name}/rows/{row_id}` | Deletes by primary key |
-| FK options | GET | `/api/v2/admin/tables/{table_name}/fk-options/{column_name}` | Dropdown values for foreign key columns |
-
-**Allowed tables:** `bank_accounts`, `categories`, `category_keywords`, `mcc_categories`, `tags`, `transaction_tags`, `unified_transactions`, `statement_audit`, `budgets`, `savings_goals`, `bill_reminders`, `recurring_transactions`, `upi_ids`
 
 ---
 
@@ -448,27 +724,19 @@ User opens Database Manager → Views list of allowed tables
 | Domain | Endpoints | Version |
 |--------|:---------:|---------|
 | Health | 1 | — |
-| Authentication | 4 | — |
-| Legacy Transactions | 3 | v1 |
 | Upload (Unified) | 3+ | v2 |
 | Categories | 7+ | v2 |
 | Unified Transactions | 8 | v2 |
 | Tags | 4 | v2 |
 | Analytics | 7 | v2 |
 | Accounts | 4 | v2 |
-| Budgets | 8 | v2 |
-| Savings Goals | 7 | v2 |
-| Reminders | 12 | v2 |
-| Recurring | 4 | v2 |
 | Export/Data | 3 | v2 |
 | Google Drive (OAuth) | 12 | v2 |
-| Transfers | 5 | v2 |
 | UPI IDs | 7 | v2 |
 | Local Directory Sync | 6 | v2 |
 | Admin / Database | 7+ | v2 |
-| **Total** | **~122** | |
+| Classification Rules | 5 | v2 |
 
-> All v2 endpoints are prefixed with `/api/v2/`. Legacy v1 endpoints remain at `/api/` for backward compatibility.
-> Auth endpoints are at `/api/auth/`. The `/health` and `/api/auth/status` endpoints are public; all others require a valid JWT Bearer token.
-> Google Drive `/callback` endpoint is also public (handles OAuth redirect).
+> All v2 endpoints are prefixed with `/api/v2/`.
+> The `/health` endpoint is public; all others operate directly on the backend.
 > Interactive API docs available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when the backend is running.

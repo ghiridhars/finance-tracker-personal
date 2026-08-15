@@ -123,6 +123,7 @@ class StatementAuditService:
         parse_trace: dict | str | None = None,
         review_status: str = "AUTO_PARSED",
         review_reason: str | None = None,
+        mismatched_indices: list[int] | None = None,
         source: str = "upload",
     ) -> StatementAudit:
         """
@@ -228,6 +229,7 @@ class StatementAuditService:
             ),
             review_status=review_status,
             review_reason=review_reason,
+            mismatched_indices=mismatched_indices,
         )
 
         db.commit()

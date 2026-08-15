@@ -122,7 +122,7 @@ def update_transaction(
     db: Session = Depends(get_db),
 ):
     """
-    Update category, merchant name, notes, or tags on a unified transaction.
+    Update category, merchant name, or notes on a unified transaction.
     Use this for manual re-categorization.
 
     Self-improving: When the user changes the category, the system learns
@@ -135,10 +135,18 @@ def update_transaction(
         kwargs["merchant_name"] = data.merchant_name
     if data.notes is not None:
         kwargs["notes"] = data.notes
-    if data.tag_ids is not None:
-        kwargs["tag_ids"] = data.tag_ids
     if data.review_status is not None:
         kwargs["review_status"] = data.review_status
+    if data.from_account_id is not None:
+        kwargs["from_account_id"] = data.from_account_id
+    if data.to_account_id is not None:
+        kwargs["to_account_id"] = data.to_account_id
+        
+    # If a user explicitly changes the category via the standard update endpoint
+    if data.category_id is not None:
+        from app.models.enums import ClassificationSource
+        kwargs["classification_source"] = ClassificationSource.USER_DIRECT.value
+        kwargs["classification_confidence"] = 1.0
 
     tx = UnifiedTransactionService.update(db, transaction_id, **kwargs)
     if not tx:
@@ -169,20 +177,7 @@ def update_transaction(
     return UnifiedTransactionSchema.model_validate(tx)
 
 
-@router.post("/{transaction_id}/tags/{tag_id}", response_model=UnifiedTransactionSchema)
-def add_tag(transaction_id: int, tag_id: int, db: Session = Depends(get_db)):
-    tx = UnifiedTransactionService.add_tag(db, transaction_id, tag_id)
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction or tag not found")
-    return UnifiedTransactionSchema.model_validate(tx)
 
-
-@router.delete("/{transaction_id}/tags/{tag_id}", response_model=UnifiedTransactionSchema)
-def remove_tag(transaction_id: int, tag_id: int, db: Session = Depends(get_db)):
-    tx = UnifiedTransactionService.remove_tag(db, transaction_id, tag_id)
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction or tag not found")
-    return UnifiedTransactionSchema.model_validate(tx)
 
 
 @router.delete("/{transaction_id}")
@@ -224,7 +219,7 @@ def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)
     resolved automatically, shrinking the review queue without additional
     user action.
     """
-    from app.services.categorization_service import learn_from_categorization, extract_upi_id
+    from app.services.categorization_service import learn_from_categorization
 
     # Pre-fetch descriptions before the bulk commit so learning survives
     # SQLAlchemy session expiry after the bulk update commit.
@@ -237,6 +232,12 @@ def bulk_update(data: BulkTransactionUpdateSchema, db: Session = Depends(get_db)
             .all()
         )
         desc_map = {row.id: row.description for row in rows}
+
+    from app.models.enums import ClassificationSource
+    for item in data.updates:
+        if item.category_id is not None:
+            item.classification_source = ClassificationSource.USER_REVIEW.value
+            item.classification_confidence = 1.0
 
     # Perform the actual bulk update (commits inside).
     count = UnifiedTransactionService.bulk_update(db, data.updates)

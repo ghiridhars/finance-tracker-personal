@@ -13,8 +13,8 @@ from app.schemas.category import (
     CategorySchema,
     CategoryCreateSchema,
     CategoryUpdateSchema,
-    KeywordAddSchema,
     MccCategorySchema,
+    KeywordAddSchema,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,21 @@ def create_category(data: CategoryCreateSchema, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{category_id}/keywords", response_model=CategorySchema)
+def add_keywords(category_id: int, data: KeywordAddSchema, db: Session = Depends(get_db)):
+    try:
+        cat = CategoryService.add_keywords(db, category_id, data.keywords)
+        return CategorySchema.model_validate(cat)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/keywords/{keyword_id}")
+def remove_keyword(keyword_id: int, db: Session = Depends(get_db)):
+    deleted = CategoryService.remove_keyword(db, keyword_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Keyword not found")
+    return {"detail": "Keyword deleted"}
 @router.put("/{category_id}", response_model=CategorySchema)
 def update_category(
     category_id: int,
@@ -74,24 +89,3 @@ def delete_category(category_id: int, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.post("/{category_id}/keywords", response_model=CategorySchema)
-def add_keywords(
-    category_id: int,
-    data: KeywordAddSchema,
-    db: Session = Depends(get_db),
-):
-    """Add keywords to a category (auto-categorization rules)."""
-    cat = CategoryService.add_keywords(db, category_id, data.keywords)
-    if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return CategorySchema.model_validate(cat)
-
-
-@router.delete("/keywords/{keyword_id}")
-def remove_keyword(keyword_id: int, db: Session = Depends(get_db)):
-    """Remove a single keyword rule."""
-    removed = CategoryService.remove_keyword(db, keyword_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail="Keyword not found")
-    return {"detail": "Keyword removed"}

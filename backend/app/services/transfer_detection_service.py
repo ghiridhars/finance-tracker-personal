@@ -347,13 +347,26 @@ class TransferDetectionService:
         """Mark two transactions as a linked transfer pair."""
         group_id = str(uuid.uuid4())
 
+        # Determine debit (origin) and credit (destination) transactions
+        if tx1.type == TransactionType.DEBIT:
+            debit_tx, credit_tx = tx1, tx2
+        else:
+            debit_tx, credit_tx = tx2, tx1
+
+        from_acc_id = debit_tx.bank_account_id
+        to_acc_id = credit_tx.bank_account_id
+
         tx1.is_transfer = True
         tx1.transfer_group_id = group_id
         tx1.transfer_type = transfer_type
+        tx1.from_account_id = from_acc_id
+        tx1.to_account_id = to_acc_id
 
         tx2.is_transfer = True
         tx2.transfer_group_id = group_id
         tx2.transfer_type = transfer_type
+        tx2.from_account_id = from_acc_id
+        tx2.to_account_id = to_acc_id
 
         return group_id
 
@@ -372,6 +385,8 @@ class TransferDetectionService:
             tx.is_transfer = False
             tx.transfer_group_id = None
             tx.transfer_type = None
+            tx.from_account_id = None
+            tx.to_account_id = None
 
         if commit:
             db.commit()

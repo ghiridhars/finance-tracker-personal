@@ -45,21 +45,6 @@ class ExportApi {
     return Category.fromJson(jsonDecode(response.body));
   }
 
-  /// Add keywords to a category.
-  static Future<Category> addCategoryKeywords(
-      int categoryId, List<String> keywords) async {
-    final response = await http.post(
-      Uri.parse('${ApiClient.baseUrl}/api/v2/categories/$categoryId/keywords'),
-      headers: ApiClient.jsonHeaders,
-      body: jsonEncode({'keywords': keywords}),
-    );
-    if (response.statusCode != 200) {
-      final detail = ApiClient.extractErrorDetail(response.body);
-      throw Exception('Failed to add keywords: $detail');
-    }
-    return Category.fromJson(jsonDecode(response.body));
-  }
-
   /// Delete a category.
   static Future<void> deleteCategory(int categoryId) async {
     final response = await http.delete(

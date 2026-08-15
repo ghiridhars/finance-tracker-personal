@@ -9,10 +9,14 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/dashboard_provider.dart';
+import '../providers/accounts_provider.dart';
+import '../providers/transactions_provider.dart';
+import '../providers/statements_provider.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../widgets/upi_management_widget.dart';
+import 'package:go_router/go_router.dart';
+import '../router.dart';
 import 'database_manager_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -158,6 +162,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     try {
       await ApiService.clearAllData();
+      
+      // Invalidate all cached state so UI resets
+      ref.invalidate(dashboardProvider);
+      ref.invalidate(netWorthProvider);
+      ref.invalidate(accountsProvider);
+      ref.invalidate(unifiedTransactionsProvider);
+      ref.invalidate(statementsProvider);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All data cleared successfully')),
@@ -659,33 +671,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               // ── Account Section ─────────────────────────────────
               _SectionHeader(title: 'Account', icon: Icons.person),
               const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text('Sign Out'),
-                    subtitle: Text(
-                      'Signed in as ${ref.watch(authProvider).username ?? "unknown"}',
-                    ),
-                    trailing: OutlinedButton(
-                      onPressed: () {
-                        ref.read(authProvider.notifier).logout();
-                      },
-                      child: const Text('Sign Out'),
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 8),
 
               const SizedBox(height: 24),
-              // ── UPI ID Management ───────────────────────────
-              _SectionHeader(title: 'UPI IDs', icon: Icons.qr_code_2),
+              // ── UPI Directory ─────────────────────────────
+              _SectionHeader(title: 'UPI Directory', icon: Icons.qr_code_2),
               const SizedBox(height: 12),
               Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: const UpiManagementPanel(),
+                child: ListTile(
+                  leading: Icon(Icons.contacts_outlined,
+                      color: colorScheme.primary),
+                  title: const Text('UPI Directory'),
+                  subtitle: const Text(
+                    'Manage UPI handle mappings and unassigned handles',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(AppRoutes.upiDirectory),
                 ),
               ),
 

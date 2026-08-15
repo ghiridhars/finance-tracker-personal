@@ -15,10 +15,9 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.transaction import UnifiedTransaction
-from app.models.tag import Tag, TransactionTag
+
 from app.models.enums import TransactionType, SourceType, StatementType, ReviewStatus
-from app.models.category import CategoryKeyword
-from app.services.categorization_service import categorize_and_normalize
+from app.services.categorization_service import auto_categorize
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +40,7 @@ class UnifiedTransactionService:
         account_identifier: str | None = None,
         review_status: str = ReviewStatus.AUTO_PARSED.value,
         review_reason: str | None = None,
+        mismatched_indices: list[int] | None = None,
     ) -> list[UnifiedTransaction]:
         """
         Create unified transaction rows from a parsed statement DTO.
@@ -53,10 +53,9 @@ class UnifiedTransactionService:
         txns = getattr(dto, "transactions", [])
         created: list[UnifiedTransaction] = []
 
-        keywords = db.query(CategoryKeyword).all()
-        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
+        mismatched_set = set(mismatched_indices) if mismatched_indices else set()
 
-        for tx in txns:
+        for idx, tx in enumerate(txns):
             description = getattr(tx, "description", None)
 
             if is_cc:
@@ -75,9 +74,40 @@ class UnifiedTransactionService:
                     amount = Decimal("0")
                     tx_type = getattr(tx, "type", None)
 
-            category_id, merchant_name, is_own_transfer = categorize_and_normalize(
-                db, description, keywords=keywords
+            class_result, is_own_transfer = auto_categorize(
+                db,
+                description=description,
+                amount=amount,
+                bank_name=bank_name,
+                tx_type=tx_type.value if tx_type else None,
             )
+
+            category_id = None
+            if idx in mismatched_set:
+                review_status_to_use = ReviewStatus.NEEDS_REVIEW.value
+                review_reason_to_use = "PARTIAL_BALANCE_MISMATCH"
+            else:
+                review_status_to_use = review_status
+                review_reason_to_use = review_reason
+                if class_result.confidence >= 0.85 or class_result.category_id is not None:
+                    category_id = class_result.category_id
+                    if review_status_to_use == ReviewStatus.NEEDS_REVIEW.value:
+                        review_status_to_use = ReviewStatus.AUTO_PARSED.value
+                else:
+                    review_status_to_use = ReviewStatus.NEEDS_REVIEW.value
+
+            # Resolve directional account IDs for own-UPI single-sided transfers.
+            # For a DEBIT: money leaves bank_account_id → to_account_id = resolved target.
+            # For a CREDIT: money arrives into bank_account_id → from_account_id = resolved target.
+            from_account_id_new: int | None = None
+            to_account_id_new: int | None = None
+            if is_own_transfer and class_result.target_bank_account_id:
+                if tx_type == TransactionType.DEBIT:
+                    from_account_id_new = bank_account_id
+                    to_account_id_new = class_result.target_bank_account_id
+                elif tx_type == TransactionType.CREDIT:
+                    from_account_id_new = class_result.target_bank_account_id
+                    to_account_id_new = bank_account_id
 
             unified = UnifiedTransaction(
                 date=getattr(tx, "date", None),
@@ -90,11 +120,16 @@ class UnifiedTransactionService:
                 account_identifier=account_identifier,
                 bank_account_id=bank_account_id,
                 category_id=category_id,
-                merchant_name=merchant_name,
+                suggested_category_id=class_result.category_id,
+                classification_source=class_result.source,
+                classification_confidence=class_result.confidence,
+                merchant_name=class_result.merchant_name,
                 reference_number=getattr(tx, "reference_number", None),
                 is_transfer=is_own_transfer,
-                review_status=review_status,
-                review_reason=review_reason,
+                from_account_id=from_account_id_new,
+                to_account_id=to_account_id_new,
+                review_status=review_status_to_use,
+                review_reason=review_reason_to_use,
             )
             db.add(unified)
             created.append(unified)
@@ -243,8 +278,11 @@ class UnifiedTransactionService:
         category_id: int | None = ...,
         merchant_name: str | None = ...,
         notes: str | None = ...,
-        tag_ids: list[int] | None = None,
         review_status: ReviewStatus | None = ...,
+        classification_source: str | None = ...,
+        classification_confidence: float | None = ...,
+        from_account_id: int | None = ...,
+        to_account_id: int | None = ...,
     ) -> Optional[UnifiedTransaction]:
         """
         Update a unified transaction's metadata.
@@ -268,11 +306,30 @@ class UnifiedTransactionService:
             tx.notes = notes
         if review_status is not ...:
             tx.review_status = review_status.value if review_status else None
+        if classification_source is not ...:
+            tx.classification_source = classification_source
+        if classification_confidence is not ...:
+            tx.classification_confidence = classification_confidence
+        if from_account_id is not ...:
+            tx.from_account_id = from_account_id
+        if to_account_id is not ...:
+            tx.to_account_id = to_account_id
 
-        if tag_ids is not None:
-            # Replace tags
-            tags = db.query(Tag).filter(Tag.id.in_(tag_ids)).all()
-            tx.tags = tags
+        # Sync counterpart transaction if part of a transfer pair
+        if tx.transfer_group_id and (from_account_id is not ... or to_account_id is not ...):
+            counterparts = (
+                db.query(UnifiedTransaction)
+                .filter(
+                    UnifiedTransaction.transfer_group_id == tx.transfer_group_id,
+                    UnifiedTransaction.id != tx.id,
+                )
+                .all()
+            )
+            for cp in counterparts:
+                if from_account_id is not ...:
+                    cp.from_account_id = from_account_id
+                if to_account_id is not ...:
+                    cp.to_account_id = to_account_id
 
         db.commit()
         db.refresh(tx)
@@ -308,7 +365,27 @@ class UnifiedTransactionService:
                 tx.notes = item.notes
             if item.review_status is not None:
                 tx.review_status = item.review_status.value
-            
+            if getattr(item, "from_account_id", None) is not None:
+                tx.from_account_id = item.from_account_id
+            if getattr(item, "to_account_id", None) is not None:
+                tx.to_account_id = item.to_account_id
+
+            # Sync counterpart transaction if part of a transfer pair
+            if tx.transfer_group_id and (getattr(item, "from_account_id", None) is not None or getattr(item, "to_account_id", None) is not None):
+                counterparts = (
+                    db.query(UnifiedTransaction)
+                    .filter(
+                        UnifiedTransaction.transfer_group_id == tx.transfer_group_id,
+                        UnifiedTransaction.id != tx.id,
+                    )
+                    .all()
+                )
+                for cp in counterparts:
+                    if getattr(item, "from_account_id", None) is not None:
+                        cp.from_account_id = item.from_account_id
+                    if getattr(item, "to_account_id", None) is not None:
+                        cp.to_account_id = item.to_account_id
+
             updated_count += 1
             
         db.commit()
@@ -433,29 +510,7 @@ class UnifiedTransactionService:
 
         return resolved
 
-    @staticmethod
-    def add_tag(db: Session, transaction_id: int, tag_id: int) -> Optional[UnifiedTransaction]:
-        tx = db.query(UnifiedTransaction).filter(UnifiedTransaction.id == transaction_id).first()
-        tag = db.query(Tag).filter(Tag.id == tag_id).first()
-        if not tx or not tag:
-            return None
-        if tag not in tx.tags:
-            tx.tags.append(tag)
-            db.commit()
-            db.refresh(tx)
-        return tx
 
-    @staticmethod
-    def remove_tag(db: Session, transaction_id: int, tag_id: int) -> Optional[UnifiedTransaction]:
-        tx = db.query(UnifiedTransaction).filter(UnifiedTransaction.id == transaction_id).first()
-        tag = db.query(Tag).filter(Tag.id == tag_id).first()
-        if not tx or not tag:
-            return None
-        if tag in tx.tags:
-            tx.tags.remove(tag)
-            db.commit()
-            db.refresh(tx)
-        return tx
 
     # ── Bulk re-categorize ───────────────────────────────────
 
@@ -466,25 +521,54 @@ class UnifiedTransactionService:
         Useful after adding new keywords.
         Returns count of transactions updated.
         """
-        from app.services.categorization_service import categorize_and_normalize
-        from app.models.category import CategoryKeyword
+        from app.services.categorization_service import auto_categorize
 
-        transactions = db.query(UnifiedTransaction).all()
-        keywords = db.query(CategoryKeyword).all()
-        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
+        transactions = db.query(UnifiedTransaction).filter(UnifiedTransaction.review_status != ReviewStatus.REVIEWED.value).all()
         updated = 0
         for tx in transactions:
-            new_cat_id, new_merchant, is_own_transfer = categorize_and_normalize(db, tx.description, keywords=keywords)
+            class_result, is_own_transfer = auto_categorize(
+                db,
+                description=tx.description,
+                amount=tx.amount,
+                bank_name=tx.bank,
+                tx_type=tx.type.value if tx.type else None,
+            )
             changed = False
+
+            # Apply same acceptance logic as create_from_parsed
+            new_cat_id = None
+            if class_result.confidence >= 0.85:
+                new_cat_id = class_result.category_id
+
             if new_cat_id and tx.category_id != new_cat_id:
                 tx.category_id = new_cat_id
+                tx.classification_source = class_result.source
+                tx.classification_confidence = class_result.confidence
+                tx.review_status = ReviewStatus.AUTO_PARSED.value
                 changed = True
-            if new_merchant and tx.merchant_name != new_merchant:
-                tx.merchant_name = new_merchant
+
+            if class_result.category_id and tx.suggested_category_id != class_result.category_id:
+                tx.suggested_category_id = class_result.category_id
+                tx.classification_source = class_result.source
+                tx.classification_confidence = class_result.confidence
+                changed = True
+
+            if class_result.merchant_name and tx.merchant_name != class_result.merchant_name:
+                tx.merchant_name = class_result.merchant_name
                 changed = True
             if is_own_transfer and not tx.is_transfer:
                 tx.is_transfer = True
                 changed = True
+            # Backfill from/to account IDs if not yet set and now resolvable
+            if is_own_transfer and class_result.target_bank_account_id:
+                if tx.type == TransactionType.DEBIT and tx.to_account_id is None:
+                    tx.from_account_id = tx.bank_account_id
+                    tx.to_account_id = class_result.target_bank_account_id
+                    changed = True
+                elif tx.type == TransactionType.CREDIT and tx.from_account_id is None:
+                    tx.from_account_id = class_result.target_bank_account_id
+                    tx.to_account_id = tx.bank_account_id
+                    changed = True
             if changed:
                 updated += 1
 
@@ -507,3 +591,4 @@ def _run_transfer_detection(db: Session, transactions: list[UnifiedTransaction])
             logger.info(f"Auto-linked {len(pairs)} transfer pair(s) after upload")
     except Exception:
         logger.warning("Transfer detection failed after upload", exc_info=True)
+

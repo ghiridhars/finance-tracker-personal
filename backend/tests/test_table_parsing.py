@@ -3,11 +3,54 @@ from decimal import Decimal
 
 from app.models.enums import StatementType
 from app.parsing.table_parsing import (
+    expand_multiline_table_rows,
     filter_table_data_rows,
     is_table_metadata_row,
     map_table_columns,
     parse_table_rows,
 )
+
+
+class TestExpandMultilineTableRows:
+    def test_splits_rows_with_newline_joined_dates(self):
+        rows = [
+            ["01/05/2026\n02/05/2026", "UPI PAYMENT\nNEFT SALARY", "500\n0", "0\n10000", "4500\n14500"],
+        ]
+        col_map = {"date": 0, "description": 1, "debit": 2, "credit": 3, "balance": 4}
+        expanded = expand_multiline_table_rows(rows, col_map)
+        assert len(expanded) == 2
+        assert expanded[0][0] == "01/05/2026"
+        assert expanded[1][0] == "02/05/2026"
+        assert expanded[0][1] == "UPI PAYMENT"
+        assert expanded[1][1] == "NEFT SALARY"
+
+    def test_preserves_single_line_rows(self):
+        rows = [["01/05/2026", "UPI PAYMENT", "500", "0", "4500"]]
+        col_map = {"date": 0}
+        expanded = expand_multiline_table_rows(rows, col_map)
+        assert expanded == rows
+
+    def test_handles_uneven_newline_counts_across_columns(self):
+        rows = [
+            ["01/05/2026\n02/05/2026", "LINE1\nLINE2\nLINE3", "500\n600", "", "4500\n3900"],
+        ]
+        col_map = {"date": 0, "description": 1, "debit": 2, "credit": 3, "balance": 4}
+        expanded = expand_multiline_table_rows(rows, col_map)
+        assert len(expanded) == 2
+        assert expanded[0][1] == "LINE1"
+        assert expanded[1][1] == "LINE2"
+
+    def test_no_expansion_when_date_column_has_no_newlines(self):
+        rows = [["01/05/2026", "LINE1\nLINE2", "500", "0", "4500"]]
+        col_map = {"date": 0, "description": 1}
+        expanded = expand_multiline_table_rows(rows, col_map)
+        assert len(expanded) == 1
+
+    def test_handles_none_cells(self):
+        rows = [[None, None, None]]
+        col_map = {"date": 0}
+        expanded = expand_multiline_table_rows(rows, col_map)
+        assert len(expanded) == 1
 
 
 class TestTableParsing:

@@ -3,32 +3,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:finance_tracker_frontend/main.dart';
-import 'package:finance_tracker_frontend/services/auth_service.dart';
-
-class MockAuthNotifier extends Notifier<AuthState> implements AuthNotifier {
-  @override
-  AuthState build() => const AuthState(isLoading: false, token: 'mock-token', username: 'tester');
-
-  @override
-  Future<void> login(String username, String password) async {}
-
-  @override
-  Future<void> register(String username, String password) async {}
-
-  @override
-  Future<void> logout() async {}
-}
 
 void main() {
   testWidgets('App renders and shows navigation', (WidgetTester tester) async {
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authProvider.overrideWith(MockAuthNotifier.new),
-        ],
-        child: const FinanceTrackerApp(),
+      const ProviderScope(
+        child: FinanceTrackerApp(),
       ),
     );
 

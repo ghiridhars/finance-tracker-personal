@@ -41,6 +41,7 @@ class AdminApi {
     String? sort,
     String order = 'asc',
     String? search,
+    String? searchColumn,
   }) async {
     final params = <String, String>{
       'limit': limit.toString(),
@@ -49,6 +50,7 @@ class AdminApi {
     };
     if (sort != null) params['sort'] = sort;
     if (search != null && search.isNotEmpty) params['search'] = search;
+    if (searchColumn != null && searchColumn.isNotEmpty) params['search_column'] = searchColumn;
 
     final uri = Uri.parse('$_base/tables/$tableName/rows')
         .replace(queryParameters: params);

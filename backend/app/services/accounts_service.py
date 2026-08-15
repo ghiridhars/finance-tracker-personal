@@ -2,7 +2,8 @@
 Accounts & Statement Management service.
 
 Provides:
-  - Account listing from bank_accounts table
+  - Account listing, creation, update, merge, soft-delete
+  - Per-account summary (balance, transaction/statement counts)
   - Statement listing from statement_audit table
   - Statement & transaction deletion with cascade
 """
@@ -100,33 +101,139 @@ class AccountsService:
 
         return accounts
 
+
     @staticmethod
-    def rename_account(
-        db: Session,
-        account_type: str,
-        identifier: str,
-        new_name: str,
-    ) -> bool:
-        """
-        Update the holder name on a bank account.
-        Returns True if the account was found and updated.
-        """
-        ba = (
-            db.query(BankAccount)
+    def create_account(db: Session, **kwargs) -> BankAccount:
+        account = BankAccount(**kwargs)
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        return account
+
+    @staticmethod
+    def update_account(db: Session, account_id: int, **kwargs) -> BankAccount | None:
+        account = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+        if not account:
+            return None
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(account, key, value)
+        db.commit()
+        db.refresh(account)
+        return account
+
+    @staticmethod
+    def merge_accounts(db: Session, source_id: int, target_id: int) -> dict:
+        source_account = db.query(BankAccount).filter(BankAccount.id == source_id).first()
+        target_account = db.query(BankAccount).filter(BankAccount.id == target_id).first()
+        
+        if not source_account or not target_account:
+            raise ValueError("Source or target account not found")
+
+        tx_count = db.query(UnifiedTransaction).filter(UnifiedTransaction.bank_account_id == source_id).update({"bank_account_id": target_id})
+        stmt_count = db.query(StatementAudit).filter(StatementAudit.bank_account_id == source_id).update({"bank_account_id": target_id})
+        
+        source_account.is_active = False
+        db.commit()
+        
+        logger.info(f"Merged account {source_id} into {target_id}. Reassigned {tx_count} txns and {stmt_count} stmts.")
+        return {"reassigned_transactions": tx_count, "reassigned_statements": stmt_count}
+
+    @staticmethod
+    def delete_account(db: Session, account_id: int) -> bool:
+        account = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+        if not account:
+            return False
+            
+        account.is_active = False
+        db.commit()
+        logger.info(f"Soft-deleted account {account_id}")
+        return True
+
+    @staticmethod
+    def get_account_summary(db: Session, account_id: int) -> dict | None:
+        ba = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+        if not ba:
+            return None
+
+        stmt_agg = (
+            db.query(
+                func.count(StatementAudit.id).label("stmt_count"),
+                func.max(StatementAudit.period_end).label("last_date"),
+            )
             .filter(
-                BankAccount.account_type == account_type,
-                BankAccount.account_number == identifier,
+                StatementAudit.bank_account_id == ba.id,
+                StatementAudit.status == "SUCCESS",
             )
             .first()
         )
-        if not ba:
-            return False
 
-        ba.holder_name = new_name
-        ba.name = new_name  # also update the display name
-        db.commit()
-        logger.info(f"Renamed {account_type} account {identifier} to '{new_name}'")
-        return True
+        tx_count = (
+            db.query(func.count(UnifiedTransaction.id))
+            .filter(UnifiedTransaction.bank_account_id == ba.id)
+            .scalar()
+        ) or 0
+
+        latest_audit = (
+            db.query(StatementAudit)
+            .filter(
+                StatementAudit.bank_account_id == ba.id,
+                StatementAudit.status == "SUCCESS",
+            )
+            .order_by(StatementAudit.period_end.desc())
+            .first()
+        )
+        
+        history_audits = (
+            db.query(StatementAudit)
+            .filter(StatementAudit.bank_account_id == ba.id, StatementAudit.status == "SUCCESS")
+            .order_by(StatementAudit.period_end.desc())
+            .all()
+        )
+        balance_history = [
+            {
+                "period_end": a.period_end.isoformat() if a.period_end else None,
+                "closing_balance": float(a.closing_balance) if a.closing_balance else None
+            }
+            for a in history_audits if a.closing_balance is not None
+        ]
+
+        entry = {
+            "id": ba.id,
+            "type": ba.account_type,
+            "identifier": ba.account_number,
+            "name": ba.name,
+            "holder_name": ba.holder_name,
+            "bank": ba.bank_name,
+            "account_subtype": ba.account_subtype,
+            "notes": ba.notes,
+            "is_active": ba.is_active,
+            "created_at": ba.created_at.isoformat() if ba.created_at else None,
+            "loan_principal": float(ba.loan_principal) if ba.loan_principal else None,
+            "loan_interest_rate": float(ba.loan_interest_rate) if ba.loan_interest_rate else None,
+            "loan_emi_amount": float(ba.loan_emi_amount) if ba.loan_emi_amount else None,
+            "loan_start_date": ba.loan_start_date.isoformat() if ba.loan_start_date else None,
+            "loan_end_date": ba.loan_end_date.isoformat() if ba.loan_end_date else None,
+            "credit_limit": float(ba.credit_limit) if ba.credit_limit else None,
+            "billing_cycle_day": ba.billing_cycle_day,
+            "invested_amount": float(ba.invested_amount) if ba.invested_amount else None,
+            "current_value": float(ba.current_value) if ba.current_value else None,
+            "value_updated_at": ba.value_updated_at.isoformat() if ba.value_updated_at else None,
+            "statement_count": stmt_agg.stmt_count if stmt_agg else 0,
+            "transaction_count": tx_count,
+            "last_statement_date": (
+                stmt_agg.last_date.isoformat()
+                if stmt_agg and stmt_agg.last_date
+                else None
+            ),
+            "balance": (
+                float(latest_audit.closing_balance)
+                if latest_audit and latest_audit.closing_balance
+                else None
+            ),
+            "balance_history": balance_history,
+        }
+        return entry
 
 
 class StatementManagementService:

@@ -45,8 +45,7 @@ def _get_secrets_path() -> Path:
     p_parent = Path("..") / settings.gdrive_oauth_secrets_file
     if p_parent.exists():
         return p_parent
-    # Fallback absolute path
-    p_abs = Path("/home/ghiridhars/Codebase/finance-tracker-personal/backend") / settings.gdrive_oauth_secrets_file
+    p_abs = Path(__file__).resolve().parent.parent.parent / settings.gdrive_oauth_secrets_file
     if p_abs.exists():
         return p_abs
     raise ValueError(

@@ -14,10 +14,8 @@ import '../providers/accounts_provider.dart';
 import '../providers/categories_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/investment_rule_provider.dart';
-import '../providers/transfers_provider.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/upi_provider.dart';
-import '../services/auth_service.dart';
 import '../router.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -88,7 +86,6 @@ class _AppShellState extends ConsumerState<AppShell> {
         case AppRoutes.accounts:
           await Future.wait<dynamic>([
             ref.read(accountsProvider.notifier).loadAccounts(),
-            ref.read(transfersProvider.notifier).loadAll(),
             ref.read(unifiedTransactionsProvider.notifier).loadTransactions(),
           ]);
 
@@ -172,7 +169,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               tooltip: 'Account',
                               onSelected: (val) {
                                 if (val == 'logout') {
-                                  ref.read(authProvider.notifier).logout();
+                                  // Local desktop mode — no logout required
                                 }
                               },
                               itemBuilder: (ctx) => [
@@ -262,9 +259,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           offset: const Offset(40, -40),
                           tooltip: 'Account',
                           onSelected: (val) {
-                            if (val == 'logout') {
-                              ref.read(authProvider.notifier).logout();
-                            }
+                                if (val == 'logout') {
+                                  // Local desktop mode — no logout required
+                                }
                           },
                           itemBuilder: (ctx) => [
                             const PopupMenuItem(

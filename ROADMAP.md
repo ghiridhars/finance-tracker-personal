@@ -529,7 +529,6 @@
 | 14.1 | Investment Rules Engine (Backend) | ✅ Done | Replaced raw platform grouping with an `InvestmentRule` model (aka `MerchantAlias`). Rules map `keywords` (e.g., "SGB", "Groww") to a specific `platform_name` and an `asset_class` (Mutual Funds, Fixed Deposits, Commodities, etc.). `get_investment_analytics` dynamically applies these rules to outbound transfers. |
 | 14.2 | Multidimensional Analytics Output | ✅ Done | Updated `/api/v2/analytics/investments` to return capital divided by Asset Class (`assetClasses`) and by Platform (`platforms`), plus historical 6-month contribution trends (`trends`). |
 | 14.3 | Dedicated Investments Screen | ✅ Done | Created a robust `/investments` screen with a `CustomScrollView` and Slivers. Features a hero header for total capital, an interactive Trend Chart, an Asset Class allocation grid, and a Top Platforms list. |
-| 14.4 | Discreet Rule Management UI | ✅ Done | Built the `InvestmentRulesSection`—an expandable `ExpansionTile` at the bottom of the Investments Screen. Allows users to create or edit mapping rules directly on the screen without leaving the context of their portfolio. |
 
 **Files Created:**
 - `backend/app/models/investment_rule.py` — SQLAlchemy model for rules.
@@ -537,7 +536,6 @@
 - `backend/app/routers/investment_rules.py` — CRUD endpoints.
 - `frontend/lib/models/investment_rule.dart` — Rule models.
 - `frontend/lib/providers/investment_rule_provider.dart` — State management.
-- `frontend/lib/widgets/investment_rules_section.dart` — Discreet inline management widget.
 - `frontend/lib/screens/investments_screen.dart` — Dedicated `/investments` route.
 
 **Files Modified:**
@@ -561,7 +559,7 @@
 | 15.6 | Investment Settings Screen (Frontend) | ✅ Done | New `InvestmentSettingsScreen` with 3-tab layout: **Asset Classes** (CRUD with visual pickers), **Mapping Rules** (view/delete existing rules), **Inbox** (Smart Mapping queue). Accessed via a gear icon in the InvestmentsScreen AppBar. |
 | 15.7 | Visual Color & Icon Pickers | ✅ Done | "New Asset Class" dialog uses tappable color swatches (8 preset Material colors with selection ring + checkmark) and `ChoiceChip` icon grid instead of raw text input. Zero hex codes typed by hand. |
 | 15.8 | Inbox Zero Smart Mapping | ✅ Done | The **Inbox** tab surfaces unmapped investment transactions in a prioritized queue. Tapping "Map this Investment" opens a dialog pre-filled with merchant data, allows the user to choose an Asset Class from a dropdown, set a platform name, and define a keyword. Saving creates a rule and immediately removes the transaction from the queue — all historical matches are retrospectively classified on next refresh. |
-| 15.9 | Dynamic Frontend Rendering | ✅ Done | `InvestmentsScreen` asset-class grid and `InvestmentPortfolioCard` pie chart now read `color` and `icon` from backend API data via `parseColor()` and `getIconDataFromString()`. Removed all hardcoded color/icon fallback logic. Removed `investment_rules_section.dart`. |
+| 15.9 | Dynamic Frontend Rendering | ✅ Done | `InvestmentsScreen` asset-class grid and `InvestmentPortfolioCard` pie chart now read `color` and `icon` from backend API data via `parseColor()` and `getIconDataFromString()`. Removed all hardcoded color/icon fallback logic. |
 
 **Files Created:**
 - `backend/app/models/asset_class.py` — `AssetClass` SQLAlchemy model.
@@ -592,5 +590,4 @@
 - `frontend/lib/services/api_service.dart` — Exported `AssetClassApi`; updated Investment Rule wrappers; added `getUnmappedInvestments()`.
 - `frontend/lib/widgets/charts/chart_helpers.dart` — Added `getIconDataFromString()` helper.
 - `frontend/lib/widgets/charts/investment_portfolio_card.dart` — Dynamic colors via `parseColor(asset.color)`.
-- `frontend/lib/widgets/investment_rules_section.dart` — **DELETED** (fully replaced by `InvestmentSettingsScreen`).
 

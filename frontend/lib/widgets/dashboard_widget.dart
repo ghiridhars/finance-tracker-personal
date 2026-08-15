@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/dashboard_layout_provider.dart';
 import 'skeleton_widgets.dart';
+import 'ui_system/ui_system.dart';
 import 'charts/summary_cards.dart';
 import 'charts/spending_trends_chart.dart';
 import 'charts/category_pie_chart.dart';
@@ -16,6 +17,7 @@ import 'charts/income_expense_chart.dart';
 import 'charts/month_over_month_card.dart';
 import 'charts/top_merchants_card.dart';
 import 'charts/investment_portfolio_card.dart';
+import 'net_worth_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -134,6 +136,7 @@ class DashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(16),
                       children: [
                         if (!editing) ...[
+                          const NetWorthCard(),
                           _DateRangeChips(
                             selected: dash.range,
                             onChanged: (r) => ref
@@ -360,7 +363,13 @@ class DashboardScreen extends ConsumerWidget {
           height: renderHeight,
           clipBehavior: Clip.hardEdge,
           decoration: const BoxDecoration(),
-          child: content,
+          child: tile.id == DashboardTileId.summary
+              ? content
+              : ModernCard(
+                  padding: EdgeInsets.zero,
+                  margin: EdgeInsets.zero,
+                  child: content,
+                ),
         ),
       ],
     );

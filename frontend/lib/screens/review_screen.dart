@@ -1,14 +1,17 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../models/unified_transaction_models.dart';
+import '../models/enums.dart';
+import '../models/category_models.dart';
 import '../providers/categories_provider.dart';
+import '../providers/accounts_provider.dart';
 import '../providers/transactions_provider.dart';
 import '../services/api_service.dart';
-
-/// Page size for paginated review loading.
-const int _kPageSize = 25;
+import '../services/api/classification_rules_api.dart';
+import '../models/classification_rule_models.dart';
+import '../widgets/ui_system/ui_system.dart';
+import 'classification_rules_screen.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   const ReviewScreen({super.key});
@@ -18,7 +21,7 @@ class ReviewScreen extends ConsumerStatefulWidget {
 }
 
 class _ReviewScreenState extends ConsumerState<ReviewScreen> {
-  // ── Pagination state ──────────────────────────────────────
+  static const int _kPageSize = 50;
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -27,8 +30,11 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   String? _error;
 
   final List<UnifiedTransaction> _transactions = [];
-  final Map<int, Map<String, dynamic>> _edits = {};
-  final Set<int> _approvedIds = {}; // Tracks individually approved items
+  final Set<int> _approvedIds = {};
+  UnifiedTransaction? _selectedTransaction;
+  
+  int? _selectedCategoryId;
+  int? _selectedTransferAccountId;
   bool _isSubmitting = false;
 
   late final ScrollController _scrollController;
@@ -37,6 +43,10 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(accountsProvider.notifier).loadAccounts();
+      ref.read(categoriesProvider.notifier).loadCategories();
+    });
     _loadInitial();
   }
 
@@ -46,22 +56,25 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     super.dispose();
   }
 
-  // ── Data loading ──────────────────────────────────────────
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
 
   Future<void> _loadInitial() async {
     setState(() {
       _isLoadingInitial = true;
       _error = null;
       _transactions.clear();
-      _edits.clear();
       _approvedIds.clear();
       _offset = 0;
       _hasMore = true;
+      _selectedTransaction = null;
     });
 
     try {
-      final count =
-          await ApiService.countTransactions(reviewStatus: 'NEEDS_REVIEW');
+      final count = await ApiService.countTransactions(reviewStatus: 'NEEDS_REVIEW');
       final txns = await ApiService.getUnifiedTransactions(
         reviewStatus: 'NEEDS_REVIEW',
         limit: _kPageSize,
@@ -74,8 +87,10 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         _transactions.addAll(txns);
         _offset = txns.length;
         _hasMore = txns.length >= _kPageSize && _offset < count;
+        if (_transactions.isNotEmpty) {
+          _selectTransaction(_transactions.first);
+        }
         _isLoadingInitial = false;
-        _initEdits(txns);
       });
     } catch (e) {
       if (!mounted) return;
@@ -103,737 +118,394 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         _offset += txns.length;
         _hasMore = txns.length >= _kPageSize && _offset < _totalCount;
         _isLoadingMore = false;
-        _initEdits(txns);
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoadingMore = false);
+      setState(() {
+        _isLoadingMore = false;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading more: $e')));
+      });
     }
   }
 
-  void _initEdits(List<UnifiedTransaction> txns) {
-    for (var tx in txns) {
-      _edits[tx.id!] = {
-        'id': tx.id,
-        'category_id': tx.category?.id,
-        'merchant_name': tx.merchantName ?? '',
-        'notes': tx.notes ?? '',
-        'review_status': 'REVIEWED',
-      };
-    }
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      _loadMore();
-    }
-  }
-
-  // ── Individual approve ────────────────────────────────────
-
-  Future<void> _approveOne(int txId) async {
-    final edit = _edits[txId];
-    if (edit == null) return;
-
-    setState(() => _approvedIds.add(txId));
-
-    try {
-      final result = await ApiService.bulkUpdateTransactions([edit]);
-      ref.invalidate(needsReviewCountProvider);
-
-      if (mounted) {
-        // Show auto-resolved snackbar before the card animates out.
-        if (result.autoResolved > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Auto-resolved ${result.autoResolved} similar '
-                'transaction${result.autoResolved == 1 ? '' : 's'} '
-                'based on your correction',
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-
-        // Remove from list after a brief delay for the animation.
-        await Future.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-        setState(() {
-          _transactions.removeWhere((t) => t.id == txId);
-          _edits.remove(txId);
-          _approvedIds.remove(txId);
-          _totalCount = (_totalCount - 1 - result.autoResolved).clamp(0, _totalCount);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _approvedIds.remove(txId));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to approve: $e')),
-        );
-      }
-    }
-  }
-
-  // ── Bulk submit ───────────────────────────────────────────
-
-  Future<void> _submitAll() async {
-    if (_edits.isEmpty) return;
-    setState(() => _isSubmitting = true);
-
-    try {
-      final updates = _edits.values.toList();
-      final result = await ApiService.bulkUpdateTransactions(updates);
-
-      ref.invalidate(needsReviewCountProvider);
-      ref.read(unifiedTransactionsProvider.notifier).loadTransactions();
-
-      if (mounted) {
-        final autoMsg = result.autoResolved > 0
-            ? ' · auto-resolved ${result.autoResolved} similar'
-            : '';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Reviewed ${updates.length} transaction${updates.length == 1 ? '' : 's'}$autoMsg',
-            ),
-          ),
-        );
-        context.go('/');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Failed to submit: $e'),
-              backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  // ── Helpers ───────────────────────────────────────────────
-
-  void _updateEdit(int id, String key, dynamic value) {
-    // Don't call setState for every keystroke — just update the map.
-    _edits[id]?[key] = value;
-  }
-
-  void _dismissTransaction(int index) {
-    final tx = _transactions[index];
+  void _selectTransaction(UnifiedTransaction txn) {
     setState(() {
-      _transactions.removeAt(index);
-      _edits.remove(tx.id);
-      _totalCount = _totalCount > 0 ? _totalCount - 1 : 0;
+      _selectedTransaction = txn;
+      _selectedCategoryId = txn.categoryId;
+      _selectedTransferAccountId = (txn.type == TransactionType.credit) ? txn.fromAccountId : txn.toAccountId;
     });
   }
 
-  // ── Build ─────────────────────────────────────────────────
+  Future<void> _approveCurrentTransaction() async {
+    if (_selectedTransaction == null) return;
+    final txn = _selectedTransaction!;
+    final isDebit = txn.type == TransactionType.debit;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final payload = <String, dynamic>{
+        'id': txn.id,
+        'category_id': _selectedCategoryId,
+        'review_status': 'REVIEWED',
+      };
+      if (isDebit) {
+        payload['to_account_id'] = _selectedTransferAccountId;
+      } else {
+        payload['from_account_id'] = _selectedTransferAccountId;
+      }
+
+      await ApiService.bulkUpdateTransactions([payload]);
+      setState(() {
+        _approvedIds.add(txn.id!);
+        _isSubmitting = false;
+      });
+      ref.invalidate(needsReviewCountProvider);
+      _moveToNext();
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  Future<void> _approveAndCreateRule() async {
+    if (_selectedTransaction == null) return;
+    final txn = _selectedTransaction!;
+    final isDebit = txn.type == TransactionType.debit;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final payload = <String, dynamic>{
+        'id': txn.id,
+        'category_id': _selectedCategoryId,
+        'review_status': 'REVIEWED',
+      };
+      if (isDebit) {
+        payload['to_account_id'] = _selectedTransferAccountId;
+      } else {
+        payload['from_account_id'] = _selectedTransferAccountId;
+      }
+
+      await ApiService.bulkUpdateTransactions([payload]);
+      setState(() {
+        _approvedIds.add(txn.id!);
+        _isSubmitting = false;
+      });
+      ref.invalidate(needsReviewCountProvider);
+
+      if (mounted) {
+        final merchantName = txn.merchantName ?? txn.description ?? '';
+        final rule = ClassificationRule(
+          name: 'Rule for $merchantName',
+          pattern: merchantName,
+          targetCategoryId: _selectedCategoryId,
+        );
+        final returnedRuleId = await showDialog<int>(
+          context: context,
+          builder: (context) => ClassificationRuleDialog(rule: rule),
+        );
+        
+        // If a rule was successfully created (or updated) from the dialog, apply it immediately
+        if (returnedRuleId != null && mounted) {
+          try {
+            await ClassificationRulesApi.applyRule(returnedRuleId);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Rule created and applied successfully')),
+            );
+            // Refresh the review list so applied transactions disappear
+            _loadInitial();
+            return; // Exit here so we don't call _moveToNext() on stale data
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Rule created, but failed to apply: $e')),
+            );
+          }
+        }
+      }
+      _moveToNext();
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  void _moveToNext() {
+    final remaining = _transactions.where((t) => !_approvedIds.contains(t.id)).toList();
+    if (remaining.isNotEmpty) {
+      final currentIndex = remaining.indexWhere((t) => t.id == _selectedTransaction?.id);
+      if (currentIndex != -1 && currentIndex + 1 < remaining.length) {
+        _selectTransaction(remaining[currentIndex + 1]);
+      } else {
+        _selectTransaction(remaining.first);
+      }
+    } else {
+      setState(() => _selectedTransaction = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final categoriesState = ref.watch(categoriesProvider);
-    final categories = categoriesState.categories;
-    final validCategoryIds = categories.map((c) => c.id).toSet();
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     if (_isLoadingInitial) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text('Loading transactions for review...',
-                  style: theme.textTheme.bodyMedium),
-            ],
-          ),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (_error != null) {
       return Scaffold(
         body: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+              Text('Error: $_error', style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 16),
-              Text('Something went wrong', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: theme.colorScheme.error)),
-              ),
-              const SizedBox(height: 20),
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
-                onPressed: _loadInitial,
-              ),
+              FilledButton(onPressed: _loadInitial, child: const Text('Retry')),
             ],
           ),
         ),
       );
     }
 
-    if (_transactions.isEmpty && !_hasMore) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.green.withAlpha(25),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.check_circle_outline,
-                    size: 64, color: Colors.green.shade600),
-              ),
-              const SizedBox(height: 24),
-              Text('All caught up!',
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('No transactions need review.',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 32),
-              FilledButton.icon(
-                icon: const Icon(Icons.arrow_back, size: 18),
-                label: const Text('Back to Dashboard'),
-                onPressed: () => context.go('/'),
-              ),
-            ],
-          ),
-        ),
+    final queue = _transactions.where((t) => !_approvedIds.contains(t.id)).toList();
+    final theme = Theme.of(context);
+
+    if (queue.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('All caught up! No transactions need review.', style: TextStyle(fontSize: 18))),
       );
     }
-
-    final pendingCount =
-        _transactions.where((t) => !_approvedIds.contains(t.id)).length;
-    final itemCount = _transactions.length + (_hasMore ? 1 : 0);
 
     return Scaffold(
-      body: Column(
+      appBar: AppBar(
+        title: Text('Review Queue (${queue.length} pending)'),
+      ),
+      body: Row(
         children: [
-          // ── Header ──────────────────────────────────────────
-          _ReviewHeader(
-            totalCount: _totalCount,
-            pendingCount: pendingCount,
-            loadedCount: _transactions.length,
-            hasMore: _hasMore,
-            isSubmitting: _isSubmitting,
-            onSubmitAll: pendingCount > 0 ? _submitAll : null,
-            theme: theme,
-          ),
-
-          // ── Paginated list ──────────────────────────────────
+          // Left Panel: Queue
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: itemCount,
-              itemBuilder: (context, index) {
-                if (index >= _transactions.length) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+            flex: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(right: BorderSide(color: theme.colorScheme.outlineVariant)),
+              ),
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: queue.length + (_hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == queue.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final txn = queue[index];
+                  final isSelected = _selectedTransaction?.id == txn.id;
+                  final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+                  final isExpense = txn.type?.name.toUpperCase() == 'DEBIT';
+
+                  DateTime? dateObj;
+                  if (txn.date != null) {
+                    dateObj = DateTime.tryParse(txn.date!);
+                  }
+
+                  return ListTile(
+                    selected: isSelected,
+                    selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    title: Text(
+                      txn.merchantName ?? txn.description ?? 'Unknown',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
+                    subtitle: Text(dateObj != null ? DateFormat('MMM dd, yyyy').format(dateObj) : (txn.date ?? '')),
+                    trailing: Text(
+                      formatter.format(txn.amount ?? 0),
+                      style: TextStyle(
+                        color: isExpense ? Colors.red : Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onTap: () => _selectTransaction(txn),
                   );
-                }
-
-                final tx = _transactions[index];
-                final editData = _edits[tx.id!];
-                final isApproved = _approvedIds.contains(tx.id);
-
-                final rawCatId = editData?['category_id'] as int?;
-                final safeCatId =
-                    (rawCatId != null && validCategoryIds.contains(rawCatId))
-                        ? rawCatId
-                        : null;
-
-                return AnimatedOpacity(
-                  opacity: isApproved ? 0.4 : 1.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: AnimatedScale(
-                    scale: isApproved ? 0.95 : 1.0,
-                    duration: const Duration(milliseconds: 300),
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ReviewCard(
-                        tx: tx,
-                        editData: editData ?? {},
-                        safeCatId: safeCatId,
-                        categories: categories,
-                        isApproved: isApproved,
-                        isDark: isDark,
-                        theme: theme,
-                        onUpdateEdit: (key, value) =>
-                            _updateEdit(tx.id!, key, value),
-                        onApprove: () => _approveOne(tx.id!),
-                        onDismiss: () => _dismissTransaction(index),
-                      ),
-                    ),
-                  ),
-                );
-              },
+                },
+              ),
             ),
+          ),
+          // Right Panel: Context
+          Expanded(
+            flex: 2,
+            child: _selectedTransaction == null
+                ? const Center(child: Text('Select a transaction to review'))
+                : _buildContextPanel(theme),
           ),
         ],
       ),
     );
   }
-}
 
-// ═══════════════════════════════════════════════════════════════
-// Header widget
-// ═══════════════════════════════════════════════════════════════
+  Widget _buildContextPanel(ThemeData theme) {
+    final txn = _selectedTransaction!;
+    final categoriesState = ref.watch(categoriesProvider);
+    final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
-class _ReviewHeader extends StatelessWidget {
-  final int totalCount;
-  final int pendingCount;
-  final int loadedCount;
-  final bool hasMore;
-  final bool isSubmitting;
-  final VoidCallback? onSubmitAll;
-  final ThemeData theme;
+    final selectedCategory = categoriesState.categories.firstWhere(
+      (c) => c.id == _selectedCategoryId,
+      orElse: () => Category(id: -1, name: '', isSystem: false),
+    );
+    final isSelfTransfer = txn.isTransfer || selectedCategory.name == 'Self Transfer';
+    final allAccounts = ref.watch(accountsProvider).accounts;
+    final isDebit = txn.type == TransactionType.debit;
 
-  const _ReviewHeader({
-    required this.totalCount,
-    required this.pendingCount,
-    required this.loadedCount,
-    required this.hasMore,
-    required this.isSubmitting,
-    required this.onSubmitAll,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: theme.colorScheme.outlineVariant.withAlpha(80),
-          ),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.rate_review_outlined,
-                    size: 22, color: theme.colorScheme.onPrimaryContainer),
+              Text(
+                'Review Transaction',
+                style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Review Transactions',
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
-                    Text(
-                        _subtitle(),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
-                  ],
+              const Spacer(),
+              if (txn.classificationSource != null || txn.classificationConfidence != null)
+                BadgePill.info(
+                  label: '${txn.classificationSource ?? "Auto Match"} • ${((txn.classificationConfidence ?? 0.85) * 100).toInt()}%',
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          ModernCard(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow(label: 'Amount', value: formatter.format(txn.amount ?? 0), isAmount: true, isExpense: txn.type?.name.toUpperCase() == 'DEBIT'),
+                const Divider(height: 32),
+                _DetailRow(
+                  label: 'Date', 
+                  value: txn.date != null 
+                      ? DateFormat('MMMM dd, yyyy - hh:mm a').format(DateTime.parse(txn.date!))
+                      : 'Unknown'
+                ),
+                const Divider(height: 32),
+                _DetailRow(label: 'Raw Description', value: txn.description ?? ''),
+                const Divider(height: 32),
+                _DetailRow(label: 'Cleaned Merchant', value: txn.merchantName ?? 'N/A'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          Text('Category', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int>(
+            key: ValueKey(_selectedTransaction?.id),
+            value: _selectedCategoryId,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            hint: const Text('Select a category'),
+            items: categoriesState.categories.map((c) {
+              return DropdownMenuItem(
+                value: c.id,
+                child: Text(c.name),
+              );
+            }).toList(),
+            onChanged: (val) => setState(() => _selectedCategoryId = val),
+          ),
+          if (isSelfTransfer && allAccounts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(isDebit ? 'Transfer Destination' : 'Transfer Origin', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              key: ValueKey('transfer_${_selectedTransaction?.id}'),
+              value: _selectedTransferAccountId,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              hint: Text(isDebit ? 'Select destination account' : 'Select origin account'),
+              items: allAccounts
+                  .where((a) => a.id != txn.bankAccountId)
+                  .map((a) => DropdownMenuItem<int>(
+                        value: a.id,
+                        child: Text('${a.bank ?? 'Account'} ${a.maskedIdentifier} (${a.type})'),
+                      ))
+                  .toList(),
+              onChanged: (val) => setState(() => _selectedTransferAccountId = val),
+            ),
+          ],
+          
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.rule),
+                label: const Text('Approve & Create Rule'),
+                onPressed: _isSubmitting ? null : _approveAndCreateRule,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               FilledButton.icon(
-                icon: isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.done_all, size: 18),
-                label: Text('Submit All ($pendingCount)'),
-                onPressed: isSubmitting ? null : onSubmitAll,
+                icon: const Icon(Icons.check),
+                label: const Text('Approve'),
+                onPressed: _isSubmitting ? null : _approveCurrentTransaction,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                ),
               ),
             ],
           ),
-          if (totalCount > 0 && hasMore) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: loadedCount / totalCount,
-                      minHeight: 4,
-                      backgroundColor:
-                          theme.colorScheme.surfaceContainerHighest,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text('$loadedCount / $totalCount loaded',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ],
         ],
       ),
     );
   }
-
-  String _subtitle() {
-    if (totalCount == 0) return 'No transactions need review';
-    if (loadedCount >= totalCount) {
-      return '$totalCount transaction${totalCount == 1 ? '' : 's'} need your attention';
-    }
-    return 'Showing $loadedCount of $totalCount — scroll for more';
-  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Individual review card
-// ═══════════════════════════════════════════════════════════════
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isAmount;
+  final bool isExpense;
 
-class _ReviewCard extends StatelessWidget {
-  final UnifiedTransaction tx;
-  final Map<String, dynamic> editData;
-  final int? safeCatId;
-  final List categories;
-  final bool isApproved;
-  final bool isDark;
-  final ThemeData theme;
-  final void Function(String key, dynamic value) onUpdateEdit;
-  final VoidCallback onApprove;
-  final VoidCallback onDismiss;
-
-  const _ReviewCard({
-    required this.tx,
-    required this.editData,
-    required this.safeCatId,
-    required this.categories,
-    required this.isApproved,
-    required this.isDark,
-    required this.theme,
-    required this.onUpdateEdit,
-    required this.onApprove,
-    required this.onDismiss,
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.isAmount = false,
+    this.isExpense = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withAlpha(isApproved ? 8 : 18)
-            : Colors.white.withAlpha(isApproved ? 140 : 230),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isApproved
-              ? Colors.green.withAlpha(80)
-              : (isDark
-                  ? Colors.white.withAlpha(25)
-                  : Colors.black.withAlpha(15)),
-          width: isApproved ? 1.5 : 1,
-        ),
-        boxShadow: [
-          if (!isApproved)
-            BoxShadow(
-              color: Colors.black.withAlpha(10),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Review reason banner ──────────────────────
-              if (tx.reviewReason != null && tx.reviewReason!.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withAlpha(isDark ? 40 : 30),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.amber.withAlpha(isDark ? 60 : 50),
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 16, color: Colors.amber.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          tx.reviewReason!,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: isDark
-                                ? Colors.amber.shade300
-                                : Colors.amber.shade900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Row 1: description + amount ──────────
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tx.description ?? 'No description',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: [
-                                  if (tx.date != null)
-                                    _MetadataChip(
-                                        icon: Icons.calendar_today,
-                                        label: tx.date!),
-                                  if (tx.bank != null)
-                                    _MetadataChip(
-                                        icon: Icons.account_balance,
-                                        label: tx.bank!),
-                                  _MetadataChip(
-                                      icon: Icons.credit_card,
-                                      label: tx.sourceLabel),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: (tx.type?.value == 'CREDIT'
-                                        ? Colors.green
-                                        : Colors.red)
-                                    .withAlpha(isDark ? 40 : 25),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '₹${tx.amount?.toStringAsFixed(2) ?? '0.00'}',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: tx.type?.value == 'CREDIT'
-                                      ? Colors.green.shade600
-                                      : Colors.red.shade600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              tx.type?.value ?? '',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Row 2: editable fields ──────────────
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: DropdownButtonFormField<int?>(
-                            decoration: InputDecoration(
-                              labelText: 'Category',
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                            ),
-                            initialValue: safeCatId,
-                            items: [
-                              const DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text('Uncategorized')),
-                              ...categories.map((c) =>
-                                  DropdownMenuItem<int?>(
-                                    value: c.id,
-                                    child: Text(c.name),
-                                  )),
-                            ],
-                            onChanged: (val) =>
-                                onUpdateEdit('category_id', val),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            key: ValueKey('merchant_${tx.id}'),
-                            initialValue:
-                                editData['merchant_name'] as String? ?? '',
-                            decoration: InputDecoration(
-                              labelText: 'Merchant',
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                            ),
-                            onChanged: (val) =>
-                                onUpdateEdit('merchant_name', val),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            key: ValueKey('notes_${tx.id}'),
-                            initialValue:
-                                editData['notes'] as String? ?? '',
-                            decoration: InputDecoration(
-                              labelText: 'Notes',
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                            ),
-                            onChanged: (val) =>
-                                onUpdateEdit('notes', val),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // ── Row 3: action buttons ───────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton.icon(
-                          icon: Icon(Icons.close, size: 16,
-                              color: theme.colorScheme.onSurfaceVariant),
-                          label: Text('Dismiss',
-                              style: TextStyle(
-                                  color:
-                                      theme.colorScheme.onSurfaceVariant)),
-                          onPressed: isApproved ? null : onDismiss,
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.tonalIcon(
-                          icon: isApproved
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2))
-                              : const Icon(Icons.check, size: 18),
-                          label: Text(
-                              isApproved ? 'Approving...' : 'Approve'),
-                          onPressed: isApproved ? null : onApprove,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: isApproved
-                                ? Colors.green.withAlpha(40)
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Metadata chip
-// ═══════════════════════════════════════════════════════════════
-
-class _MetadataChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _MetadataChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 4),
-          Text(label,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        ],
-      ),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: isAmount ? FontWeight.bold : FontWeight.normal,
+              color: isAmount
+                  ? (isExpense ? Colors.red : Colors.green)
+                  : theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

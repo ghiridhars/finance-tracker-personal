@@ -35,16 +35,34 @@ class UpiIdCreateSchema(BaseModel):
     @field_validator("upi_handle")
     @classmethod
     def validate_upi_handle(cls, v: str) -> str:
+        if not v:
+            raise ValueError("UPI handle cannot be empty")
         v = v.strip().lower()
         if "@" not in v:
             raise ValueError("UPI handle must contain '@' (e.g. user@bank)")
-        return v
+        from app.services.categorization_service import extract_upi_id
+        extracted = extract_upi_id(v)
+        return extracted or v
 
 
 class UpiIdUpdateSchema(BaseModel):
     """Schema for updating an existing UPI ID mapping."""
+    upi_handle: Optional[str] = None
     label: Optional[str] = None
     account_type: Optional[str] = None
     account_identifier: Optional[str] = None
     category_id: Optional[int] = None
     is_own: Optional[bool] = None
+
+    @field_validator("upi_handle")
+    @classmethod
+    def validate_upi_handle(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip().lower()
+        if "@" not in v:
+            raise ValueError("UPI handle must contain '@' (e.g. user@bank)")
+        from app.services.categorization_service import extract_upi_id
+        extracted = extract_upi_id(v)
+        return extracted or v
+

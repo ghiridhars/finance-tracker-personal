@@ -58,10 +58,22 @@ def _validate_savings_balance(statement, report: ValidationReport) -> None:
 
     expected_closing = opening_balance
     zero = Decimal("0")
-    for transaction in getattr(statement, "transactions", []) or []:
+    mismatched_indices = []
+    valid_indices = []
+
+    for idx, transaction in enumerate(getattr(statement, "transactions", []) or []):
         withdrawal = getattr(transaction, "withdrawal_amount", None) or zero
         deposit = getattr(transaction, "deposit_amount", None) or zero
         expected_closing = expected_closing - withdrawal + deposit
+
+        actual_step_balance = getattr(transaction, "closing_balance", None)
+        if actual_step_balance is not None and actual_step_balance != expected_closing:
+            mismatched_indices.append(idx)
+        else:
+            valid_indices.append(idx)
+
+    report.valid_indices = valid_indices
+    report.mismatched_indices = mismatched_indices
 
     if expected_closing == closing_balance:
         report.add_check(
@@ -76,7 +88,8 @@ def _validate_savings_balance(statement, report: ValidationReport) -> None:
         status="failed",
         code=CODE_BALANCE_RECONCILIATION_FAILED,
         message=(
-            f"Expected closing balance {expected_closing} but found {closing_balance}."
+            f"Expected closing balance {expected_closing} but found {closing_balance}. "
+            f"{len(mismatched_indices)} transaction step(s) mismatched."
         ),
     )
 

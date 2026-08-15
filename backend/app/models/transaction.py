@@ -15,9 +15,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import TransactionType, SourceType, BankType, TransferType, ReviewStatus
+from app.models.enums import TransactionType, SourceType, TransferType, ReviewStatus
 from app.models.category import Category
-from app.models.tag import Tag, TransactionTag
 
 
 class UnifiedTransaction(Base):
@@ -50,6 +49,10 @@ class UnifiedTransaction(Base):
     bank_account_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("bank_accounts.id"), nullable=True
     )
+    bank_account: Mapped[Optional["BankAccount"]] = relationship(
+        "BankAccount", foreign_keys=[bank_account_id],
+        back_populates="transactions", lazy="selectin",
+    )
 
     # Categorization
     category_id: Mapped[Optional[int]] = mapped_column(
@@ -65,6 +68,12 @@ class UnifiedTransaction(Base):
     is_transfer: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     transfer_group_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
     transfer_type: Mapped[Optional[str]] = mapped_column(SAEnum(TransferType), nullable=True)
+    from_account_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("bank_accounts.id"), nullable=True
+    )
+    to_account_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("bank_accounts.id"), nullable=True
+    )
 
     # Parse confidence
     review_status: Mapped[Optional[str]] = mapped_column(
@@ -72,16 +81,46 @@ class UnifiedTransaction(Base):
     )
     review_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Classification provenance
+    classification_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    suggested_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id"), nullable=True
+    )
+    classification_confidence: Mapped[float | None] = mapped_column(
+        Numeric(3, 2), nullable=True
+    )
+    is_excluded: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )  # Excluded from analytics (refunds, duplicates, etc.)
+
     # Audit
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
 
     # Relationships
-    category: Mapped[Optional["Category"]] = relationship(lazy="selectin")
-    tags: Mapped[List["Tag"]] = relationship(
-        secondary="transaction_tags", lazy="selectin"
+    category: Mapped[Optional["Category"]] = relationship(
+        foreign_keys=[category_id], lazy="selectin"
     )
+    suggested_category: Mapped[Optional["Category"]] = relationship(
+        foreign_keys=[suggested_category_id], lazy="selectin"
+    )
+    from_account: Mapped[Optional["BankAccount"]] = relationship(
+        "BankAccount", foreign_keys=[from_account_id], lazy="selectin",
+        overlaps="from_transactions",
+    )
+    to_account: Mapped[Optional["BankAccount"]] = relationship(
+        "BankAccount", foreign_keys=[to_account_id], lazy="selectin",
+        overlaps="to_transactions",
+    )
+
+    @property
+    def from_account_name(self) -> str | None:
+        return self.from_account.name if self.from_account else None
+
+    @property
+    def to_account_name(self) -> str | None:
+        return self.to_account.name if self.to_account else None
 
     def __repr__(self) -> str:
         return (

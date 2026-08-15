@@ -11,6 +11,33 @@ from app.parsing.patterns import (
 )
 
 
+_MULTI_SPACE_RE = re.compile(r"\s+")
+_UPI_AT_SPACE_HEAL_RE = re.compile(r"([\w._-]+)\s*@\s*([a-zA-Z0-9.-]+)", re.IGNORECASE)
+
+
+def normalize_token_stream(raw_text: str | None) -> str | None:
+    """
+    Clean and normalize token stream at the parsing boundary:
+    - Collapses consecutive whitespace.
+    - Heals split `@` symbols and internal spaces in UPI handles (e.g., 'user @ hdfc' -> 'user@hdfc', 'virenderganes h84-1@okic' -> 'virenderganesh84-1@okic').
+    - Strips non-printable ASCII control characters.
+    """
+    if not raw_text:
+        return None
+    clean = "".join(ch for ch in raw_text if ord(ch) >= 32)
+    clean = _MULTI_SPACE_RE.sub(" ", clean).strip()
+
+    if "@" in clean:
+        match = re.search(r"(?:^|[/:])([^/:]*@[^/:]*)(?:[/:]|$)", clean)
+        if match:
+            raw_chunk = match.group(1)
+            if " " in raw_chunk and raw_chunk.count(" ") <= 3:
+                clean = clean.replace(raw_chunk, raw_chunk.replace(" ", ""))
+
+    clean = _UPI_AT_SPACE_HEAL_RE.sub(r"\1@\2", clean)
+    return clean or None
+
+
 def try_opening_balance(line: str) -> Decimal | None:
     """Detect an opening-balance line and extract the balance value."""
     if "opening balance" not in line.lower():
@@ -95,7 +122,8 @@ def parse_txn_line(line: str, statement_type: StatementType) -> dict | None:
     if not found_decimal and len(amount_tokens) < 3:
         return None
 
-    description = " ".join(tokens[:desc_end_idx])
+    raw_description = " ".join(tokens[:desc_end_idx])
+    description = normalize_token_stream(raw_description)
     debit, credit, balance = classify_amounts(amount_tokens)
 
     if debit is None and credit is None:

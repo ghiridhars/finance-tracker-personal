@@ -99,6 +99,67 @@ class TestTableStrategy:
 
 
 class TestMultilineStrategy:
+    def test_back_calculates_opening_balance_when_missing(self):
+        """When no explicit opening balance exists, back-calculate without mutating direction.
+
+        With previous_balance=None the block parser defaults the first amount to debit.
+        opening_balance = balance + debit - credit = 2006.44 + 54.00 - 0 = 2060.44.
+        This is arithmetically consistent; direction correction requires user review.
+        """
+        text = """
+06-08-2021
+05570100013649:Int.Pd:01-05-2021 to
+31-07-2021
+54.00
+2006.44 Cr
+10-08-2021
+UPI/122206334631/08:32:02/UPI/virenderganes
+h84-1@
+2000.00
+4006.44 Cr
+""".strip()
+
+        result = try_multiline_strategy(text, StatementType.SAVINGS)
+
+        assert result is not None
+        assert result.success
+        # No-mutation back-calc: first txn stays as debit (54.00), so OB = 2006.44 + 54 - 0
+        assert result.result.opening_balance == Decimal("2060.44")
+        assert len(result.result.transactions) == 2
+        # First transaction must NOT be silently flipped to credit
+        first_txn = result.result.transactions[0]
+        assert first_txn.withdrawal_amount == Decimal("54.00")
+        assert first_txn.deposit_amount is None
+        assert first_txn.type == TransactionType.DEBIT
+
+    def test_back_calculates_opening_balance_genuine_debit_not_flipped(self):
+        """A genuine first debit must remain a debit even when opening_balance is unknown."""
+        text = """
+01/10/2025
+POS AMAZON PURCHASE
+500.00
+4,500.00
+02/10/2025
+NEFT SALARY CREDIT
+30,000.00
+34,500.00
+05/10/2025
+ATM WITHDRAWAL
+2,000.00
+32,500.00
+""".strip()
+
+        result = try_multiline_strategy(text, StatementType.SAVINGS)
+
+        assert result is not None
+        assert result.success
+        # OB = 4500 + 500 - 0 = 5000 (first txn is a debit — must not be flipped)
+        assert result.result.opening_balance == Decimal("5000.00")
+        first_txn = result.result.transactions[0]
+        assert first_txn.withdrawal_amount == Decimal("500.00")
+        assert first_txn.deposit_amount is None
+        assert first_txn.type == TransactionType.DEBIT
+
     def test_parses_single_amount_balance_blocks(self):
         text = """
 01-08-2021
@@ -208,7 +269,11 @@ class TestStrategyProfiles:
             StatementType.CREDIT_CARD,
         )
         icici_classification = classify_template(
-            "ICICI Bank account statement",
+            "ICICI Bank credit card statement",
+            StatementType.CREDIT_CARD,
+        )
+        hdfc_savings_classification = classify_template(
+            "HDFC Bank savings account statement",
             StatementType.SAVINGS,
         )
 
@@ -229,8 +294,11 @@ class TestStrategyProfiles:
             "single_line",
         )
 
+        assert hdfc_savings_classification is not None
+        assert hdfc_savings_classification.profile_id == "hdfc_savings_v1"
+
         assert icici_classification is not None
-        assert icici_classification.profile_id == "icici_savings_v1"
+        assert icici_classification.profile_id == "icici_credit_card_v1"
 
     def test_declared_bank_prevents_wrong_profile_match(self):
         route = resolve_strategy_route(

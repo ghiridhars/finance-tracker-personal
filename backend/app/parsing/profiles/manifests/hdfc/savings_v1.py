@@ -3,9 +3,9 @@ from app.parsing.profiles.models import StrategyProfile
 
 
 PROFILE = StrategyProfile(
-    id="bob_savings_v1",
-    bank=BankType.BOB,
+    id="hdfc_savings_v1",
+    bank=BankType.HDFC,
     statement_type=StatementType.SAVINGS,
-    required_text=("statement of transactions in savings account",),
+    required_text=("hdfc bank", "savings"),
     preferred_order=("multiline", "table", "single_line"),
 )

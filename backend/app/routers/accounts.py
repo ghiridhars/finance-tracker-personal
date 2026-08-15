@@ -2,11 +2,14 @@
 Accounts & Statement Management router.
 
 Endpoints:
-  - GET  /api/v2/accounts                    — List linked accounts/cards
-  - PATCH /api/v2/accounts/rename            — Rename an account
-  - GET  /api/v2/accounts/statements         — List statements (unified, paginated)
-  - DELETE /api/v2/accounts/statements/{id}  — Delete a statement + its transactions
-  - DELETE /api/v2/transactions/{id}         — Delete unified transaction
+  - GET    /api/v2/accounts                    — List linked accounts/cards
+  - POST   /api/v2/accounts                    — Create account manually
+  - PUT    /api/v2/accounts/{id}               — Full edit of an account
+  - POST   /api/v2/accounts/merge              — Merge two accounts
+  - DELETE /api/v2/accounts/{id}               — Soft-delete an account
+  - GET    /api/v2/accounts/{id}/summary       — Account details + summary stats
+  - GET    /api/v2/accounts/statements         — List statements (unified, paginated)
+  - DELETE /api/v2/accounts/statements/{id}    — Delete a statement + its transactions
 """
 import json
 from typing import Optional
@@ -16,6 +19,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.parsing.diagnostics import extract_parse_failure
+from app.schemas.account import (
+    AccountCreateSchema,
+    AccountUpdateSchema,
+    AccountMergeSchema,
+    AccountSchema,
+)
 from app.services.accounts_service import AccountsService, StatementManagementService
 
 router = APIRouter(prefix="/api/v2/accounts", tags=["Accounts & Statements"])
@@ -30,20 +39,47 @@ def list_accounts(db: Session = Depends(get_db)):
     return AccountsService.get_accounts(db)
 
 
-@router.patch("/rename")
-def rename_account(
-    account_type: str = Query(..., description="SAVINGS or CREDIT_CARD"),
-    identifier: str = Query(..., description="Account number or card number"),
-    name: str = Query(..., description="New display name for the account"),
-    db: Session = Depends(get_db),
-):
-    """Rename an account (update holder name on bank_accounts)."""
-    if account_type not in ("SAVINGS", "CREDIT_CARD"):
-        raise HTTPException(status_code=400, detail="account_type must be SAVINGS or CREDIT_CARD")
-    updated = AccountsService.rename_account(db, account_type, identifier, name)
+@router.post("", response_model=AccountSchema)
+def create_account(account_in: AccountCreateSchema, db: Session = Depends(get_db)):
+    """Create account manually."""
+    return AccountsService.create_account(db, **account_in.model_dump(exclude_unset=True))
+
+
+@router.put("/{account_id}", response_model=AccountSchema)
+def update_account(account_id: int, account_in: AccountUpdateSchema, db: Session = Depends(get_db)):
+    """Full edit of an account."""
+    updated = AccountsService.update_account(db, account_id, **account_in.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Account not found")
-    return {"detail": "Account renamed", "identifier": identifier, "name": name}
+    return updated
+
+
+@router.post("/merge")
+def merge_accounts(merge_in: AccountMergeSchema, db: Session = Depends(get_db)):
+    """Merge source account into target account."""
+    try:
+        return AccountsService.merge_accounts(db, merge_in.source_account_id, merge_in.target_account_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{account_id}")
+def delete_account(account_id: int, db: Session = Depends(get_db)):
+    """Soft-delete an account."""
+    deleted = AccountsService.delete_account(db, account_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"detail": "Account deleted", "id": account_id}
+
+
+@router.get("/{account_id}/summary")
+def get_account_summary(account_id: int, db: Session = Depends(get_db)):
+    """Account details with summary stats."""
+    summary = AccountsService.get_account_summary(db, account_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return summary
+
 
 
 @router.get("/statements")

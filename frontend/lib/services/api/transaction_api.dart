@@ -1,8 +1,6 @@
 // Transaction-related API calls.
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../models/savings_models.dart';
-import '../../models/credit_card_models.dart';
 import '../../models/unified_transaction_models.dart';
 import 'api_client.dart';
 
@@ -19,45 +17,6 @@ class BulkUpdateResult {
 }
 
 class TransactionApi {
-  /// Get savings transactions (default: last 30 days).
-  static Future<List<SavingsTransaction>> getSavingsTransactions({
-    String? from,
-    String? to,
-  }) async {
-    final params = <String, String>{};
-    if (from != null) params['from'] = from;
-    if (to != null) params['to'] = to;
-
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/transactions/savings')
-        .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
-    ApiClient.checkAuth(response);
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fetch transactions: ${response.body}');
-    }
-    final List<dynamic> data = jsonDecode(response.body);
-    return data.map((t) => SavingsTransaction.fromJson(t)).toList();
-  }
-
-  /// Get credit card transactions.
-  static Future<List<CreditCardTransaction>> getCreditCardTransactions({
-    String? from,
-    String? to,
-  }) async {
-    final params = <String, String>{};
-    if (from != null) params['from'] = from;
-    if (to != null) params['to'] = to;
-
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/transactions/credit-card')
-        .replace(queryParameters: params.isNotEmpty ? params : null);
-    final response = await http.get(uri, headers: ApiClient.headers).timeout(ApiClient.timeout);
-    ApiClient.checkAuth(response);
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fetch transactions: ${response.body}');
-    }
-    final List<dynamic> data = jsonDecode(response.body);
-    return data.map((t) => CreditCardTransaction.fromJson(t)).toList();
-  }
 
   /// Get unified transactions with optional filters.
   static Future<List<UnifiedTransaction>> getUnifiedTransactions({
@@ -112,12 +71,16 @@ class TransactionApi {
     String? merchantName,
     String? notes,
     List<int>? tagIds,
+    int? fromAccountId,
+    int? toAccountId,
   }) async {
     final body = <String, dynamic>{};
     if (categoryId != null) body['category_id'] = categoryId;
     if (merchantName != null) body['merchant_name'] = merchantName;
     if (notes != null) body['notes'] = notes;
     if (tagIds != null) body['tag_ids'] = tagIds;
+    if (fromAccountId != null) body['from_account_id'] = fromAccountId;
+    if (toAccountId != null) body['to_account_id'] = toAccountId;
 
     final response = await http.patch(
       Uri.parse('${ApiClient.baseUrl}/api/v2/transactions/$transactionId'),

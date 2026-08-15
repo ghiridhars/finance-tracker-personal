@@ -193,3 +193,7 @@ class DashboardNotifier extends Notifier<DashboardState> {
 
 final dashboardProvider =
     NotifierProvider<DashboardNotifier, DashboardState>(DashboardNotifier.new);
+
+final netWorthProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return ApiService.getNetWorth();
+});

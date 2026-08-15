@@ -8,18 +8,117 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, case, extract, literal_column
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.models.transaction import UnifiedTransaction
 from app.models.category import Category
-from app.models.enums import TransactionType, SourceType
+from app.models.enums import TransactionType
 
 logger = logging.getLogger(__name__)
 
 
 class AnalyticsService:
     """Aggregation queries for the dashboard."""
+
+    @staticmethod
+    def calculate_net_worth(db: Session) -> dict:
+        """Calculate net worth from all active accounts."""
+        from app.models.bank_account import BankAccount
+        from app.models.statement_audit import StatementAudit
+        from sqlalchemy import desc
+
+        accounts = db.query(BankAccount).filter(BankAccount.is_active == True).all()
+
+        bank_balances = Decimal('0.0')
+        investment_value = Decimal('0.0')
+        loan_outstanding = Decimal('0.0')
+        credit_card_dues = Decimal('0.0')
+        breakdown = []
+        last_updated = None
+
+        for account in accounts:
+            balance = Decimal('0.0')
+            acct_type = account.account_type
+            acct_subtype = account.account_subtype
+
+            if acct_type in ('SAVINGS', 'SALARY', 'CURRENT'):
+                stmt = db.query(StatementAudit).filter(
+                    StatementAudit.bank_account_id == account.id
+                ).order_by(desc(StatementAudit.period_end)).first()
+                if stmt and stmt.closing_balance:
+                    balance = stmt.closing_balance
+                    bank_balances += balance
+
+            elif acct_type == 'CREDIT_CARD':
+                stmt = db.query(StatementAudit).filter(
+                    StatementAudit.bank_account_id == account.id
+                ).order_by(desc(StatementAudit.period_end)).first()
+                if stmt and stmt.closing_balance:
+                    balance = -abs(stmt.closing_balance)
+                    credit_card_dues += balance
+
+            elif acct_type == 'LOAN' or (acct_subtype and acct_subtype.startswith('LOAN')):
+                principal = account.loan_principal or Decimal('0.0')
+                emi_sum_row = db.query(func.sum(UnifiedTransaction.amount)).filter(
+                    UnifiedTransaction.bank_account_id == account.id,
+                    UnifiedTransaction.type == TransactionType.DEBIT
+                ).first()
+                emi_sum = emi_sum_row[0] if emi_sum_row and emi_sum_row[0] else Decimal('0.0')
+                balance = -(principal - emi_sum)
+                if balance > 0:
+                    balance = Decimal('0.0')
+                loan_outstanding += balance
+
+            elif acct_subtype in ('FD', 'MF', 'DEMAT', 'PPF', 'NPS'):
+                val = account.current_value if account.current_value is not None else (account.invested_amount or Decimal('0.0'))
+                balance = val
+                investment_value += balance
+
+            else:
+                stmt = db.query(StatementAudit).filter(
+                    StatementAudit.bank_account_id == account.id
+                ).order_by(desc(StatementAudit.period_end)).first()
+                if stmt and stmt.closing_balance:
+                    balance = stmt.closing_balance
+                    bank_balances += balance
+
+            if balance != Decimal('0.0'):
+                breakdown.append({
+                    "id": account.id,
+                    "name": account.name,
+                    "bank": account.bank_name,
+                    "type": acct_type,
+                    "subtype": acct_subtype,
+                    "balance": float(balance)
+                })
+
+            if account.value_updated_at:
+                if not last_updated or account.value_updated_at > last_updated:
+                    last_updated = account.value_updated_at
+
+        latest_stmt = db.query(func.max(StatementAudit.period_end)).scalar()
+        if latest_stmt:
+            from datetime import datetime
+            if isinstance(latest_stmt, datetime):
+                stmt_dt = latest_stmt
+            else:
+                stmt_dt = datetime.combine(latest_stmt, datetime.min.time())
+            
+            if not last_updated or stmt_dt > last_updated:
+                last_updated = stmt_dt
+
+        net_worth = bank_balances + investment_value + loan_outstanding + credit_card_dues
+
+        return {
+            "bank_balances": float(bank_balances),
+            "investment_value": float(investment_value),
+            "loan_outstanding": float(loan_outstanding),
+            "credit_card_dues": float(credit_card_dues),
+            "net_worth": float(net_worth),
+            "breakdown": breakdown,
+            "last_updated": last_updated.isoformat() if last_updated else None
+        }
 
     # ── Summary Cards ────────────────────────────────────────
 
@@ -657,4 +756,40 @@ class AnalyticsService:
                 unmapped.append(tx)
                 
         return unmapped
+
+    @staticmethod
+    def get_transactions_for_asset_class(db: Session, asset_class_name: str) -> list[UnifiedTransaction]:
+        base_query = (
+            db.query(UnifiedTransaction)
+            .join(Category, UnifiedTransaction.category_id == Category.id)
+            .filter(
+                UnifiedTransaction.type == TransactionType.DEBIT,
+                UnifiedTransaction.is_transfer == False,
+                Category.name.in_(["Investment", "Insurance"]),
+            )
+            .order_by(UnifiedTransaction.date.desc())
+        )
+        txs = base_query.all()
+
+        from app.models.investment_rule import InvestmentRule
+        from sqlalchemy.orm import joinedload
+        rules = db.query(InvestmentRule).options(joinedload(InvestmentRule.asset_class)).all()
+
+        matching_txs = []
+        for tx in txs:
+            raw_string = tx.merchant_name or tx.description or 'Unknown'
+            raw_string_lower = raw_string.lower()
+            resolved_asset_name = "Uncategorized"
+            for rule in rules:
+                if rule.keywords:
+                    keywords = [k.strip().lower() for k in rule.keywords.split(',')]
+                    if any(k and k in raw_string_lower for k in keywords):
+                        if rule.asset_class:
+                            resolved_asset_name = rule.asset_class.name
+                        break
+
+            if resolved_asset_name.lower() == asset_class_name.lower():
+                matching_txs.append(tx)
+
+        return matching_txs
 

@@ -36,7 +36,7 @@ def try_multiline_strategy(
     lines = list(document.stripped_lines)
 
     date_lines = sum(1 for line in lines if _ML_DATE_RE.match(line))
-    if date_lines < 4:
+    if date_lines < 3:
         return None
 
     transactions: list[dict] = []
@@ -53,8 +53,9 @@ def try_multiline_strategy(
 
         ob = try_opening_balance(line)
         if ob is not None:
-            opening_balance = ob
-            previous_balance = ob
+            if opening_balance is None:
+                opening_balance = ob
+                previous_balance = ob
             i += 1
             continue
 
@@ -62,10 +63,13 @@ def try_multiline_strategy(
         if txn:
             txn_data = txn["data"]
             if txn_data.get("kind") == "opening_balance":
-                opening_balance = txn_data["balance"]
-                previous_balance = txn_data["balance"]
+                if opening_balance is None:
+                    opening_balance = txn_data["balance"]
+                    previous_balance = txn_data["balance"]
             elif txn_data.get("kind") == "closing_balance":
                 previous_balance = txn_data["balance"]
+                if transactions:
+                    break
             else:
                 transactions.append(txn_data)
                 if txn_data.get("balance") is not None:
@@ -76,6 +80,20 @@ def try_multiline_strategy(
 
     if not transactions:
         return None
+
+    # Back-calculate opening balance if not explicitly found.
+    # We intentionally do NOT mutate the first transaction's direction here:
+    # the block parser already inferred debit/credit using previous_balance=None
+    # (defaulting to debit), which may be wrong, but correcting it would require
+    # verifying bal == opening_balance ± amount — a circular dependency.
+    # Providing a back-calculated opening_balance is still useful for audit purposes.
+    if opening_balance is None and transactions:
+        first = transactions[0]
+        bal = first.get("balance")
+        if bal is not None:
+            d = first.get("debit") or Decimal("0")
+            c = first.get("credit") or Decimal("0")
+            opening_balance = bal + d - c
 
     return build_result(transactions, statement_type, opening_balance)
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import TransactionType, SourceType, TransferType, ReviewStatus
 from app.schemas.category import CategorySchema
-from app.schemas.tag import TagSchema
+
 
 
 class UnifiedTransactionSchema(BaseModel):
@@ -22,18 +22,28 @@ class UnifiedTransactionSchema(BaseModel):
     source_type: Optional[SourceType] = None
     source_transaction_id: Optional[int] = None
     bank: Optional[str] = None
+    bank_account_id: Optional[int] = None
     account_identifier: Optional[str] = None
+    statement_audit_id: Optional[int] = None
     category_id: Optional[int] = None
     category: Optional[CategorySchema] = None
+    suggested_category_id: Optional[int] = None
+    suggested_category: Optional[CategorySchema] = None
     merchant_name: Optional[str] = None
     notes: Optional[str] = None
     reference_number: Optional[str] = None
     is_transfer: bool = False
+    is_excluded: bool = False
     transfer_group_id: Optional[str] = None
     transfer_type: Optional[TransferType] = None
+    from_account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
+    from_account_name: Optional[str] = None
+    to_account_name: Optional[str] = None
     review_status: Optional[ReviewStatus] = None
     review_reason: Optional[str] = None
-    tags: list[TagSchema] = []
+    classification_source: Optional[str] = None
+    classification_confidence: Optional[float] = None
     created_at: Optional[datetime.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -44,8 +54,9 @@ class TransactionUpdateSchema(BaseModel):
     category_id: Optional[int] = None
     merchant_name: Optional[str] = None
     notes: Optional[str] = None
-    tag_ids: Optional[list[int]] = None
     review_status: Optional[ReviewStatus] = None
+    from_account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
 
 
 class BulkTransactionUpdateSchema(BaseModel):
@@ -56,6 +67,10 @@ class BulkTransactionUpdateSchema(BaseModel):
         merchant_name: Optional[str] = None
         notes: Optional[str] = None
         review_status: Optional[ReviewStatus] = None
+        from_account_id: Optional[int] = None
+        to_account_id: Optional[int] = None
+        classification_source: Optional[str] = None
+        classification_confidence: Optional[float] = None
 
     updates: list[UpdateItem]
 

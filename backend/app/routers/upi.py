@@ -15,6 +15,16 @@ from app.services.upi_service import UpiService
 router = APIRouter(prefix="/api/v2/upi-ids", tags=["UPI IDs"])
 
 
+@router.get("/unassigned")
+def list_unassigned_upi_handles(
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """List UPI handles seen in transactions but not yet in the upi_ids table."""
+    result = UpiService.get_unassigned_handles(db, limit=limit)
+    return result
+
+
 @router.get("", response_model=list[UpiIdSchema])
 def list_upi_ids(
     is_own: bool | None = Query(None, description="Filter by own vs third-party"),
@@ -62,6 +72,7 @@ def update_upi_id(upi_id: int, data: UpiIdUpdateSchema, db: Session = Depends(ge
     upi = UpiService.update(
         db,
         upi_id,
+        upi_handle=data.upi_handle if data.upi_handle is not None else ...,
         label=data.label if data.label is not None else ...,
         account_type=data.account_type if data.account_type is not None else ...,
         account_identifier=data.account_identifier if data.account_identifier is not None else ...,

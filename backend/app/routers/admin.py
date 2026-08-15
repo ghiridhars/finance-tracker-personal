@@ -34,17 +34,13 @@ router = APIRouter(prefix="/api/v2/admin", tags=["admin"])
 ALLOWED_TABLES: set[str] = {
     "bank_accounts",
     "categories",
-    "category_keywords",
     "mcc_categories",
-    "tags",
-    "transaction_tags",
     "unified_transactions",
     "statement_audit",
-    "budgets",
-    "savings_goals",
-    "bill_reminders",
-    "recurring_transactions",
     "upi_ids",
+    "classification_rules",
+    "investment_rules",
+    "asset_classes",
 }
 
 
@@ -188,6 +184,7 @@ def list_rows(
     sort: Optional[str] = Query(None),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     search: Optional[str] = Query(None),
+    search_column: Optional[str] = Query(None),
 ):
     """Paginated row listing with optional sort and search."""
     table = _validate_table(table_name)
@@ -200,16 +197,24 @@ def list_rows(
         # Base query
         query = select(table)
 
-        # Search across all string/text columns
+        # Search
         if search:
             from sqlalchemy import or_, cast, String as SAString
-            like_clauses = []
-            for col in table.columns:
-                col_type = _col_type_str(col)
-                if col_type in ("string", "text"):
-                    like_clauses.append(col.ilike(f"%{search}%"))
-            if like_clauses:
-                query = query.where(or_(*like_clauses))
+            
+            if search_column and search_column in {c.name for c in table.columns}:
+                # Search specific column
+                col = table.c[search_column]
+                # Cast to string for generic ilike search
+                query = query.where(cast(col, SAString).ilike(f"%{search}%"))
+            else:
+                # Search across all string/text columns
+                like_clauses = []
+                for col in table.columns:
+                    col_type = _col_type_str(col)
+                    if col_type in ("string", "text"):
+                        like_clauses.append(col.ilike(f"%{search}%"))
+                if like_clauses:
+                    query = query.where(or_(*like_clauses))
 
         # Count total matches
         count_query = select(func.count()).select_from(query.subquery())
@@ -329,10 +334,20 @@ def delete_row(table_name: str, row_id: int):
         raise HTTPException(status_code=400, detail="Table has no primary key")
     pk_col = pk_cols[0]
 
+    from sqlalchemy.exc import IntegrityError
+
     with engine.begin() as conn:
-        result = conn.execute(table.delete().where(pk_col == row_id))
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Row not found")
+        try:
+            result = conn.execute(table.delete().where(pk_col == row_id))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Row not found")
+        except IntegrityError:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot delete this row because it is referenced by other records. Please delete the dependent records first."
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     return {"detail": "Deleted"}
 

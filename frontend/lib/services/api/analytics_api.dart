@@ -139,4 +139,25 @@ class AnalyticsApi {
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((t) => UnifiedTransaction.fromJson(t)).toList();
   }
+
+  /// Asset class transactions
+  static Future<List<UnifiedTransaction>> getAssetClassTransactions(String assetClass) async {
+    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/analytics/investments/transactions?asset_class=${Uri.encodeComponent(assetClass)}');
+    final response = await http.get(uri, headers: ApiClient.headers);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch transactions for asset class $assetClass: ${response.body}');
+    }
+    final List<dynamic> data = jsonDecode(response.body);
+    return data.map((t) => UnifiedTransaction.fromJson(t)).toList();
+  }
+
+  /// Get net worth analytics.
+  static Future<Map<String, dynamic>> getNetWorth() async {
+    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/analytics/net-worth');
+    final response = await http.get(uri, headers: ApiClient.headers);
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch net worth: ${response.body}');
+    }
+    return jsonDecode(response.body);
+  }
 }

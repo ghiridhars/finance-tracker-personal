@@ -52,6 +52,8 @@ class ValidationCheck:
 class ValidationReport:
     trusted: bool = True
     checks: list[ValidationCheck] = field(default_factory=list)
+    mismatched_indices: list[int] = field(default_factory=list)
+    valid_indices: list[int] = field(default_factory=list)
 
     def add_check(
         self,

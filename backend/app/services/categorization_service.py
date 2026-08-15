@@ -17,23 +17,48 @@ Priority order:
 import logging
 import re
 import threading
+from dataclasses import dataclass
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.category import Category, CategoryKeyword, MccCategory
+from app.models.category import Category, MccCategory, CategoryKeyword
 from app.models.upi import UpiId
+from app.models.enums import ClassificationSource
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class ClassificationResult:
+    category_id: int | None = None
+    source: str | None = None  # ClassificationSource value
+    confidence: float = 0.0  # 0.0 to 1.0
+    merchant_name: str | None = None
+    # Resolved counterpart bank account when an own-UPI transfer is detected.
+    # Populated only if UpiId.account_identifier can be matched to a BankAccount.
+    target_bank_account_id: int | None = None
+
+
 # ── UPI ID extraction ────────────────────────────────────────
 
-# Matches UPI handles like user@hdfcbank, swiggy@axisbank, 9876543210@paytm
-_UPI_HANDLE_RE = re.compile(r"[\w.-]+@[a-zA-Z][\w]*", re.IGNORECASE)
+# Matches UPI handles like user@hdfcbank, swiggy@axisbank, 9876543210@paytm, s-ghiridhars@ybl
+_UPI_HANDLE_RE = re.compile(r"[\w._-]+@[a-zA-Z0-9.-]+", re.IGNORECASE)
 
 # Heal PDF extraction artifacts: a short alpha fragment split by a spurious space
 # e.g., "@yescr ed/" → the "ed" after the space belongs to the handle
 _UPI_HEAL_RE = re.compile(r"\s([a-zA-Z]{1,6})(?=[\s/\-]|$)")
+
+# Common truncated provider domain stems from PDF margin clips mapped to canonical handles
+KNOWN_PROVIDER_ALIASES = {
+    "okhdf": "okhdfcbank",
+    "okhdfcban": "okhdfcbank",
+    "okic": "okicici",
+    "axisb": "axisbank",
+    "yescred": "yesbank",
+    "superyes": "yesbank",
+    "ptyb": "paytm",
+    "barb": "barodampay",
+}
 
 
 def extract_upi_id(description: str | None) -> str | None:
@@ -51,15 +76,10 @@ def extract_upi_id(description: str | None) -> str | None:
     # Heal spurious spaces injected by PDF parsing in standard bank formats.
     # We target slash-bounded or hyphen-bounded chunks that contain an '@'
     # (e.g. ".../gokuldeepma njeri@okaxis/...") to avoid merging regular words.
-    slash_match = re.search(r'(?:^|/)([^/]+@[^/]+)(?:/|$)', description)
-    if slash_match:
-        raw_chunk = slash_match.group(1)
-        if raw_chunk.count(' ') <= 3:
-            description = description.replace(raw_chunk, raw_chunk.replace(' ', ''))
-    else:
-        hyphen_match = re.search(r'(?:^|-)([^-]+@[^-]+)(?:-|$)', description)
-        if hyphen_match:
-            raw_chunk = hyphen_match.group(1)
+    if '@' in description:
+        match = re.search(r'(?:^|[/:])([^/:]*@[^/:]*)(?:[/:]|$)', description)
+        if match:
+            raw_chunk = match.group(1)
             if raw_chunk.count(' ') <= 3:
                 description = description.replace(raw_chunk, raw_chunk.replace(' ', ''))
 
@@ -93,15 +113,40 @@ def match_upi_id(
     if not upi_handle:
         return None, False, None
 
+    # 1. Exact match
     upi_entry = (
         db.query(UpiId)
         .filter(UpiId.upi_handle == upi_handle)
         .first()
     )
-    if not upi_entry:
-        return None, False, upi_handle
+    if upi_entry:
+        return upi_entry.category_id, upi_entry.is_own, upi_handle
 
-    return upi_entry.category_id, upi_entry.is_own, upi_handle
+    # 2. Canonical provider alias or prefix fallback
+    if "@" in upi_handle:
+        username, domain = upi_handle.split("@", 1)
+        canonical_domain = KNOWN_PROVIDER_ALIASES.get(domain)
+        if canonical_domain:
+            canonical_handle = f"{username}@{canonical_domain}"
+            upi_entry = (
+                db.query(UpiId)
+                .filter(UpiId.upi_handle == canonical_handle)
+                .first()
+            )
+            if upi_entry:
+                return upi_entry.category_id, upi_entry.is_own, canonical_handle
+
+        # Try prefix matching for margin-clipped domain stems (e.g. user@okhdf matching user@okhdfcbank)
+        prefix_pattern = f"{username}@{domain}%"
+        upi_entry = (
+            db.query(UpiId)
+            .filter(UpiId.upi_handle.like(prefix_pattern))
+            .first()
+        )
+        if upi_entry:
+            return upi_entry.category_id, upi_entry.is_own, upi_entry.upi_handle
+
+    return None, False, upi_handle
 
 
 # Simple helper to avoid repeated string-based category queries per transaction
@@ -197,6 +242,60 @@ def _is_own_upi_transfer(
             return True
 
     return False
+
+
+def _resolve_bank_account_from_upi(
+    db: Session,
+    upi_handle: str | None,
+) -> int | None:
+    """
+    Resolve the BankAccount.id that corresponds to a known own UPI handle.
+
+    Matches UpiId.account_identifier against BankAccount.account_number using
+    suffix matching to handle masked (XXXX1234) vs full (00011234) number formats.
+
+    Returns BankAccount.id if a unique match is found, else None.
+    """
+    if not upi_handle:
+        return None
+
+    from app.models.bank_account import BankAccount
+
+    local_part = upi_handle.split("@")[0].lower()
+
+    # Find all own UPI entries whose local part matches (same logic as _is_own_upi_transfer)
+    own_upis = db.query(UpiId).filter(UpiId.is_own == True).all()
+    matched_identifier: str | None = None
+    for own in own_upis:
+        own_local = own.upi_handle.split("@")[0].lower()
+        if local_part == own_local and own.account_identifier:
+            matched_identifier = own.account_identifier.strip()
+            break
+
+    if not matched_identifier:
+        return None
+
+    # Suffix-match: both stored numbers may be masked differently, so compare
+    # the trailing 6 digits which are always present
+    suffix_len = min(len(matched_identifier), 6)
+    suffix = matched_identifier[-suffix_len:]
+
+    all_accounts = db.query(BankAccount).filter(BankAccount.is_active == True).all()
+    candidates = [
+        a for a in all_accounts
+        if a.account_number and a.account_number.endswith(suffix)
+    ]
+
+    if len(candidates) == 1:
+        return candidates[0].id
+
+    # If multiple accounts share the same suffix (unlikely but possible), try
+    # a longer suffix match or exact match as a tiebreaker
+    for a in candidates:
+        if a.account_number == matched_identifier:
+            return a.id
+
+    return None
 
 
 def auto_register_own_upi(
@@ -358,53 +457,6 @@ def _extract_learnable_keyword(description: str | None) -> str | None:
     return keyword if len(keyword) >= _KW_MIN_LEN else None
 
 
-def _learn_keyword(db: Session, keyword: str, category_id: int) -> bool:
-    """
-    Persist a keyword → category mapping in ``category_keywords``.
-
-    - If the keyword already maps to the *same* category → no-op (returns False).
-    - If the keyword maps to a *different* category → update it (returns True).
-    - If the keyword is new → create it with ``is_learned=True`` (returns True).
-
-    Args:
-        db: Active SQLAlchemy session.
-        keyword: The normalized keyword string.
-        category_id: Target category ID.
-
-    Returns:
-        True if a new mapping was created or an existing one updated.
-    """
-    from app.models.category import CategoryKeyword
-
-    existing = (
-        db.query(CategoryKeyword)
-        .filter(CategoryKeyword.keyword == keyword)
-        .first()
-    )
-    if existing:
-        if existing.category_id != category_id:
-            existing.category_id = category_id
-            db.commit()
-            logger.info(
-                "Updated learned keyword mapping: '%s' → category_id=%d",
-                keyword, category_id,
-            )
-            return True
-        return False  # already correct
-
-    new_kw = CategoryKeyword(
-        keyword=keyword,
-        category_id=category_id,
-        is_learned=True,
-    )
-    db.add(new_kw)
-    db.commit()
-    logger.info(
-        "Learned new keyword mapping: '%s' → category_id=%d",
-        keyword, category_id,
-    )
-    return True
-
 
 def learn_from_categorization(
     db: Session,
@@ -422,12 +474,6 @@ def learn_from_categorization(
       ``upi_ids`` with the chosen ``category_id``.  Future UPI transactions
       from the same handle skip the review queue entirely.
 
-    **Tier 2 — Keyword learning** (all other transactions: NEFT, IMPS, POS, …):
-      When no UPI handle is present, extracts a normalized keyword phrase
-      from the description and persists it in ``category_keywords``.
-      Future transactions whose description contains this phrase are
-      auto-categorized via the existing keyword-match path.
-
     Args:
         db: Active SQLAlchemy session.
         transaction_description: Raw description string from the statement.
@@ -439,7 +485,6 @@ def learn_from_categorization(
         Both may be ``None`` if nothing was learned.
     """
     learned_handle: str | None = None
-    learned_keyword: str | None = None
 
     # ── Tier 1: UPI handle learning ──────────────────────────
     upi_handle = extract_upi_id(transaction_description)
@@ -472,16 +517,41 @@ def learn_from_categorization(
             )
             learned_handle = upi_handle
 
-        return learned_handle, None  # UPI path: skip keyword tier
+        return learned_handle, None
 
-    # ── Tier 2: Keyword learning (non-UPI: NEFT, IMPS, POS …) ──
-    keyword = _extract_learnable_keyword(transaction_description)
-    if keyword:
-        if _learn_keyword(db, keyword, category_id):
-            learned_keyword = keyword
+    # ── Tier 2: Keyword learning ─────────────────────────────
+    # If it wasn't a UPI transaction (or if UPI didn't learn anything),
+    # try to extract a keyword from the description.
+    learned_keyword = _extract_learnable_keyword(transaction_description)
+    if learned_keyword:
+        existing_kw = (
+            db.query(CategoryKeyword)
+            .filter(CategoryKeyword.keyword == learned_keyword)
+            .first()
+        )
+        if existing_kw:
+            if existing_kw.category_id != category_id:
+                existing_kw.category_id = category_id
+                db.commit()
+                logger.info(
+                    "Updated Keyword mapping: %s → category_id=%d", learned_keyword, category_id
+                )
+            # else already correct — no-op
+        else:
+            new_kw = CategoryKeyword(
+                keyword=learned_keyword,
+                category_id=category_id,
+                is_learned=True,
+            )
+            db.add(new_kw)
+            db.commit()
+            logger.info(
+                "Learned Keyword mapping: %s → category_id=%d", learned_keyword, category_id
+            )
 
-    return None, learned_keyword
+        return learned_handle, learned_keyword
 
+    return learned_handle, None
 
 # ── Merchant normalization patterns ──────────────────────────
 
@@ -532,88 +602,117 @@ def normalize_merchant(description: str | None) -> str | None:
     return text.title()  # "SWIGGY PAYMENT" → "Swiggy Payment"
 
 
+
 def auto_categorize(
     db: Session,
     description: str | None,
-    keywords: list[CategoryKeyword] | None = None,
-) -> Optional[int]:
+    amount: float | str | None = None,
+    bank_name: str | None = None,
+    tx_type: str | None = None,
+) -> tuple[ClassificationResult, bool]:
     """
-    Match a transaction description against category keywords.
-    Returns the category_id of the first matching keyword, or None.
-
-    Matching strategy:
-      - Case-insensitive substring match.
-      - Keywords are checked longest-first to prefer specific matches
-        (e.g., "UBER EATS" before "UBER").
-    """
-    if not description:
-        return None
-
-    desc_upper = description.upper()
-
-    if keywords is None:
-        keywords = db.query(CategoryKeyword).all()
-        # Sort by length descending for longest-match-first
-        keywords.sort(key=lambda k: len(k.keyword), reverse=True)
-
-    for kw in keywords:
-        if kw.keyword in desc_upper:
-            return kw.category_id
-
-    return None
-
-
-def categorize_and_normalize(
-    db: Session,
-    description: str | None,
-    keywords: list | None = None,
-) -> tuple[Optional[int], Optional[str], bool]:
-    """
-    Convenience function: returns (category_id, merchant_name, is_own_transfer).
+    Unified Single-Pass Classification Engine.
 
     Priority order:
-      1. UPI ID match (exact match against learned mapped handles or own handles)
-      2. MCC code (4-digit merchant category code from transaction description)
-      3. Keyword match (substring search of DB keywords in description)
-
-    Pass pre-fetched `keywords` to avoid repeated DB queries during bulk operations.
+      1. User-Defined Classification Rules (Highest Priority: 1.0)
+      2. UPI ID match (exact match against learned mapped handles or own handles: 0.95)
+      3. Own-account UPI transfer detection (0.95)
+      4. MCC code (4-digit merchant category code from description: 0.90)
     """
     is_own_transfer = False
     category_id = None
+    source = None
+    confidence = 0.0
 
-    # 1. Try UPI-based categorization first (includes learned mappings)
-    upi_cat_id, is_own, upi_handle = match_upi_id(db, description)
-    if is_own:
-        is_own_transfer = True
-        
-        # Explicitly map known own transfers to "Self Transfer" category
-        self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
-        if self_transfer_cat:
-            category_id = self_transfer_cat.id
-    else:
-        category_id = upi_cat_id
+    merchant_name = normalize_merchant(description)
 
-    # 1b. Check if this UPI handle belongs to the user (even if not registered yet)
-    if not is_own_transfer and upi_handle:
-        if _is_own_upi_transfer(db, upi_handle):
+    # 1. Step 1 (Highest Priority): User-Defined Classification Rules
+    from app.services.classification_rule_service import ClassificationRuleService
+
+    rule = ClassificationRuleService.match_transaction(
+        db,
+        description=description or "",
+        amount=amount,
+        bank=bank_name or "",
+        transaction_type=tx_type or "",
+        merchant_name=merchant_name or "",
+        upi_handle=extract_upi_id(description),
+    )
+
+    if rule:
+        if rule.mark_as_transfer:
             is_own_transfer = True
-            auto_register_own_upi(db, upi_handle)
-            
-            # Map auto-registered own transfer to "Self Transfer"
+            source = ClassificationSource.AUTO_RULE.value
+            confidence = 1.0
+        elif rule.target_category_id:
+            category_id = rule.target_category_id
+            source = ClassificationSource.AUTO_RULE.value
+            confidence = 1.0
+            rule.applied_count = (rule.applied_count or 0) + 1
+
+    # 2. Step 2: Native UPI-based categorization (if user rule didn't match)
+    target_bank_account_id: int | None = None
+    if category_id is None and not is_own_transfer:
+        upi_cat_id, is_own, upi_handle = match_upi_id(db, description)
+        if is_own:
+            is_own_transfer = True
+            target_bank_account_id = _resolve_bank_account_from_upi(db, upi_handle)
             self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
             if self_transfer_cat:
                 category_id = self_transfer_cat.id
+                source = ClassificationSource.AUTO_UPI.value
+                confidence = 0.95
+        elif upi_cat_id:
+            category_id = upi_cat_id
+            source = ClassificationSource.AUTO_UPI.value
+            confidence = 0.95
 
-    # 2. Try MCC code matching
-    if category_id is None and description:
-        category_id = _match_mcc_code(db, description)
+        # Step 3: Check if this UPI handle belongs to the user (even if not registered yet)
+        if not is_own_transfer and upi_handle:
+            if _is_own_upi_transfer(db, upi_handle):
+                is_own_transfer = True
+                auto_register_own_upi(db, upi_handle)
+                target_bank_account_id = _resolve_bank_account_from_upi(db, upi_handle)
+                self_transfer_cat = db.query(Category).filter(Category.name == "Self Transfer").first()
+                if self_transfer_cat:
+                    category_id = self_transfer_cat.id
+                    source = ClassificationSource.AUTO_UPI.value
+                    confidence = 0.95
 
-    # 3. Fall back to keyword matching if still no category (which natively covers old regexes and aliases)
-    if category_id is None:
-        if keywords is None:
-            keywords = db.query(CategoryKeyword).all()
-            keywords.sort(key=lambda k: len(k.keyword), reverse=True)
-        category_id = auto_categorize(db, description, keywords=keywords)
+    # 3. Step 4: Native MCC code matching
+    if category_id is None and not is_own_transfer and description:
+        mcc_cat_id = _match_mcc_code(db, description)
+        if mcc_cat_id:
+            category_id = mcc_cat_id
+            source = ClassificationSource.AUTO_MCC.value
+            confidence = 0.90
 
-    merchant_name = normalize_merchant(description)
-    return category_id, merchant_name, is_own_transfer
+    # 4. Step 5: Native Keyword matching
+    if category_id is None and not is_own_transfer and description:
+        desc_upper = description.upper()
+        # Fetch all keywords and sort them by length descending so longer keywords match first
+        all_keywords = db.query(CategoryKeyword).all()
+        all_keywords.sort(key=lambda k: len(k.keyword), reverse=True)
+        
+        for kw_obj in all_keywords:
+            kw = kw_obj.keyword
+            if kw in desc_upper:
+                category_id = kw_obj.category_id
+                source = ClassificationSource.AUTO_KEYWORD.value
+                
+                # Check for exact word boundary match
+                pattern = r'\b' + re.escape(kw) + r'\b'
+                if re.search(pattern, desc_upper):
+                    confidence = 0.90
+                else:
+                    confidence = 0.70
+                break
+
+    result = ClassificationResult(
+        category_id=category_id,
+        source=source,
+        confidence=confidence,
+        merchant_name=merchant_name,
+        target_bank_account_id=target_bank_account_id,
+    )
+    return result, is_own_transfer

@@ -27,11 +27,28 @@ def resolve_statement_corpus_root() -> Path | None:
     return None
 
 
+def resolve_case_corpus_root(case: StatementCase) -> Path | None:
+    """Resolve the corpus root for a specific case.
+
+    Cases with a ``corpus_env_var`` (e.g. Federal Bank statements that live in
+    a separate directory) use that env var first.  All other cases fall back to
+    the primary corpus root resolved from ``FINANCE_TRACKER_STATEMENT_CORPUS_ROOT``.
+    """
+    if case.corpus_env_var:
+        env_value = os.getenv(case.corpus_env_var)
+        if env_value:
+            candidate = Path(env_value).expanduser()
+            if candidate.exists():
+                return candidate
+    return resolve_statement_corpus_root()
+
+
 def resolve_case_path(case: StatementCase, corpus_root: Path | None = None) -> Path:
-    root = corpus_root or resolve_statement_corpus_root()
+    root = corpus_root or resolve_case_corpus_root(case)
     if root is None:
+        env_hint = case.corpus_env_var or DEFAULT_STATEMENT_CORPUS_ENV_VAR
         raise FileNotFoundError(
-            f"Statement corpus not found. Set {DEFAULT_STATEMENT_CORPUS_ENV_VAR}."
+            f"Statement corpus not found. Set {env_hint}."
         )
 
     path = root / case.relative_path
@@ -54,9 +71,10 @@ def get_case_password(case: StatementCase) -> str | None:
 
 
 def case_skip_reason(case: StatementCase, corpus_root: Path | None = None) -> str | None:
-    root = corpus_root or resolve_statement_corpus_root()
+    root = corpus_root or resolve_case_corpus_root(case)
     if root is None:
-        return f"Statement corpus not found. Set {DEFAULT_STATEMENT_CORPUS_ENV_VAR}."
+        env_hint = case.corpus_env_var or DEFAULT_STATEMENT_CORPUS_ENV_VAR
+        return f"Statement corpus not found. Set {env_hint}."
 
     if not (root / case.relative_path).exists():
         return f"Statement case file not found: {root / case.relative_path}"
@@ -73,12 +91,11 @@ def available_statement_cases(
     *,
     require_passwords: bool = False,
 ) -> list[StatementCase]:
-    root = corpus_root or resolve_statement_corpus_root()
-    if root is None:
-        return []
-
     available: list[StatementCase] = []
     for case in cases:
+        root = corpus_root or resolve_case_corpus_root(case)
+        if root is None:
+            continue
         if not (root / case.relative_path).exists():
             continue
         if require_passwords and case.requires_password and not get_case_password(case):

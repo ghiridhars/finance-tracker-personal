@@ -15,6 +15,7 @@ class AdminState {
   final int currentPage;
   final int pageSize;
   final String? searchQuery;
+  final String? searchColumn;
   final String? sortColumn;
   final String sortOrder;
   final bool isLoading;
@@ -30,6 +31,7 @@ class AdminState {
     this.currentPage = 0,
     this.pageSize = 50,
     this.searchQuery,
+    this.searchColumn,
     this.sortColumn,
     this.sortOrder = 'desc',
     this.isLoading = false,
@@ -46,6 +48,7 @@ class AdminState {
     int? currentPage,
     int? pageSize,
     String? searchQuery,
+    String? searchColumn,
     String? sortColumn,
     String? sortOrder,
     bool? isLoading,
@@ -64,6 +67,7 @@ class AdminState {
         currentPage: currentPage ?? this.currentPage,
         pageSize: pageSize ?? this.pageSize,
         searchQuery: clearSearch ? null : (searchQuery ?? this.searchQuery),
+        searchColumn: clearSearch ? null : (searchColumn ?? this.searchColumn),
         sortColumn: sortColumn ?? this.sortColumn,
         sortOrder: sortOrder ?? this.sortOrder,
         isLoading: isLoading ?? this.isLoading,
@@ -130,9 +134,9 @@ class AdminNotifier extends Notifier<AdminState> {
     await _fetchRows();
   }
 
-  Future<void> setSearch(String? query) async {
-    if (query == state.searchQuery) return;
-    state = state.copyWith(searchQuery: query, currentPage: 0, isLoading: true, clearError: true);
+  Future<void> setSearch(String? query, {String? column}) async {
+    if (query == state.searchQuery && column == state.searchColumn) return;
+    state = state.copyWith(searchQuery: query, searchColumn: column, currentPage: 0, isLoading: true, clearError: true);
     await _fetchRows();
   }
 
@@ -178,6 +182,7 @@ class AdminNotifier extends Notifier<AdminState> {
         sort: state.sortColumn,
         order: state.sortOrder,
         search: state.searchQuery,
+        searchColumn: state.searchColumn,
       );
       state = state.copyWith(
         rows: response.rows,

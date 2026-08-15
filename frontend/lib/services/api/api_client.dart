@@ -66,7 +66,21 @@ class ApiClient {
     try {
       final json = jsonDecode(body);
       if (json is Map && json.containsKey('detail')) {
-        return json['detail'].toString();
+        final detail = json['detail'];
+        if (detail is List) {
+          final msgs = detail.map((e) {
+            if (e is Map && e.containsKey('msg')) {
+              final msg = e['msg'].toString();
+              return msg.startsWith('Value error, ')
+                  ? msg.substring(13)
+                  : msg;
+            }
+            return e.toString();
+          }).join('; ');
+          if (msgs.isNotEmpty) return msgs;
+        }
+        final s = detail.toString();
+        return s.startsWith('Value error, ') ? s.substring(13) : s;
       }
     } catch (_) {}
     return body;

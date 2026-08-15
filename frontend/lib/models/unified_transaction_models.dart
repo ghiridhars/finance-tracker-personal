@@ -13,6 +13,7 @@ class UnifiedTransaction {
   final String? sourceType;
   final int? sourceTransactionId;
   final String? bank;
+  final int? bankAccountId;
   final String? accountIdentifier;
   final int? categoryId;
   final Category? category;
@@ -22,9 +23,18 @@ class UnifiedTransaction {
   final bool isTransfer;
   final String? transferGroupId;
   final String? transferType;
+  final int? fromAccountId;
+  final int? toAccountId;
+  final String? fromAccountName;
+  final String? toAccountName;
   final String? reviewStatus;
   final String? reviewReason;
-  final List<Tag> tags;
+
+  final String? classificationSource;
+  final int? suggestedCategoryId;
+  final String? suggestedCategoryName;
+  final double? classificationConfidence;
+  final bool isExcluded;
   final String? createdAt;
 
   UnifiedTransaction({
@@ -36,6 +46,7 @@ class UnifiedTransaction {
     this.sourceType,
     this.sourceTransactionId,
     this.bank,
+    this.bankAccountId,
     this.accountIdentifier,
     this.categoryId,
     this.category,
@@ -45,9 +56,17 @@ class UnifiedTransaction {
     this.isTransfer = false,
     this.transferGroupId,
     this.transferType,
+    this.fromAccountId,
+    this.toAccountId,
+    this.fromAccountName,
+    this.toAccountName,
     this.reviewStatus,
     this.reviewReason,
-    this.tags = const [],
+    this.classificationSource,
+    this.suggestedCategoryId,
+    this.suggestedCategoryName,
+    this.classificationConfidence,
+    this.isExcluded = false,
     this.createdAt,
   });
 
@@ -63,6 +82,7 @@ class UnifiedTransaction {
       sourceType: json['source_type'],
       sourceTransactionId: json['source_transaction_id'],
       bank: json['bank'],
+      bankAccountId: json['bank_account_id'],
       accountIdentifier: json['account_identifier'],
       categoryId: json['category_id'],
       category: json['category'] != null
@@ -74,12 +94,19 @@ class UnifiedTransaction {
       isTransfer: json['is_transfer'] ?? false,
       transferGroupId: json['transfer_group_id'],
       transferType: json['transfer_type'],
+      fromAccountId: json['from_account_id'],
+      toAccountId: json['to_account_id'],
+      fromAccountName: json['from_account_name'],
+      toAccountName: json['to_account_name'],
       reviewStatus: json['review_status'],
       reviewReason: json['review_reason'],
-      tags: (json['tags'] as List<dynamic>?)
-              ?.map((t) => Tag.fromJson(t))
-              .toList() ??
-          [],
+      classificationSource: json['classification_source'],
+      suggestedCategoryId: json['suggested_category_id'],
+      suggestedCategoryName: json['suggested_category'] != null 
+          ? json['suggested_category']['name'] 
+          : null,
+      classificationConfidence: toDouble(json['classification_confidence']),
+      isExcluded: json['is_excluded'] ?? false,
       createdAt: json['created_at'],
     );
   }

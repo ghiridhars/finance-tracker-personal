@@ -1,5 +1,6 @@
 /// UPI ID API module — manages UPI handle ↔ account/category mappings.
 library;
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/upi_models.dart';
@@ -16,13 +17,15 @@ class UpiApi {
     if (accountIdentifier != null) {
       params['account_identifier'] = accountIdentifier;
     }
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/upi-ids')
-        .replace(queryParameters: params.isNotEmpty ? params : null);
+    final uri = Uri.parse(
+      '${ApiClient.baseUrl}/api/v2/upi-ids',
+    ).replace(queryParameters: params.isNotEmpty ? params : null);
 
     final response = await http.get(uri, headers: ApiClient.headers);
     if (response.statusCode != 200) {
       throw Exception(
-          'Failed to fetch UPI IDs: ${ApiClient.extractErrorDetail(response.body)}');
+        'Failed to fetch UPI IDs: ${ApiClient.extractErrorDetail(response.body)}',
+      );
     }
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((d) => UpiId.fromJson(d)).toList();
@@ -37,10 +40,7 @@ class UpiApi {
     int? categoryId,
     bool isOwn = false,
   }) async {
-    final body = <String, dynamic>{
-      'upi_handle': upiHandle,
-      'is_own': isOwn,
-    };
+    final body = <String, dynamic>{'upi_handle': upiHandle, 'is_own': isOwn};
     if (label != null) body['label'] = label;
     if (accountType != null) body['account_type'] = accountType;
     if (accountIdentifier != null) {
@@ -55,7 +55,8 @@ class UpiApi {
     );
     if (response.statusCode != 201) {
       throw Exception(
-          'Failed to create UPI ID: ${ApiClient.extractErrorDetail(response.body)}');
+        'Failed to create UPI ID: ${ApiClient.extractErrorDetail(response.body)}',
+      );
     }
     return UpiId.fromJson(jsonDecode(response.body));
   }
@@ -63,6 +64,7 @@ class UpiApi {
   /// Update an existing UPI ID mapping.
   static Future<UpiId> updateUpiId(
     int upiId, {
+    String? upiHandle,
     String? label,
     String? accountType,
     String? accountIdentifier,
@@ -70,6 +72,7 @@ class UpiApi {
     bool? isOwn,
   }) async {
     final body = <String, dynamic>{};
+    if (upiHandle != null) body['upi_handle'] = upiHandle;
     if (label != null) body['label'] = label;
     if (accountType != null) body['account_type'] = accountType;
     if (accountIdentifier != null) {
@@ -85,7 +88,8 @@ class UpiApi {
     );
     if (response.statusCode != 200) {
       throw Exception(
-          'Failed to update UPI ID: ${ApiClient.extractErrorDetail(response.body)}');
+        'Failed to update UPI ID: ${ApiClient.extractErrorDetail(response.body)}',
+      );
     }
     return UpiId.fromJson(jsonDecode(response.body));
   }
@@ -98,7 +102,8 @@ class UpiApi {
     );
     if (response.statusCode != 200) {
       throw Exception(
-          'Failed to delete UPI ID: ${ApiClient.extractErrorDetail(response.body)}');
+        'Failed to delete UPI ID: ${ApiClient.extractErrorDetail(response.body)}',
+      );
     }
   }
 
@@ -110,8 +115,27 @@ class UpiApi {
     );
     if (response.statusCode != 200) {
       throw Exception(
-          'Failed to rescan: ${ApiClient.extractErrorDetail(response.body)}');
+        'Failed to rescan: ${ApiClient.extractErrorDetail(response.body)}',
+      );
     }
     return UpiRescanResult.fromJson(jsonDecode(response.body));
+  }
+
+  /// List UPI handles seen in transactions but not mapped
+  static Future<List<Map<String, dynamic>>> getUnassignedUpiHandles({
+    int limit = 100,
+  }) async {
+    final uri = Uri.parse(
+      '${ApiClient.baseUrl}/api/v2/upi-ids/unassigned',
+    ).replace(queryParameters: {'limit': limit.toString()});
+
+    final response = await http.get(uri, headers: ApiClient.headers);
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to fetch unassigned UPI handles: ${ApiClient.extractErrorDetail(response.body)}',
+      );
+    }
+    final List<dynamic> data = jsonDecode(response.body);
+    return data.cast<Map<String, dynamic>>();
   }
 }

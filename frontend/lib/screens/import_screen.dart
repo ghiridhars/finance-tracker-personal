@@ -16,6 +16,7 @@ import '../providers/statements_provider.dart';
 import '../providers/local_sync_provider.dart';
 import '../providers/gdrive_import_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/ui_system/ui_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum _ImportMode { upload, directory, gdrive }
@@ -201,13 +202,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
             // Instruction card
             if (_selectedFile == null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.primaryContainer),
-                ),
+              ModernCard(
+                padding: const EdgeInsets.all(20),
+                backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                borderColor: colorScheme.primary.withValues(alpha: 0.3),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -500,7 +498,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'csv', 'txt'],
       withData: true,
@@ -693,7 +691,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Future<void> _pickDirectory() async {
-    final result = await FilePicker.platform.getDirectoryPath(
+    final result = await FilePicker.getDirectoryPath(
       dialogTitle: 'Select Statements Folder',
     );
     if (result != null) {

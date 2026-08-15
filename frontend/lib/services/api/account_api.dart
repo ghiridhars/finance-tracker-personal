@@ -1,4 +1,4 @@
-/// Account and statement management API calls.
+/// Account management API calls (CRUD, merge, delete, summary).
 library;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -19,105 +19,100 @@ class AccountApi {
     return data.map((a) => Account.fromJson(a)).toList();
   }
 
-  /// List savings statements (paginated).
-  static Future<PaginatedResponse<SavingsStatementSummary>>
-      getSavingsStatements({
-    String? accountNumber,
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    final params = <String, String>{
-      'limit': limit.toString(),
-      'offset': offset.toString(),
-    };
-    if (accountNumber != null) params['account_number'] = accountNumber;
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/statements/savings')
-        .replace(queryParameters: params);
-    final response = await http.get(uri, headers: ApiClient.headers);
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fetch savings statements: ${response.body}');
-    }
-    final body = jsonDecode(response.body);
-    final items = (body['items'] as List)
-        .map((s) => SavingsStatementSummary.fromJson(s))
-        .toList();
-    return PaginatedResponse(
-      items: items,
-      total: body['total'],
-      limit: body['limit'],
-      offset: body['offset'],
-    );
-  }
-
-  /// List credit card statements (paginated).
-  static Future<PaginatedResponse<CreditCardStatementSummary>>
-      getCreditCardStatements({
-    String? cardNumber,
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    final params = <String, String>{
-      'limit': limit.toString(),
-      'offset': offset.toString(),
-    };
-    if (cardNumber != null) params['card_number'] = cardNumber;
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/statements/credit-card')
-        .replace(queryParameters: params);
-    final response = await http.get(uri, headers: ApiClient.headers);
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fetch CC statements: ${response.body}');
-    }
-    final body = jsonDecode(response.body);
-    final items = (body['items'] as List)
-        .map((s) => CreditCardStatementSummary.fromJson(s))
-        .toList();
-    return PaginatedResponse(
-      items: items,
-      total: body['total'],
-      limit: body['limit'],
-      offset: body['offset'],
-    );
-  }
-
-  /// Delete a savings statement (and its cascaded transactions).
-  static Future<void> deleteSavingsStatement(int statementId) async {
-    final response = await http.delete(
-      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/statements/savings/$statementId'),
-      headers: ApiClient.headers,
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Failed to delete savings statement: ${response.body}');
-    }
-  }
-
-  /// Delete a credit card statement (and its cascaded transactions).
-  static Future<void> deleteCreditCardStatement(int statementId) async {
-    final response = await http.delete(
-      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/statements/credit-card/$statementId'),
-      headers: ApiClient.headers,
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Failed to delete CC statement: ${response.body}');
-    }
-  }
-
-  /// Rename an account (update holder name).
-  static Future<void> renameAccount({
+  static Future<Map<String, dynamic>> createAccount({
+    required String bankName,
     required String accountType,
-    required String identifier,
     required String name,
+    String? accountNumber,
+    String? holderName,
+    String? ifscCode,
+    String? accountSubtype,
+    String? notes,
+    double? loanPrincipal,
+    double? loanInterestRate,
+    double? loanEmiAmount,
+    String? loanStartDate,
+    String? loanEndDate,
+    double? creditLimit,
+    int? billingCycleDay,
+    double? investedAmount,
+    double? currentValue,
   }) async {
-    final uri = Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/rename').replace(
-      queryParameters: {
-        'account_type': accountType,
-        'identifier': identifier,
-        'name': name,
-      },
+    final body = {
+      'bank_name': bankName,
+      'account_type': accountType,
+      'name': name,
+      if (accountNumber != null) 'account_number': accountNumber,
+      if (holderName != null) 'holder_name': holderName,
+      if (ifscCode != null) 'ifsc_code': ifscCode,
+      if (accountSubtype != null) 'account_subtype': accountSubtype,
+      if (notes != null) 'notes': notes,
+      if (loanPrincipal != null) 'loan_principal': loanPrincipal,
+      if (loanInterestRate != null) 'loan_interest_rate': loanInterestRate,
+      if (loanEmiAmount != null) 'loan_emi_amount': loanEmiAmount,
+      if (loanStartDate != null) 'loan_start_date': loanStartDate,
+      if (loanEndDate != null) 'loan_end_date': loanEndDate,
+      if (creditLimit != null) 'credit_limit': creditLimit,
+      if (billingCycleDay != null) 'billing_cycle_day': billingCycleDay,
+      if (investedAmount != null) 'invested_amount': investedAmount,
+      if (currentValue != null) 'current_value': currentValue,
+    };
+    final response = await http.post(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts'),
+      headers: ApiClient.jsonHeaders,
+      body: jsonEncode(body),
     );
-    final response = await http.patch(uri, headers: ApiClient.headers);
-    if (response.statusCode != 200) {
-      final detail = ApiClient.extractErrorDetail(response.body);
-      throw Exception('Failed to rename account: $detail');
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to create account: ${ApiClient.extractErrorDetail(response.body)}');
     }
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> updateAccount(int accountId, Map<String, dynamic> updates) async {
+    final response = await http.put(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/$accountId'),
+      headers: ApiClient.jsonHeaders,
+      body: jsonEncode(updates),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update account: ${ApiClient.extractErrorDetail(response.body)}');
+    }
+    return jsonDecode(response.body);
+  }
+
+  static Future<void> mergeAccounts(int sourceId, int targetId) async {
+    final body = {
+      'source_account_id': sourceId,
+      'target_account_id': targetId,
+    };
+    final response = await http.post(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/merge'),
+      headers: ApiClient.jsonHeaders,
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to merge accounts: ${ApiClient.extractErrorDetail(response.body)}');
+    }
+  }
+
+  static Future<void> deleteAccount(int accountId) async {
+    final response = await http.delete(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/$accountId'),
+      headers: ApiClient.headers,
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete account: ${ApiClient.extractErrorDetail(response.body)}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAccountSummary(int accountId) async {
+    final response = await http.get(
+      Uri.parse('${ApiClient.baseUrl}/api/v2/accounts/$accountId/summary'),
+      headers: ApiClient.headers,
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get account summary: ${ApiClient.extractErrorDetail(response.body)}');
+    }
+    return jsonDecode(response.body);
   }
 }
