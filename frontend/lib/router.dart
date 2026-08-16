@@ -38,70 +38,105 @@ class AppRoutes {
   static const classificationRules = '/classification-rules';
 }
 
+/// Navigation group — controls visual section in the sidebar.
+enum NavGroup { core, manage, tools }
+
 /// Navigation destination metadata used by both the shell and router.
 class NavDestination {
   final String label;
+  final String description;
   final IconData icon;
   final IconData selectedIcon;
   final String path;
+  final NavGroup group;
 
   const NavDestination({
     required this.label,
+    required this.description,
     required this.icon,
     required this.selectedIcon,
     required this.path,
+    required this.group,
   });
 }
 
 /// All navigation destinations in order.
+/// Grouped as: CORE (daily use), MANAGE (import), TOOLS (config).
 const List<NavDestination> navDestinations = [
+  // ── CORE ──────────────────────────────────────────────────
   NavDestination(
     label: 'Dashboard',
+    description: 'Net worth, spending overview and recent transactions',
     icon: Icons.dashboard_outlined,
     selectedIcon: Icons.dashboard,
     path: AppRoutes.dashboard,
+    group: NavGroup.core,
+  ),
+  NavDestination(
+    label: 'Review',
+    description: 'Categorise and confirm pending transactions',
+    icon: Icons.rate_review_outlined,
+    selectedIcon: Icons.rate_review,
+    path: AppRoutes.review,
+    group: NavGroup.core,
   ),
   NavDestination(
     label: 'Calendar',
+    description: 'Browse transactions by date and month',
     icon: Icons.calendar_month_outlined,
     selectedIcon: Icons.calendar_month,
     path: AppRoutes.calendar,
+    group: NavGroup.core,
   ),
   NavDestination(
     label: 'Investments',
+    description: 'Portfolio performance and holdings',
     icon: Icons.stacked_line_chart_outlined,
     selectedIcon: Icons.stacked_line_chart,
     path: AppRoutes.investments,
-  ),
-  NavDestination(
-    label: 'Import',
-    icon: Icons.publish_outlined,
-    selectedIcon: Icons.publish,
-    path: AppRoutes.import_,
+    group: NavGroup.core,
   ),
   NavDestination(
     label: 'Accounts',
+    description: 'Bank accounts, statements and balances',
     icon: Icons.account_balance_wallet_outlined,
     selectedIcon: Icons.account_balance_wallet,
     path: AppRoutes.accounts,
+    group: NavGroup.core,
   ),
+  // ── MANAGE ────────────────────────────────────────────────
   NavDestination(
-    label: 'UPI Directory',
-    icon: Icons.contacts_outlined,
-    selectedIcon: Icons.contacts,
-    path: AppRoutes.upiDirectory,
+    label: 'Import',
+    description: 'Upload bank statement PDFs for automatic parsing',
+    icon: Icons.upload_file_outlined,
+    selectedIcon: Icons.upload_file,
+    path: AppRoutes.import_,
+    group: NavGroup.manage,
   ),
-  NavDestination(
-    label: 'Settings',
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings,
-    path: AppRoutes.settings,
-  ),
+  // ── TOOLS ─────────────────────────────────────────────────
   NavDestination(
     label: 'Rules',
+    description: 'Auto-classify transactions by keyword or merchant',
     icon: Icons.rule_outlined,
     selectedIcon: Icons.rule,
     path: AppRoutes.classificationRules,
+    group: NavGroup.tools,
+  ),
+  NavDestination(
+    label: 'UPI Directory',
+    description: 'Map UPI handles to contacts and bank accounts',
+    icon: Icons.contacts_outlined,
+    selectedIcon: Icons.contacts,
+    path: AppRoutes.upiDirectory,
+    group: NavGroup.tools,
+  ),
+  NavDestination(
+    label: 'Settings',
+    description: 'App preferences, theme and data management',
+    icon: Icons.settings_outlined,
+    selectedIcon: Icons.settings,
+    path: AppRoutes.settings,
+    group: NavGroup.tools,
   ),
 ];
 

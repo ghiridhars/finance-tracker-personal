@@ -842,6 +842,13 @@ class _RowFormDialogState extends State<_RowFormDialog> {
   void initState() {
     super.initState();
     _data = Map.from(widget.initialData);
+    // Pre-seed boolean columns to false so non-nullable bool fields
+    // are never null in the payload for new rows.
+    for (final col in widget.schema.columns) {
+      if (col.type == 'boolean' && !_data.containsKey(col.name)) {
+        _data[col.name] = false;
+      }
+    }
   }
 
   static const _systemColumns = {
@@ -1082,15 +1089,23 @@ class _RowFormDialogState extends State<_RowFormDialog> {
   }
 
   Widget _buildBoolSwitch(ColumnInfo col) {
-    final currentVal =
-        _data[col.name] == true ||
-        _data[col.name] == 1 ||
-        _data[col.name] == '1';
-    return SwitchListTile(
-      title: Text(col.name),
-      value: currentVal,
-      onChanged: (v) => setState(() => _data[col.name] = v),
-      contentPadding: EdgeInsets.zero,
+    // Wrap in FormField so _formKey.currentState!.save() captures the value.
+    return FormField<bool>(
+      initialValue: _data[col.name] == true ||
+          _data[col.name] == 1 ||
+          _data[col.name] == '1',
+      onSaved: (v) => _data[col.name] = v ?? false,
+      builder: (field) {
+        return SwitchListTile(
+          title: Text(col.name),
+          value: field.value ?? false,
+          onChanged: (v) {
+            field.didChange(v);
+            setState(() => _data[col.name] = v);
+          },
+          contentPadding: EdgeInsets.zero,
+        );
+      },
     );
   }
 
